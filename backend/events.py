@@ -1,6 +1,7 @@
 from functools import wraps
 from flask_login import current_user
-from flask_socketio import join_room, emit, request
+from flask import request
+from flask_socketio import join_room, emit
 from extensions import db
 from models import Loss, Hazard, SystemConstraint, ControlAction, UCA, LossScenario
 
