@@ -81,11 +81,11 @@ function buildNodesAndEdges(data) {
     edges.push(makeEdge(`hazard-${h.parent_hazard_id}`, `hazard-${h.id}`, false))
   })
 
-  // Loss → Hazard solid edges (Loss is parent, Hazard is child)
+  // Hazard → Loss dashed reference edges (hazard references its associated loss)
   hazards.forEach(h => {
     if (h.loss_ids && Array.isArray(h.loss_ids)) {
       h.loss_ids.forEach(lid => {
-        edges.push(makeEdge(`loss-${lid}`, `hazard-${h.id}`, false))
+        edges.push(makeEdge(`hazard-${h.id}`, `loss-${lid}`, true))
       })
     }
   })
@@ -187,6 +187,11 @@ const useCanvasStore = create((set, get) => ({
   selectedNode: null,
   activeUsers: [],
   collapsedNodes: new Set(),
+  // Undo/redo for node position moves
+  moveHistory: [],
+  moveHistoryIndex: -1,
+  // Copy/paste
+  copiedNode: null,
 
   setUser(user) {
     set({ user, isAuthenticated: user != null })
@@ -246,6 +251,24 @@ const useCanvasStore = create((set, get) => ({
 
   setActiveUsers(users) {
     set({ activeUsers: users })
+  },
+
+  setCopiedNode(node) {
+    set({ copiedNode: node })
+  },
+
+  pushHistory(entry) {
+    set(state => {
+      const past = state.moveHistory.slice(0, state.moveHistoryIndex + 1)
+      const next = [...past, entry].slice(-50)
+      return { moveHistory: next, moveHistoryIndex: next.length - 1 }
+    })
+  },
+
+  updateHistoryEntry(index, changes) {
+    set(state => ({
+      moveHistory: state.moveHistory.map((e, i) => i === index ? { ...e, ...changes } : e),
+    }))
   },
 
   setFocusNode(rfNodeId) {

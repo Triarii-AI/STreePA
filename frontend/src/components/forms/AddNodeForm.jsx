@@ -134,7 +134,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
         for (const lid of selectedLossIds) {
           try {
             await createLink(projectId, 'hazard', nodeData.id, 'loss', lid)
-            addRFEdge(makeRFEdge(`loss-${lid}`, `hazard-${nodeData.id}`, false))
+            addRFEdge(makeRFEdge(`hazard-${nodeData.id}`, `loss-${lid}`, true))
             linkedIds.push(lid)
           } catch (_) {}
         }
@@ -150,6 +150,18 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
         position,
       })
 
+      useCanvasStore.getState().pushHistory({
+        action: 'create',
+        rfId: rfNode.id,
+        nodeType,
+        nodeId: nodeData.id,
+        projectId,
+        snapshot: {
+          nodeData: { ...nodeData, nodeType, loss_ids: selectedLossIds.length > 0 ? selectedLossIds : [] },
+          position,
+          rfNodeType: RF_NODE_TYPES[nodeType],
+        },
+      })
       onCreated(rfNode)
       onClose()
     } catch (err) {

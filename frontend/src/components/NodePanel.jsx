@@ -48,8 +48,6 @@ export default function NodePanel({ projectId }) {
   const edges = useCanvasStore(s => s.edges)
   const addRFEdge = useCanvasStore(s => s.addRFEdge)
   const removeRFEdge = useCanvasStore(s => s.removeRFEdge)
-  const toggleNodeCollapse = useCanvasStore(s => s.toggleNodeCollapse)
-  const collapsedNodes = useCanvasStore(s => s.collapsedNodes)
   const loadProject = useCanvasStore(s => s.loadProject)
 
   const [formData, setFormData] = useState({})
@@ -81,13 +79,15 @@ export default function NodePanel({ projectId }) {
   const allLosses = getNodesByType('loss')
   const allHazards = getNodesByType('hazard')
   const allUCAs = getNodesByType('uca')
+  const allCAs = getNodesByType('control_action')
 
   // Check if node has children (for collapse toggle)
-  const hasChildren = edges.some(e => e.source === rfNodeId && !(e.style?.strokeDasharray))
-  const isCollapsed = collapsedNodes.has(rfNodeId)
-
   function handleFieldChange(field, value) {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    const numericParentFields = ['parent_hazard_id', 'control_action_id', 'uca_id']
+    const parsed = numericParentFields.includes(field)
+      ? (value === '' ? null : parseInt(value, 10))
+      : value
+    setFormData(prev => ({ ...prev, [field]: parsed }))
   }
 
   async function handleSave() {
@@ -103,6 +103,25 @@ export default function NodePanel({ projectId }) {
 
       const result = await updateNode(projectId, nodeType, nodeId, changedFields)
       updateRFNode(rfNodeId, changedFields)
+      // Update parent edges when structural parent fields change
+      if ('parent_hazard_id' in changedFields) {
+        const oldPid = nodeData.parent_hazard_id
+        const newPid = changedFields.parent_hazard_id
+        if (oldPid) removeRFEdge(`e-hazard-${oldPid}-hazard-${nodeId}`)
+        if (newPid) addRFEdge(makeRFEdge(`hazard-${newPid}`, rfNodeId, false))
+      }
+      if ('control_action_id' in changedFields) {
+        const oldCid = nodeData.control_action_id
+        const newCid = changedFields.control_action_id
+        if (oldCid) removeRFEdge(`e-ca-${oldCid}-uca-${nodeId}`)
+        if (newCid) addRFEdge(makeRFEdge(`ca-${newCid}`, rfNodeId, false))
+      }
+      if ('uca_id' in changedFields) {
+        const oldUid = nodeData.uca_id
+        const newUid = changedFields.uca_id
+        if (oldUid) removeRFEdge(`e-uca-${oldUid}-ls-${nodeId}`)
+        if (newUid) addRFEdge(makeRFEdge(`uca-${newUid}`, rfNodeId, false))
+      }
       socket.emit('node:updated', {
         project_id: projectId,
         node_type: nodeType,
@@ -124,6 +143,18 @@ export default function NodePanel({ projectId }) {
       socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
       removeRFNode(rfNodeId)
       setSelectedNode(null)
+      useCanvasStore.getState().pushHistory({
+        action: 'delete',
+        rfId: rfNodeId,
+        nodeType,
+        nodeId,
+        projectId,
+        snapshot: {
+          nodeData: { ...nodeData },
+          position: { ...(selectedNode?.position || {}) },
+          rfNodeType: selectedNode?.type,
+        },
+      })
     } catch (err) {
       alert(err.message || 'Failed to delete node.')
       setDeleting(false)
@@ -138,9 +169,8 @@ export default function NodePanel({ projectId }) {
       const newIds = [...idList, toId]
       updateRFNode(rfNodeId, { [`${toType}_ids`]: newIds })
       setFormData(prev => ({ ...prev, [`${toType}_ids`]: newIds }))
-      // Loss is parent of Hazard: edge runs loss→hazard (solid), not hazard→loss
       if (fromType === 'hazard' && toType === 'loss') {
-        addRFEdge(makeRFEdge(`loss-${toId}`, `hazard-${fromId}`, false))
+        addRFEdge(makeRFEdge(`hazard-${fromId}`, `loss-${toId}`, true))
       } else {
         addRFEdge(makeRFEdge(`${nodeTypeToPrefix(fromType)}-${fromId}`, `${nodeTypeToPrefix(toType)}-${toId}`, true))
       }
@@ -157,9 +187,8 @@ export default function NodePanel({ projectId }) {
       const newIds = idList.filter(id => id !== toId)
       updateRFNode(rfNodeId, { [`${toType}_ids`]: newIds })
       setFormData(prev => ({ ...prev, [`${toType}_ids`]: newIds }))
-      // Edge was stored as loss→hazard, so the ID uses that order
       const edgeId = (fromType === 'hazard' && toType === 'loss')
-        ? `e-loss-${toId}-hazard-${fromId}`
+        ? `e-hazard-${fromId}-loss-${toId}`
         : `e-${nodeTypeToPrefix(fromType)}-${fromId}-${nodeTypeToPrefix(toType)}-${toId}`
       removeRFEdge(edgeId)
     } catch (err) {
@@ -237,6 +266,19 @@ export default function NodePanel({ projectId }) {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Parent Hazard</label>
+              <select
+                value={formData.parent_hazard_id || ''}
+                onChange={e => handleFieldChange('parent_hazard_id', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              >
+                <option value="">None (top-level)</option>
+                {allHazards.filter(h => h.id !== nodeId).map(h => (
+                  <option key={h.id} value={h.id}>{h.label}</option>
+                ))}
+              </select>
+            </div>
           </>
         )}
 
@@ -290,19 +332,47 @@ export default function NodePanel({ projectId }) {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Control Action</label>
+              <select
+                value={formData.control_action_id || ''}
+                onChange={e => handleFieldChange('control_action_id', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                <option value="">None</option>
+                {allCAs.map(ca => (
+                  <option key={ca.id} value={ca.id}>{ca.label || ca.name}</option>
+                ))}
+              </select>
+            </div>
           </>
         )}
 
         {nodeType === 'loss_scenario' && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              value={formData.description || ''}
-              onChange={e => handleFieldChange('description', e.target.value)}
-              rows={3}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-          </div>
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={formData.description || ''}
+                onChange={e => handleFieldChange('description', e.target.value)}
+                rows={3}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">UCA</label>
+              <select
+                value={formData.uca_id || ''}
+                onChange={e => handleFieldChange('uca_id', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+              >
+                <option value="">None</option>
+                {allUCAs.map(u => (
+                  <option key={u.id} value={u.id}>{u.label}</option>
+                ))}
+              </select>
+            </div>
+          </>
         )}
 
         {/* Save / Delete buttons */}
@@ -480,20 +550,6 @@ export default function NodePanel({ projectId }) {
           </div>
         )}
 
-        {/* Collapse/Expand toggle */}
-        {hasChildren && (
-          <div className="border-t border-gray-100 pt-3">
-            <button
-              onClick={() => toggleNodeCollapse(rfNodeId)}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              <span>{isCollapsed ? 'Expand children' : 'Collapse children'}</span>
-              <svg className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

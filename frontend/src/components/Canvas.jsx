@@ -3,7 +3,7 @@
 // built-in zoom/pan/fit controls, and active maintenance. Best fit for React-based UIs
 // requiring rich per-node interactivity without low-level SVG management.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -18,7 +18,8 @@ import '@xyflow/react/dist/style.css'
 
 import useCanvasStore from '../store/canvasStore.js'
 import socket from '../socket.js'
-import { updateNode, createCanvasEdge } from '../api.js'
+import { updateNode, createCanvasEdge, deleteNode, createNode, createLink } from '../api.js'
+import { makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 
 import RootNode from './nodes/RootNode.jsx'
 import LossNode from './nodes/LossNode.jsx'
@@ -74,6 +75,65 @@ function rfIdParts(rfId) {
   return { nodeType, nodeId }
 }
 
+async function recreateNode(entry) {
+  const { snapshot, projectId } = entry
+  const { nodeData, position, rfNodeType } = snapshot
+  const nodeType = nodeData.nodeType
+
+  const payload = {}
+  if (nodeData.description) payload.description = nodeData.description
+  if (nodeData.name) payload.name = nodeData.name
+  if (nodeData.uca_type) payload.uca_type = nodeData.uca_type
+  if (nodeData.control_action_id) payload.control_action_id = parseInt(nodeData.control_action_id)
+  if (nodeData.uca_id) payload.uca_id = parseInt(nodeData.uca_id)
+  if (nodeData.parent_hazard_id) payload.parent_hazard_id = parseInt(nodeData.parent_hazard_id)
+  if (nodeData.linked_hazard_id) payload.linked_hazard_id = parseInt(nodeData.linked_hazard_id)
+
+  const result = await createNode(projectId, nodeType, payload)
+  const newNodeData = result[nodeType] || result.node || result
+  const newNodeId = newNodeData.id
+  const prefix = nodeTypeToPrefix(nodeType)
+  const newRfId = `${prefix}-${newNodeId}`
+
+  const store = useCanvasStore.getState()
+  store.addRFNode({
+    id: newRfId,
+    type: rfNodeType,
+    position: { ...position },
+    data: { ...nodeData, ...newNodeData, nodeType },
+  })
+
+  if (nodeType === 'loss') {
+    const project = store.currentProject
+    if (project) store.addRFEdge(makeRFEdge(`root-${project.id}`, newRfId, false))
+  } else if (nodeType === 'hazard' && payload.parent_hazard_id) {
+    store.addRFEdge(makeRFEdge(`hazard-${payload.parent_hazard_id}`, newRfId, false))
+  } else if (nodeType === 'uca' && payload.control_action_id) {
+    store.addRFEdge(makeRFEdge(`ca-${payload.control_action_id}`, newRfId, false))
+  } else if (nodeType === 'loss_scenario' && payload.uca_id) {
+    store.addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, newRfId, false))
+  }
+
+  for (const lid of (nodeData.loss_ids || [])) {
+    try {
+      await createLink(projectId, 'hazard', newNodeId, 'loss', lid)
+      store.addRFEdge(makeRFEdge(newRfId, `loss-${lid}`, true))
+    } catch (_) {}
+  }
+  for (const hid of (nodeData.hazard_ids || [])) {
+    const fromType = nodeType === 'uca' ? 'uca' : 'loss_scenario'
+    try {
+      await createLink(projectId, fromType, newNodeId, 'hazard', hid)
+      store.addRFEdge(makeRFEdge(newRfId, `hazard-${hid}`, true))
+    } catch (_) {}
+  }
+  if (nodeType === 'system_constraint' && payload.linked_hazard_id) {
+    store.addRFEdge(makeRFEdge(newRfId, `hazard-${payload.linked_hazard_id}`, true))
+  }
+
+  return { newRfId, newNodeId }
+}
+
 function CanvasInner({ projectId }) {
   const reactFlow = useReactFlow()
   const nodes = useCanvasStore(s => s.nodes)
@@ -85,6 +145,8 @@ function CanvasInner({ projectId }) {
 
   const [addFormType, setAddFormType] = useState(null)
   const [fitDone, setFitDone] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const dragStartPos = useRef({})
 
   // Fit view on initial load
   useEffect(() => {
@@ -124,37 +186,33 @@ function CanvasInner({ projectId }) {
     setSelectedNode(node)
   }, [setSelectedNode])
 
+  const onNodeDragStart = useCallback((e, node) => {
+    dragStartPos.current[node.id] = { ...node.position }
+  }, [])
+
   const onNodeDragStop = useCallback(async (e, node) => {
     const rfId = node.id
     const parts = rfId.split('-')
-    // Handle prefixes like 'sc', 'ca', 'uca', 'ls', 'loss', 'hazard', 'root'
     const prefixToType = {
-      sc: 'system_constraint',
-      ca: 'control_action',
-      uca: 'uca',
-      ls: 'loss_scenario',
-      loss: 'loss',
-      hazard: 'hazard',
-      root: 'root',
+      sc: 'system_constraint', ca: 'control_action', uca: 'uca',
+      ls: 'loss_scenario', loss: 'loss', hazard: 'hazard', root: 'root',
     }
     const prefix = parts[0]
     const nodeType = prefixToType[prefix]
-    const nodeId = parts[parts.length - 1]
+    const nodeId = parseInt(parts[parts.length - 1])
 
     if (!nodeType || nodeType === 'root') return
 
+    const oldPos = dragStartPos.current[rfId]
+    const newPos = { x: node.position.x, y: node.position.y }
+    delete dragStartPos.current[rfId]
+
     try {
-      await updateNode(projectId, nodeType, nodeId, {
-        x: node.position.x,
-        y: node.position.y,
-      })
-      socket.emit('node:moved', {
-        project_id: projectId,
-        node_type: nodeType,
-        node_id: nodeId,
-        x: node.position.x,
-        y: node.position.y,
-      })
+      await updateNode(projectId, nodeType, nodeId, newPos)
+      socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, ...newPos })
+      if (oldPos && (oldPos.x !== newPos.x || oldPos.y !== newPos.y)) {
+        useCanvasStore.getState().pushHistory({ action: 'move', rfId, nodeType, nodeId, projectId, oldPos, newPos })
+      }
     } catch (err) {
       console.error('Failed to persist node position:', err)
     }
@@ -188,8 +246,153 @@ function CanvasInner({ projectId }) {
     }
   }, [projectId, addRFEdge])
 
+  // Keyboard shortcuts: Delete, Ctrl+C/V, Ctrl+Z/Y
+  useEffect(() => {
+    const RF_TYPE_MAP = {
+      loss: 'lossNode', hazard: 'hazardNode', system_constraint: 'scNode',
+      control_action: 'caNode', uca: 'ucaNode', loss_scenario: 'lsNode',
+    }
+
+    async function onKeyDown(e) {
+      const tag = e.target.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      const ctrl = e.ctrlKey || e.metaKey
+      const store = useCanvasStore.getState()
+
+      // ── Delete selected node ───────────────────────────────────────────
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !ctrl) {
+        const { selectedNode } = store
+        if (!selectedNode || selectedNode.data.nodeType === 'root') return
+        e.preventDefault()
+        const { nodeType, id: nodeId } = selectedNode.data
+        if (!window.confirm('Delete this node?')) return
+        const snapshot = {
+          nodeData: { ...selectedNode.data },
+          position: { ...selectedNode.position },
+          rfNodeType: selectedNode.type,
+        }
+        try {
+          await deleteNode(projectId, nodeType, nodeId)
+          socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
+          store.removeRFNode(selectedNode.id)
+          store.setSelectedNode(null)
+          store.pushHistory({ action: 'delete', rfId: selectedNode.id, nodeType, nodeId, projectId, snapshot })
+        } catch (err) { console.error('Delete failed:', err) }
+        return
+      }
+
+      // ── Undo (Ctrl+Z) ─────────────────────────────────────────────────
+      if (ctrl && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        const { moveHistory, moveHistoryIndex } = store
+        if (moveHistoryIndex < 0) return
+        const entry = moveHistory[moveHistoryIndex]
+        try {
+          if (entry.action === 'move') {
+            await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.oldPos.x, y: entry.oldPos.y })
+            store.moveRFNode(entry.rfId, entry.oldPos.x, entry.oldPos.y)
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          } else if (entry.action === 'create') {
+            await deleteNode(entry.projectId, entry.nodeType, entry.nodeId)
+            store.removeRFNode(entry.rfId)
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          } else if (entry.action === 'delete') {
+            const { newRfId, newNodeId } = await recreateNode(entry)
+            store.updateHistoryEntry(moveHistoryIndex, { rfId: newRfId, nodeId: newNodeId })
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          }
+        } catch (err) { console.error('Undo failed:', err) }
+        return
+      }
+
+      // ── Redo (Ctrl+Y or Ctrl+Shift+Z) ─────────────────────────────────
+      if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        const { moveHistory, moveHistoryIndex } = store
+        if (moveHistoryIndex >= moveHistory.length - 1) return
+        const entry = moveHistory[moveHistoryIndex + 1]
+        try {
+          if (entry.action === 'move') {
+            await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.newPos.x, y: entry.newPos.y })
+            store.moveRFNode(entry.rfId, entry.newPos.x, entry.newPos.y)
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          } else if (entry.action === 'create') {
+            const { newRfId, newNodeId } = await recreateNode(entry)
+            store.updateHistoryEntry(moveHistoryIndex + 1, { rfId: newRfId, nodeId: newNodeId })
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          } else if (entry.action === 'delete') {
+            await deleteNode(entry.projectId, entry.nodeType, entry.nodeId)
+            store.removeRFNode(entry.rfId)
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          }
+        } catch (err) { console.error('Redo failed:', err) }
+        return
+      }
+
+      // ── Copy selected node (Ctrl+C) ────────────────────────────────────
+      if (ctrl && e.key === 'c') {
+        const { selectedNode } = store
+        if (!selectedNode || selectedNode.data.nodeType === 'root') return
+        store.setCopiedNode(selectedNode)
+        return
+      }
+
+      // ── Paste node (Ctrl+V) ────────────────────────────────────────────
+      if (ctrl && e.key === 'v') {
+        const { copiedNode, currentProject } = store
+        if (!copiedNode) return
+        e.preventDefault()
+        const nodeType = copiedNode.data.nodeType
+        const nodeData = copiedNode.data
+        const position = { x: copiedNode.position.x + 40, y: copiedNode.position.y + 40 }
+
+        const payload = {}
+        if (nodeData.description) payload.description = nodeData.description
+        if (nodeData.name) payload.name = nodeData.name
+        if (nodeData.uca_type) payload.uca_type = nodeData.uca_type
+        if (nodeData.control_action_id) payload.control_action_id = parseInt(nodeData.control_action_id)
+        if (nodeData.uca_id) payload.uca_id = parseInt(nodeData.uca_id)
+        if (nodeData.parent_hazard_id) payload.parent_hazard_id = parseInt(nodeData.parent_hazard_id)
+        if (nodeData.linked_hazard_id) payload.linked_hazard_id = parseInt(nodeData.linked_hazard_id)
+
+        try {
+          const result = await createNode(projectId, nodeType, payload)
+          const newData = result[nodeType] || result.node || result
+          const prefix = nodeTypeToPrefix(nodeType)
+          const rfNode = {
+            id: `${prefix}-${newData.id}`,
+            type: RF_TYPE_MAP[nodeType] || 'lossNode',
+            position,
+            data: { ...newData, nodeType },
+          }
+          store.addRFNode(rfNode)
+          if (nodeType === 'loss' && currentProject?.id)
+            store.addRFEdge(makeRFEdge(`root-${currentProject.id}`, `loss-${newData.id}`, false))
+          else if (nodeType === 'hazard' && payload.parent_hazard_id)
+            store.addRFEdge(makeRFEdge(`hazard-${payload.parent_hazard_id}`, `hazard-${newData.id}`, false))
+          else if (nodeType === 'uca' && payload.control_action_id)
+            store.addRFEdge(makeRFEdge(`ca-${payload.control_action_id}`, `uca-${newData.id}`, false))
+          else if (nodeType === 'loss_scenario' && payload.uca_id)
+            store.addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, `ls-${newData.id}`, false))
+          store.setCopiedNode({ ...copiedNode, position })
+          store.pushHistory({
+            action: 'create',
+            rfId: rfNode.id,
+            nodeType,
+            nodeId: newData.id,
+            projectId,
+            snapshot: { nodeData: { ...newData, nodeType }, position, rfNodeType: rfNode.type },
+          })
+        } catch (err) { console.error('Paste failed:', err) }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [projectId])
+
   function handleNodeCreated(newNode) {
-    // Node is already added to store in AddNodeForm
     setAddFormType(null)
   }
 
@@ -201,10 +404,12 @@ function CanvasInner({ projectId }) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
         defaultEdgeOptions={{ type: 'default' }}
+        deleteKeyCode={null}
         fitView
         proOptions={{ hideAttribution: true }}
       >
@@ -231,22 +436,55 @@ function CanvasInner({ projectId }) {
           ))}
         </Panel>
 
-        {/* Legend */}
+        {/* Legend + Shortcuts */}
         <Panel position="bottom-right" style={{ bottom: 24, right: 12 }}>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-3 py-2 text-xs text-gray-500 space-y-1">
-            <div className="flex items-center gap-2">
-              <svg width="32" height="10">
-                <line x1="0" y1="5" x2="32" y2="5" stroke="#64748b" strokeWidth="2" />
-                <polygon points="28,2 32,5 28,8" fill="#64748b" />
-              </svg>
-              <span>Parent-child relationship</span>
+          <div className="flex flex-col items-end gap-2">
+            {/* Keyboard shortcuts toggle */}
+            <div className="relative">
+              <button
+                onClick={() => setShowShortcuts(s => !s)}
+                className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center text-xs font-semibold transition-colors ${showShortcuts ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'}`}
+                title="Keyboard shortcuts"
+              >
+                ?
+              </button>
+              {showShortcuts && (
+                <div className="absolute bottom-9 right-0 bg-white rounded-lg border border-gray-200 shadow-lg p-3 w-52 z-10">
+                  <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Keyboard Shortcuts</div>
+                  <div className="space-y-1.5">
+                    {[
+                      { keys: 'Del / Backspace', desc: 'Delete node' },
+                      { keys: 'Ctrl+C', desc: 'Copy node' },
+                      { keys: 'Ctrl+V', desc: 'Paste / duplicate' },
+                      { keys: 'Ctrl+Z', desc: 'Undo last move' },
+                      { keys: 'Ctrl+Y / Ctrl+Shift+Z', desc: 'Redo last move' },
+                    ].map(({ keys, desc }) => (
+                      <div key={keys} className="flex items-center justify-between gap-3">
+                        <span className="font-mono text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap">{keys}</span>
+                        <span className="text-xs text-gray-500 text-right">{desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <svg width="32" height="10">
-                <line x1="0" y1="5" x2="32" y2="5" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4,3" />
-                <polygon points="28,2 32,5 28,8" fill="#94a3b8" />
-              </svg>
-              <span>Cross-reference / link</span>
+
+            {/* Legend */}
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-3 py-2 text-xs text-gray-500 space-y-1">
+              <div className="flex items-center gap-2">
+                <svg width="32" height="10">
+                  <line x1="0" y1="5" x2="32" y2="5" stroke="#64748b" strokeWidth="2" />
+                  <polygon points="28,2 32,5 28,8" fill="#64748b" />
+                </svg>
+                <span>Parent-child relationship</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <svg width="32" height="10">
+                  <line x1="0" y1="5" x2="32" y2="5" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4,3" />
+                  <polygon points="28,2 32,5 28,8" fill="#94a3b8" />
+                </svg>
+                <span>Cross-reference / link</span>
+              </div>
             </div>
           </div>
         </Panel>

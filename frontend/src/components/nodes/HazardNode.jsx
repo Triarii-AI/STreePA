@@ -1,16 +1,9 @@
 import React from 'react'
 import { Handle, Position } from '@xyflow/react'
-import useCanvasStore from '../../store/canvasStore.js'
 
-export default function HazardNode({ data, selected, id }) {
+export default function HazardNode({ data, selected }) {
   if (data.hidden) return null
 
-  const edges = useCanvasStore(s => s.edges)
-  const toggleNodeCollapse = useCanvasStore(s => s.toggleNodeCollapse)
-  const collapsedNodes = useCanvasStore(s => s.collapsedNodes)
-
-  const hasChildren = edges.some(e => e.source === id && !(e.style?.strokeDasharray))
-  const isCollapsed = collapsedNodes.has(id)
   const isSubHazard = !!data.parent_hazard_id
 
   return (
@@ -26,6 +19,12 @@ export default function HazardNode({ data, selected, id }) {
         type="target"
         position={Position.Top}
         style={{ background: '#f97316', width: 8, height: 8 }}
+      />
+      <Handle
+        type="source"
+        id="top-source"
+        position={Position.Top}
+        style={{ background: '#f97316', width: 6, height: 6, opacity: 0.5, left: '30%' }}
       />
       <Handle
         type="target"
@@ -54,22 +53,8 @@ export default function HazardNode({ data, selected, id }) {
         </p>
       )}
 
-      {hasChildren && (
-        <button
-          onClick={e => { e.stopPropagation(); toggleNodeCollapse(id) }}
-          className="mt-2 flex items-center gap-1 text-xs text-orange-600 hover:text-orange-800 transition-colors"
-        >
-          <svg
-            className={`w-3 h-3 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-          {isCollapsed ? 'Expand' : 'Collapse'}
-        </button>
-      )}
 
-      <Handle
+<Handle
         type="source"
         position={Position.Bottom}
         style={{ background: '#f97316', width: 8, height: 8 }}
