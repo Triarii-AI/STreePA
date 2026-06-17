@@ -66,6 +66,15 @@ success "npm:    $(npm --version)"
 command -v mysql >/dev/null 2>&1 || die "mysql client not found. Install MySQL 8.0+."
 success "MySQL:  $(mysql --version | head -1)"
 
+info "Ensuring MySQL is running..."
+if ! sudo service mysql status >/dev/null 2>&1; then
+  info "MySQL is not running — starting it..."
+  sudo service mysql start || die "Failed to start MySQL. Try: sudo service mysql start"
+  success "MySQL started."
+else
+  success "MySQL is already running."
+fi
+
 # ── MySQL database ─────────────────────────────────────────────────────────────
 
 echo ""
