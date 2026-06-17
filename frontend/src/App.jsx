@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -14,16 +14,24 @@ function ProtectedRoute({ children }) {
 
 function AppRoutes() {
   const setUser = useCanvasStore(s => s.setUser)
+  const [authChecked, setAuthChecked] = useState(false)
 
   useEffect(() => {
     getMe()
       .then(data => {
         if (data && data.user) setUser(data.user)
       })
-      .catch(() => {
-        // Not authenticated, leave as is
-      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true))
   }, [setUser])
+
+  if (!authChecked) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
+        <div className="text-sm text-gray-400">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <Routes>

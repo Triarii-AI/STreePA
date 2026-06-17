@@ -42,3 +42,27 @@ export const NODE_TYPES_LIST = [
   'uca',
   'loss_scenario',
 ]
+
+export function nodeTypeToPrefix(nodeType) {
+  const map = {
+    loss: 'loss', hazard: 'hazard', system_constraint: 'sc',
+    control_action: 'ca', uca: 'uca', loss_scenario: 'ls', root: 'root',
+  }
+  return map[nodeType] || nodeType
+}
+
+const SOLID_EDGE_STYLE = { stroke: '#64748b', strokeWidth: 2 }
+const DASHED_EDGE_STYLE = { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5,5' }
+const SOLID_MARKER = { type: 'arrowclosed', width: 16, height: 16, color: '#64748b' }
+const DASHED_MARKER = { type: 'arrow', width: 16, height: 16, color: '#94a3b8' }
+
+export function makeRFEdge(source, target, dashed = false) {
+  return {
+    id: `e-${source}-${target}`,
+    source,
+    target,
+    type: 'smoothstep',
+    style: dashed ? DASHED_EDGE_STYLE : SOLID_EDGE_STYLE,
+    markerEnd: dashed ? DASHED_MARKER : SOLID_MARKER,
+  }
+}

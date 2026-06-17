@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import useCanvasStore from '../store/canvasStore.js'
 import { updateNode, deleteNode, createLink, deleteLink, pluralize } from '../api.js'
 import socket from '../socket.js'
-import { LAYER_COLORS, UCA_TYPE_COLORS, UCA_TYPE_LABELS } from '../constants.js'
+import { LAYER_COLORS, UCA_TYPE_COLORS, UCA_TYPE_LABELS, makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 
 const LAYER_LABELS = {
   root: 'Root',
@@ -46,6 +46,8 @@ export default function NodePanel({ projectId }) {
   const updateRFNode = useCanvasStore(s => s.updateRFNode)
   const nodes = useCanvasStore(s => s.nodes)
   const edges = useCanvasStore(s => s.edges)
+  const addRFEdge = useCanvasStore(s => s.addRFEdge)
+  const removeRFEdge = useCanvasStore(s => s.removeRFEdge)
   const toggleNodeCollapse = useCanvasStore(s => s.toggleNodeCollapse)
   const collapsedNodes = useCanvasStore(s => s.collapsedNodes)
   const loadProject = useCanvasStore(s => s.loadProject)
@@ -132,11 +134,11 @@ export default function NodePanel({ projectId }) {
     setLinkError('')
     try {
       await createLink(projectId, fromType, fromId, toType, toId)
-      // Update local node data
       const idList = nodeData[`${toType}_ids`] || []
       const newIds = [...idList, toId]
       updateRFNode(rfNodeId, { [`${toType}_ids`]: newIds })
       setFormData(prev => ({ ...prev, [`${toType}_ids`]: newIds }))
+      addRFEdge(makeRFEdge(`${nodeTypeToPrefix(fromType)}-${fromId}`, `${nodeTypeToPrefix(toType)}-${toId}`, true))
     } catch (err) {
       setLinkError(err.message || 'Failed to add link.')
     }
@@ -150,6 +152,7 @@ export default function NodePanel({ projectId }) {
       const newIds = idList.filter(id => id !== toId)
       updateRFNode(rfNodeId, { [`${toType}_ids`]: newIds })
       setFormData(prev => ({ ...prev, [`${toType}_ids`]: newIds }))
+      removeRFEdge(`e-${nodeTypeToPrefix(fromType)}-${fromId}-${nodeTypeToPrefix(toType)}-${toId}`)
     } catch (err) {
       setLinkError(err.message || 'Failed to remove link.')
     }

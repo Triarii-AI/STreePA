@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react'
-import { createNode, pluralize } from '../../api.js'
+import { createNode, createLink } from '../../api.js'
 import socket from '../../socket.js'
 import useCanvasStore from '../../store/canvasStore.js'
-import { UCA_TYPE_LABELS, UCA_TYPE_COLORS, LAYER_Y_POSITIONS, NODE_HORIZONTAL_SPACING } from '../../constants.js'
+import { UCA_TYPE_LABELS, UCA_TYPE_COLORS, LAYER_Y_POSITIONS, NODE_HORIZONTAL_SPACING, makeRFEdge, nodeTypeToPrefix } from '../../constants.js'
 
 const NODE_TYPE_LABELS = {
   loss: 'Loss',
@@ -52,9 +52,12 @@ function convertAPINodeToRF(nodeType, nodeData, position) {
 
 export default function AddNodeForm({ nodeType, projectId, onClose, onCreated }) {
   const addRFNode = useCanvasStore(s => s.addRFNode)
+  const addRFEdge = useCanvasStore(s => s.addRFEdge)
+  const currentProject = useCanvasStore(s => s.currentProject)
   const nodes = useCanvasStore(s => s.nodes)
 
   const [formData, setFormData] = useState({})
+  const [selectedLossIds, setSelectedLossIds] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -62,6 +65,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
     return nodes.filter(n => n.data?.nodeType === nt).map(n => n.data)
   }
 
+  const allLosses = useMemo(() => getNodesByType('loss'), [nodes])
   const allHazards = useMemo(() => getNodesByType('hazard'), [nodes])
   const allCAs = useMemo(() => getNodesByType('control_action'), [nodes])
   const allUCAs = useMemo(() => getNodesByType('uca'), [nodes])
@@ -108,8 +112,31 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
 
       const position = getDefaultPosition()
       const rfNode = convertAPINodeToRF(nodeType, nodeData, position)
-
       addRFNode(rfNode)
+
+      // Auto-add parent-child solid edges
+      if (nodeType === 'loss' && currentProject?.id) {
+        addRFEdge(makeRFEdge(`root-${currentProject.id}`, `loss-${nodeData.id}`, false))
+      }
+      if (nodeType === 'hazard' && payload.parent_hazard_id) {
+        addRFEdge(makeRFEdge(`hazard-${payload.parent_hazard_id}`, `hazard-${nodeData.id}`, false))
+      }
+      if (nodeType === 'uca' && payload.control_action_id) {
+        addRFEdge(makeRFEdge(`ca-${payload.control_action_id}`, `uca-${nodeData.id}`, false))
+      }
+      if (nodeType === 'loss_scenario' && payload.uca_id) {
+        addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, `ls-${nodeData.id}`, false))
+      }
+
+      // Create hazard→loss links and add dashed edges
+      if (nodeType === 'hazard' && selectedLossIds.length > 0) {
+        for (const lid of selectedLossIds) {
+          try {
+            await createLink(projectId, 'hazard', nodeData.id, 'loss', lid)
+            addRFEdge(makeRFEdge(`hazard-${nodeData.id}`, `loss-${lid}`, true))
+          } catch (_) {}
+        }
+      }
 
       socket.emit('node:added', {
         project_id: projectId,
@@ -193,6 +220,27 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                 ))}
               </select>
             </div>
+            {allLosses.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Link to Losses (optional)</label>
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
+                  {allLosses.map(l => (
+                    <label key={l.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedLossIds.includes(l.id)}
+                        onChange={e => setSelectedLossIds(prev =>
+                          e.target.checked ? [...prev, l.id] : prev.filter(id => id !== l.id)
+                        )}
+                        className="accent-orange-500"
+                      />
+                      <span className="text-xs font-medium text-gray-700">{l.label}</span>
+                      {l.description && <span className="text-xs text-gray-400 truncate">{l.description}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
