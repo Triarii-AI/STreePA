@@ -273,15 +273,25 @@ function CanvasInner({ projectId }) {
           rfNodeType: selectedNode.type,
         }
         try {
-          const childHazardRfIds = nodeType === 'hazard'
-            ? store.edges.filter(e => e.source === selectedNode.id && !e.style?.strokeDasharray && e.target?.startsWith('hazard-')).map(e => e.target)
-            : []
-          await deleteNode(projectId, nodeType, nodeId)
+          const result = await deleteNode(projectId, nodeType, nodeId)
           socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
           store.removeRFNode(selectedNode.id)
           store.setSelectedNode(null)
           store.pushHistory({ action: 'delete', rfId: selectedNode.id, nodeType, nodeId, projectId, snapshot })
-          childHazardRfIds.forEach(chId => store.updateRFNode(chId, { parent_hazard_id: null }))
+          const ORPHAN_NULL_FIELD = {
+            hazard: 'parent_hazard_id',
+            system_constraint: 'linked_hazard_id',
+            uca: 'control_action_id',
+            loss_scenario: 'uca_id',
+          }
+          ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
+            const nullField = ORPHAN_NULL_FIELD[nt]
+            const prefix = nodeTypeToPrefix(nt)
+            store.updateRFNode(`${prefix}-${id}`, {
+              label,
+              ...(nullField ? { [nullField]: null } : {}),
+            })
+          })
         } catch (err) { console.error('Delete failed:', err) }
         return
       }

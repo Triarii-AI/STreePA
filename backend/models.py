@@ -175,7 +175,7 @@ class ControlAction(db.Model):
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
 
-    ucas = db.relationship('UCA', backref='control_action', cascade='all, delete-orphan', lazy=True)
+    ucas = db.relationship('UCA', backref='control_action', cascade='save-update, merge', lazy=True)
 
     def to_dict(self):
         return {
@@ -195,7 +195,7 @@ class UCA(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
     label = db.Column(db.String(30), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    control_action_id = db.Column(db.Integer, db.ForeignKey('control_actions.id', ondelete='CASCADE'), nullable=False)
+    control_action_id = db.Column(db.Integer, db.ForeignKey('control_actions.id', ondelete='SET NULL'), nullable=True)
     uca_type = db.Column(
         db.Enum('not_providing', 'providing_causes_hazard', 'wrong_timing_order', 'duration_issue'),
         nullable=False
@@ -204,7 +204,7 @@ class UCA(db.Model):
     y = db.Column(db.Float, default=0.0)
 
     linked_hazards = db.relationship('Hazard', secondary=uca_hazard_links, lazy=True)
-    loss_scenarios = db.relationship('LossScenario', backref='uca', cascade='all, delete-orphan', lazy=True)
+    loss_scenarios = db.relationship('LossScenario', backref='uca', cascade='save-update, merge', lazy=True)
 
     def to_dict(self):
         hazard_ids = [row.hazard_id for row in db.session.execute(
@@ -230,7 +230,7 @@ class LossScenario(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
     label = db.Column(db.String(30), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    uca_id = db.Column(db.Integer, db.ForeignKey('ucas.id', ondelete='CASCADE'), nullable=False)
+    uca_id = db.Column(db.Integer, db.ForeignKey('ucas.id', ondelete='SET NULL'), nullable=True)
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
 

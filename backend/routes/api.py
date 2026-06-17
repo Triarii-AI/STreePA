@@ -33,7 +33,8 @@ def _next_loss_label(project_id):
 
 def _next_hazard_label(project_id, parent_hazard_id=None):
     if parent_hazard_id is None:
-        count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).count()
+        count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None)\
+            .filter(~Hazard.label.like('H-x%')).count()
         return f'H-{count + 1}'
     parent = Hazard.query.get(parent_hazard_id)
     parent_label = parent.label if parent else 'H-?'
@@ -41,9 +42,16 @@ def _next_hazard_label(project_id, parent_hazard_id=None):
     return f'{parent_label}.{count + 1}'
 
 
-def _next_sc_label(project_id):
-    count = SystemConstraint.query.filter_by(project_id=project_id).count()
-    return f'SC-{count + 1}'
+def _next_sc_label(project_id, hazard_id=None):
+    if not hazard_id:
+        count = SystemConstraint.query.filter_by(project_id=project_id).count()
+        return f'SC-{count + 1}'
+    hazard = Hazard.query.get(hazard_id)
+    if not hazard:
+        count = SystemConstraint.query.filter_by(project_id=project_id).count()
+        return f'SC-{count + 1}'
+    h_num = hazard.label[2:] if hazard.label.startswith('H-') else str(hazard_id)
+    return f'SC-{h_num}'
 
 
 def _next_ca_label(project_id):
@@ -112,6 +120,8 @@ def update_loss(project_id, node_id):
         node.x = data['x']
     if 'y' in data:
         node.y = data['y']
+    if 'label' in data:
+        node.label = data['label']
     db.session.commit()
     return jsonify(node.to_dict())
 
@@ -165,7 +175,7 @@ def update_hazard(project_id, node_id):
         if new_parent != node.parent_hazard_id:
             node.parent_hazard_id = new_parent
             if new_parent is None:
-                top_count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).filter(Hazard.id != node_id).count()
+                top_count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).filter(Hazard.id != node_id).filter(~Hazard.label.like('H-x%')).count()
                 node.label = f'H-{top_count + 1}'
             else:
                 parent = Hazard.query.get(new_parent)
@@ -178,6 +188,8 @@ def update_hazard(project_id, node_id):
         node.x = data['x']
     if 'y' in data:
         node.y = data['y']
+    if 'label' in data:
+        node.label = data['label']
     db.session.commit()
     return jsonify(node.to_dict())
 
@@ -186,17 +198,24 @@ def update_hazard(project_id, node_id):
 @login_required
 def delete_hazard(project_id, node_id):
     node = Hazard.query.filter_by(id=node_id, project_id=project_id).first_or_404()
+    orphaned = []
+    # Orphan child hazards
     children = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=node_id).all()
-    orphaned_ids = []
     for child in children:
         child.parent_hazard_id = None
-        parts = child.label.split('.', 1)
+        parts = child.label.rsplit('.', 1)
         child.label = f'H-x.{parts[1]}' if len(parts) == 2 else 'H-x'
-        orphaned_ids.append({'id': child.id, 'label': child.label})
+        orphaned.append({'nodeType': 'hazard', 'id': child.id, 'label': child.label})
+    # Orphan linked SCs
+    sc_children = SystemConstraint.query.filter_by(project_id=project_id, linked_hazard_id=node_id).all()
+    for sc in sc_children:
+        sc.linked_hazard_id = None
+        sc.label = 'SC-x'
+        orphaned.append({'nodeType': 'system_constraint', 'id': sc.id, 'label': sc.label})
     db.session.flush()
     db.session.delete(node)
     db.session.commit()
-    return jsonify({'success': True, 'orphaned_children': orphaned_ids})
+    return jsonify({'success': True, 'orphaned': orphaned})
 
 
 # ─────────────────────────────────────────────
@@ -208,13 +227,14 @@ def delete_hazard(project_id, node_id):
 def create_system_constraint(project_id):
     Project.query.get_or_404(project_id)
     data = request.get_json() or {}
-    label = _next_sc_label(project_id)
+    linked_hazard_id = data.get('linked_hazard_id', None)
+    label = _next_sc_label(project_id, linked_hazard_id)
     idx_x = _index_x(project_id, SystemConstraint)
     node = SystemConstraint(
         project_id=project_id,
         label=label,
         description=data.get('description', ''),
-        linked_hazard_id=data.get('linked_hazard_id', None),
+        linked_hazard_id=linked_hazard_id,
         x=data.get('x', idx_x),
         y=data.get('y', LAYER_Y['system_constraint'])
     )
@@ -231,11 +251,19 @@ def update_system_constraint(project_id, node_id):
     if 'description' in data:
         node.description = data['description']
     if 'linked_hazard_id' in data:
-        node.linked_hazard_id = data['linked_hazard_id']
+        new_hid = data['linked_hazard_id']
+        if new_hid != node.linked_hazard_id:
+            node.linked_hazard_id = new_hid
+            if new_hid:
+                node.label = _next_sc_label(project_id, new_hid)
+            else:
+                node.label = 'SC-x'
     if 'x' in data:
         node.x = data['x']
     if 'y' in data:
         node.y = data['y']
+    if 'label' in data:
+        node.label = data['label']
     db.session.commit()
     return jsonify(node.to_dict())
 
@@ -283,6 +311,8 @@ def update_control_action(project_id, node_id):
         node.x = data['x']
     if 'y' in data:
         node.y = data['y']
+    if 'label' in data:
+        node.label = data['label']
     db.session.commit()
     return jsonify(node.to_dict())
 
@@ -291,9 +321,17 @@ def update_control_action(project_id, node_id):
 @login_required
 def delete_control_action(project_id, node_id):
     node = ControlAction.query.filter_by(id=node_id, project_id=project_id).first_or_404()
+    orphaned = []
+    children = UCA.query.filter_by(project_id=project_id, control_action_id=node_id).all()
+    for child in children:
+        child.control_action_id = None
+        parts = child.label.rsplit('.', 1)
+        child.label = f'UCA-x.{parts[1]}' if len(parts) == 2 else 'UCA-x'
+        orphaned.append({'nodeType': 'uca', 'id': child.id, 'label': child.label})
+    db.session.flush()
     db.session.delete(node)
     db.session.commit()
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'orphaned': orphaned})
 
 
 # ─────────────────────────────────────────────
@@ -350,6 +388,8 @@ def update_uca(project_id, node_id):
         node.x = data['x']
     if 'y' in data:
         node.y = data['y']
+    if 'label' in data:
+        node.label = data['label']
     db.session.commit()
     return jsonify(node.to_dict())
 
@@ -358,9 +398,17 @@ def update_uca(project_id, node_id):
 @login_required
 def delete_uca(project_id, node_id):
     node = UCA.query.filter_by(id=node_id, project_id=project_id).first_or_404()
+    orphaned = []
+    children = LossScenario.query.filter_by(project_id=project_id, uca_id=node_id).all()
+    for child in children:
+        child.uca_id = None
+        parts = child.label.rsplit('.', 1)
+        child.label = f'LS-x.{parts[1]}' if len(parts) == 2 else 'LS-x'
+        orphaned.append({'nodeType': 'loss_scenario', 'id': child.id, 'label': child.label})
+    db.session.flush()
     db.session.delete(node)
     db.session.commit()
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'orphaned': orphaned})
 
 
 # ─────────────────────────────────────────────
@@ -411,6 +459,8 @@ def update_loss_scenario(project_id, node_id):
         node.x = data['x']
     if 'y' in data:
         node.y = data['y']
+    if 'label' in data:
+        node.label = data['label']
     db.session.commit()
     return jsonify(node.to_dict())
 

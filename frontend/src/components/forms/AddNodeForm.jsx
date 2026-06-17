@@ -99,6 +99,10 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
       setError('UCA is required.')
       return
     }
+    if (nodeType === 'system_constraint' && !formData.linked_hazard_id) {
+      setError('Parent hazard is required.')
+      return
+    }
 
     setLoading(true)
     try {
@@ -127,6 +131,9 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
       }
       if (nodeType === 'loss_scenario' && payload.uca_id) {
         addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, `ls-${nodeData.id}`, false))
+      }
+      if (nodeType === 'system_constraint' && payload.linked_hazard_id) {
+        addRFEdge(makeRFEdge(`sc-${nodeData.id}`, `hazard-${payload.linked_hazard_id}`, true))
       }
 
       // Create hazard→loss links
@@ -292,9 +299,23 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                 required
               />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Parent Hazard <span className="text-red-500">*</span></label>
+              <select
+                value={formData.linked_hazard_id || ''}
+                onChange={e => handleChange('linked_hazard_id', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                required
+              >
+                <option value="">Select hazard...</option>
+                {allHazards.map(h => (
+                  <option key={h.id} value={h.id}>{h.label}{h.description ? ` — ${h.description.slice(0, 40)}` : ''}</option>
+                ))}
+              </select>
+            </div>
             {allHazards.length > 0 && (
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Link to Hazards (optional)</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Additional Linked Hazards (optional)</label>
                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
                   {allHazards.map(h => (
                     <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">

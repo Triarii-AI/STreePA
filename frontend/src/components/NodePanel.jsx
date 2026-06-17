@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useCanvasStore from '../store/canvasStore.js'
-import { updateNode, deleteNode, createLink, deleteLink } from '../api.js'
+import { updateNode, deleteNode, createLink, deleteLink, updateProject } from '../api.js'
 import socket from '../socket.js'
 import { LAYER_COLORS, UCA_TYPE_COLORS, UCA_TYPE_LABELS, makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 
@@ -83,7 +83,7 @@ export default function NodePanel({ projectId }) {
 
   // Check if node has children (for collapse toggle)
   function handleFieldChange(field, value) {
-    const numericParentFields = ['parent_hazard_id', 'control_action_id', 'uca_id']
+    const numericParentFields = ['parent_hazard_id', 'control_action_id', 'uca_id', 'linked_hazard_id']
     const parsed = numericParentFields.includes(field)
       ? (value === '' ? null : parseInt(value, 10))
       : value
@@ -93,6 +93,20 @@ export default function NodePanel({ projectId }) {
   async function handleSave() {
     setSaving(true)
     try {
+      if (nodeType === 'root') {
+        const changedFields = {}
+        Object.keys(formData).forEach(k => {
+          if (formData[k] !== nodeData[k] && k !== 'nodeType' && k !== 'hidden') {
+            changedFields[k] = formData[k]
+          }
+        })
+        if (Object.keys(changedFields).length === 0) { setSaving(false); return }
+        await updateProject(projectId, changedFields)
+        updateRFNode(rfNodeId, changedFields)
+        setSaving(false)
+        return
+      }
+
       const changedFields = {}
       Object.keys(formData).forEach(k => {
         if (formData[k] !== nodeData[k] && k !== 'nodeType' && k !== 'hidden') {
@@ -126,6 +140,12 @@ export default function NodePanel({ projectId }) {
         if (oldUid) removeRFEdge(`e-uca-${oldUid}-ls-${nodeId}`)
         if (newUid) addRFEdge(makeRFEdge(`uca-${newUid}`, rfNodeId, false))
       }
+      if ('linked_hazard_id' in changedFields) {
+        const oldHid = nodeData.linked_hazard_id
+        const newHid = changedFields.linked_hazard_id
+        if (oldHid) removeRFEdge(`e-sc-${nodeId}-hazard-${oldHid}`)
+        if (newHid) addRFEdge(makeRFEdge(`sc-${nodeId}`, `hazard-${newHid}`, true))
+      }
       socket.emit('node:updated', {
         project_id: projectId,
         node_type: nodeType,
@@ -143,10 +163,7 @@ export default function NodePanel({ projectId }) {
     if (!window.confirm('Delete this node? This may affect dependent nodes.')) return
     setDeleting(true)
     try {
-      const childHazardRfIds = nodeType === 'hazard'
-        ? edges.filter(e => e.source === rfNodeId && !e.style?.strokeDasharray && e.target?.startsWith('hazard-')).map(e => e.target)
-        : []
-      await deleteNode(projectId, nodeType, nodeId)
+      const result = await deleteNode(projectId, nodeType, nodeId)
       socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
       removeRFNode(rfNodeId)
       setSelectedNode(null)
@@ -162,8 +179,19 @@ export default function NodePanel({ projectId }) {
           rfNodeType: selectedNode?.type,
         },
       })
-      childHazardRfIds.forEach(chId => {
-        useCanvasStore.getState().updateRFNode(chId, { parent_hazard_id: null })
+      const ORPHAN_NULL_FIELD = {
+        hazard: 'parent_hazard_id',
+        system_constraint: 'linked_hazard_id',
+        uca: 'control_action_id',
+        loss_scenario: 'uca_id',
+      }
+      ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
+        const nullField = ORPHAN_NULL_FIELD[nt]
+        const prefix = nodeTypeToPrefix(nt)
+        useCanvasStore.getState().updateRFNode(`${prefix}-${id}`, {
+          label,
+          ...(nullField ? { [nullField]: null } : {}),
+        })
       })
     } catch (err) {
       alert(err.message || 'Failed to delete node.')
@@ -247,12 +275,42 @@ export default function NodePanel({ projectId }) {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Label */}
-        <div>
-          <p className="text-xs font-medium text-gray-500 mb-1">Label</p>
-          <p className="text-base font-bold text-gray-900">{nodeData.label || nodeData.name || rfNodeId}</p>
-        </div>
+        {nodeType !== 'root' && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Label</label>
+            <input
+              type="text"
+              value={formData.label || ''}
+              onChange={e => handleFieldChange('label', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+          </div>
+        )}
 
         {/* Fields by type */}
+        {nodeType === 'root' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Title</label>
+              <input
+                type="text"
+                value={formData.title || ''}
+                onChange={e => handleFieldChange('title', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Purpose Statement</label>
+              <textarea
+                value={formData.purpose_statement || ''}
+                onChange={e => handleFieldChange('purpose_statement', e.target.value)}
+                rows={4}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+          </>
+        )}
+
         {nodeType === 'loss' && (
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
@@ -293,15 +351,30 @@ export default function NodePanel({ projectId }) {
         )}
 
         {nodeType === 'system_constraint' && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              value={formData.description || ''}
-              onChange={e => handleFieldChange('description', e.target.value)}
-              rows={3}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            />
-          </div>
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={formData.description || ''}
+                onChange={e => handleFieldChange('description', e.target.value)}
+                rows={3}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Parent Hazard</label>
+              <select
+                value={formData.linked_hazard_id || ''}
+                onChange={e => handleFieldChange('linked_hazard_id', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              >
+                <option value="">None</option>
+                {allHazards.map(h => (
+                  <option key={h.id} value={h.id}>{h.label}</option>
+                ))}
+              </select>
+            </div>
+          </>
         )}
 
         {nodeType === 'control_action' && (
@@ -386,15 +459,15 @@ export default function NodePanel({ projectId }) {
         )}
 
         {/* Save / Delete buttons */}
-        {nodeType !== 'root' && (
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+          {nodeType !== 'root' && (
             <button
               onClick={handleDelete}
               disabled={deleting}
@@ -406,8 +479,8 @@ export default function NodePanel({ projectId }) {
                 </svg>
               )}
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Link management */}
         {linkError && (
