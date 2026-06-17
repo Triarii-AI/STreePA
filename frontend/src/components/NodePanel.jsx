@@ -121,6 +121,9 @@ export default function NodePanel({ projectId }) {
         mergedUpdate.label = result.label
       }
       updateRFNode(rfNodeId, mergedUpdate)
+      ;(result?.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
+        updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
+      })
       // Update parent edges when structural parent fields change
       if ('parent_hazard_id' in changedFields) {
         const oldPid = nodeData.parent_hazard_id

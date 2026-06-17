@@ -86,6 +86,59 @@ def _index_x(project_id, model, **filters):
     return count * 220
 
 
+def _relabel_hazard_tree(project_id, hazard_id):
+    """Recursively relabel all descendants of a hazard to reflect its new label."""
+    parent = Hazard.query.get(hazard_id)
+    if not parent:
+        return []
+    updated = []
+    children = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=hazard_id).all()
+    for child in children:
+        parts = child.label.rsplit('.', 1)
+        self_num = parts[1] if len(parts) == 2 else '1'
+        new_label = f'{parent.label}.{self_num}'
+        if new_label != child.label:
+            child.label = new_label
+            updated.append({'nodeType': 'hazard', 'id': child.id, 'label': child.label})
+            updated.extend(_relabel_hazard_tree(project_id, child.id))
+    return updated
+
+
+def _relabel_uca_children(project_id, uca_id):
+    """Relabel all LSs under a UCA to reflect its new label."""
+    uca = UCA.query.get(uca_id)
+    if not uca:
+        return []
+    uca_num = uca.label[4:] if uca.label.startswith('UCA-') else str(uca_id)
+    updated = []
+    for child in LossScenario.query.filter_by(project_id=project_id, uca_id=uca_id).all():
+        parts = child.label.rsplit('.', 1)
+        self_num = parts[1] if len(parts) == 2 else '1'
+        new_label = f'LS-{uca_num}.{self_num}'
+        if new_label != child.label:
+            child.label = new_label
+            updated.append({'nodeType': 'loss_scenario', 'id': child.id, 'label': child.label})
+    return updated
+
+
+def _relabel_ca_children(project_id, ca_id):
+    """Relabel all UCAs (and their LSs) under a CA to reflect its new label."""
+    ca = ControlAction.query.get(ca_id)
+    if not ca:
+        return []
+    ca_num = ca.label[3:] if ca.label.startswith('CA-') else str(ca_id)
+    updated = []
+    for child in UCA.query.filter_by(project_id=project_id, control_action_id=ca_id).all():
+        parts = child.label.rsplit('.', 1)
+        self_num = parts[1] if len(parts) == 2 else '1'
+        new_label = f'UCA-{ca_num}.{self_num}'
+        if new_label != child.label:
+            child.label = new_label
+            updated.append({'nodeType': 'uca', 'id': child.id, 'label': child.label})
+            updated.extend(_relabel_uca_children(project_id, child.id))
+    return updated
+
+
 # ─────────────────────────────────────────────
 # LOSSES
 # ─────────────────────────────────────────────
@@ -190,8 +243,12 @@ def update_hazard(project_id, node_id):
         node.y = data['y']
     if 'label' in data:
         node.label = data['label']
+    db.session.flush()
+    relabeled = _relabel_hazard_tree(project_id, node_id)
     db.session.commit()
-    return jsonify(node.to_dict())
+    result = node.to_dict()
+    result['relabeled'] = relabeled
+    return jsonify(result)
 
 
 @api_bp.route('/projects/<int:project_id>/hazards/<int:node_id>', methods=['DELETE'])
@@ -206,6 +263,11 @@ def delete_hazard(project_id, node_id):
         parts = child.label.rsplit('.', 1)
         child.label = f'H-x.{parts[1]}' if len(parts) == 2 else 'H-x'
         orphaned.append({'nodeType': 'hazard', 'id': child.id, 'label': child.label})
+    # Cascade new orphaned labels to grandchildren
+    db.session.flush()
+    for o in list(orphaned):
+        if o['nodeType'] == 'hazard':
+            orphaned.extend(_relabel_hazard_tree(project_id, o['id']))
     # Orphan linked SCs
     sc_children = SystemConstraint.query.filter_by(project_id=project_id, linked_hazard_id=node_id).all()
     for sc in sc_children:
@@ -313,8 +375,12 @@ def update_control_action(project_id, node_id):
         node.y = data['y']
     if 'label' in data:
         node.label = data['label']
+    db.session.flush()
+    relabeled = _relabel_ca_children(project_id, node_id)
     db.session.commit()
-    return jsonify(node.to_dict())
+    result = node.to_dict()
+    result['relabeled'] = relabeled
+    return jsonify(result)
 
 
 @api_bp.route('/projects/<int:project_id>/control_actions/<int:node_id>', methods=['DELETE'])
@@ -328,6 +394,10 @@ def delete_control_action(project_id, node_id):
         parts = child.label.rsplit('.', 1)
         child.label = f'UCA-x.{parts[1]}' if len(parts) == 2 else 'UCA-x'
         orphaned.append({'nodeType': 'uca', 'id': child.id, 'label': child.label})
+    db.session.flush()
+    for o in list(orphaned):
+        if o['nodeType'] == 'uca':
+            orphaned.extend(_relabel_uca_children(project_id, o['id']))
     db.session.flush()
     db.session.delete(node)
     db.session.commit()
@@ -390,8 +460,12 @@ def update_uca(project_id, node_id):
         node.y = data['y']
     if 'label' in data:
         node.label = data['label']
+    db.session.flush()
+    relabeled = _relabel_uca_children(project_id, node_id)
     db.session.commit()
-    return jsonify(node.to_dict())
+    result = node.to_dict()
+    result['relabeled'] = relabeled
+    return jsonify(result)
 
 
 @api_bp.route('/projects/<int:project_id>/ucas/<int:node_id>', methods=['DELETE'])
