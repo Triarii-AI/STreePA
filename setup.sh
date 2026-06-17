@@ -80,20 +80,48 @@ fi
 echo ""
 info "Setting up MySQL database..."
 
-read -rp "  MySQL host   [localhost]: " DB_HOST;   DB_HOST="${DB_HOST:-localhost}"
-read -rp "  MySQL port   [3306]:      " DB_PORT;   DB_PORT="${DB_PORT:-3306}"
-read -rp "  MySQL user   [root]:      " DB_USER;   DB_USER="${DB_USER:-root}"
-read -rsp "  MySQL password:           " DB_PASS;   echo ""
-read -rp "  Database name [stpa_db]:  " DB_NAME;   DB_NAME="${DB_NAME:-stpa_db}"
+read -rp "  MySQL host   [localhost]: " DB_HOST; DB_HOST="${DB_HOST:-localhost}"
+read -rp "  MySQL port   [3306]:      " DB_PORT; DB_PORT="${DB_PORT:-3306}"
+read -rp "  Database name [stpa_db]:  " DB_NAME; DB_NAME="${DB_NAME:-stpa_db}"
 
-MYSQL_CMD="mysql -h$DB_HOST -P$DB_PORT -u$DB_USER"
-[[ -n "$DB_PASS" ]] && MYSQL_CMD="$MYSQL_CMD -p$DB_PASS"
+# Detect whether root uses unix_socket auth (common on Kali/Debian fresh installs)
+MYSQL_EXEC=""
+if sudo mysql -e "SELECT 1;" >/dev/null 2>&1; then
+  # Root uses unix_socket — no password needed, but Flask can't use socket auth.
+  # Create a dedicated app user with password auth instead.
+  warn "MySQL root uses unix_socket auth — no password needed for setup."
+  warn "Creating a dedicated app user 'stpa_user' that Flask can connect with..."
+  MYSQL_EXEC="sudo mysql"
 
-$MYSQL_CMD -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" \
-  || die "Failed to create database. Check your MySQL credentials."
+  APP_USER="stpa_user"
+  APP_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(20))")
+
+  $MYSQL_EXEC -e "CREATE USER IF NOT EXISTS '${APP_USER}'@'localhost' IDENTIFIED BY '${APP_PASS}';" \
+    || die "Failed to create app user."
+  $MYSQL_EXEC -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${APP_USER}'@'localhost';" \
+    || die "Failed to grant privileges."
+  $MYSQL_EXEC -e "FLUSH PRIVILEGES;"
+
+  DB_URL="mysql+pymysql://${APP_USER}:${APP_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+  success "App user '${APP_USER}' created."
+else
+  # Root uses password auth — ask for it
+  read -rp "  MySQL user   [root]:      " DB_USER; DB_USER="${DB_USER:-root}"
+  read -rsp "  MySQL password:           " DB_PASS; echo ""
+
+  MYSQL_CMD="mysql -h$DB_HOST -P$DB_PORT -u$DB_USER"
+  [[ -n "$DB_PASS" ]] && MYSQL_CMD="$MYSQL_CMD -p$DB_PASS"
+
+  $MYSQL_CMD -e "SELECT 1;" >/dev/null 2>&1 \
+    || die "Cannot connect to MySQL as '$DB_USER'. Check your credentials."
+
+  MYSQL_EXEC="$MYSQL_CMD"
+  DB_URL="mysql+pymysql://${DB_USER}${DB_PASS:+:$DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+fi
+
+$MYSQL_EXEC -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" \
+  || die "Failed to create database."
 success "Database '$DB_NAME' ready."
-
-DB_URL="mysql+pymysql://${DB_USER}${DB_PASS:+:$DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
 # ── Backend .env ───────────────────────────────────────────────────────────────
 
