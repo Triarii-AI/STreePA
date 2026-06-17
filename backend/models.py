@@ -23,6 +23,12 @@ ls_hazard_links = db.Table(
     db.Column('hazard_id', db.Integer, db.ForeignKey('hazards.id', ondelete='CASCADE'), primary_key=True)
 )
 
+sc_hazard_links = db.Table(
+    'sc_hazard_links',
+    db.Column('sc_id', db.Integer, db.ForeignKey('system_constraints.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('hazard_id', db.Integer, db.ForeignKey('hazards.id', ondelete='CASCADE'), primary_key=True)
+)
+
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -139,13 +145,21 @@ class SystemConstraint(db.Model):
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
 
+    linked_hazards = db.relationship('Hazard', secondary='sc_hazard_links', lazy=True)
+
     def to_dict(self):
+        hazard_ids = [row.hazard_id for row in db.session.execute(
+            db.select(sc_hazard_links.c.hazard_id).where(sc_hazard_links.c.sc_id == self.id)
+        ).fetchall()]
+        if self.linked_hazard_id and self.linked_hazard_id not in hazard_ids:
+            hazard_ids.append(self.linked_hazard_id)
         return {
             'id': self.id,
             'project_id': self.project_id,
             'label': self.label,
             'description': self.description,
             'linked_hazard_id': self.linked_hazard_id,
+            'hazard_ids': hazard_ids,
             'x': self.x,
             'y': self.y
         }

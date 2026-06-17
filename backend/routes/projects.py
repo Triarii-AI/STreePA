@@ -26,7 +26,7 @@ def create_project():
     project = Project(title=title, purpose_statement=purpose_statement)
     db.session.add(project)
     db.session.commit()
-    return jsonify(project.to_dict()), 201
+    return jsonify({'project': project.to_dict()}), 201
 
 
 @projects_bp.route('/<int:project_id>', methods=['GET'])

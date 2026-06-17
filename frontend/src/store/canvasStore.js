@@ -98,9 +98,10 @@ function buildNodesAndEdges(data) {
       position: { x: (sc.x && sc.x !== 0) ? sc.x : idx * NODE_HORIZONTAL_SPACING + 100, y: (sc.y && sc.y !== 0) ? sc.y : LAYER_Y_POSITIONS.system_constraint },
       data: { ...sc, nodeType: 'system_constraint' },
     })
-    if (sc.linked_hazard_id) {
-      edges.push(makeEdge(`sc-${sc.id}`, `hazard-${sc.linked_hazard_id}`, true))
-    }
+    const scHazardIds = sc.hazard_ids && Array.isArray(sc.hazard_ids) ? sc.hazard_ids : (sc.linked_hazard_id ? [sc.linked_hazard_id] : [])
+    scHazardIds.forEach(hid => {
+      edges.push(makeEdge(`sc-${sc.id}`, `hazard-${hid}`, true))
+    })
   })
 
   // Control action nodes

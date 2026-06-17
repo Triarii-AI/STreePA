@@ -58,6 +58,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
 
   const [formData, setFormData] = useState({})
   const [selectedLossIds, setSelectedLossIds] = useState([])
+  const [selectedHazardIds, setSelectedHazardIds] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -128,7 +129,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
         addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, `ls-${nodeData.id}`, false))
       }
 
-      // Create hazard→loss links and add solid edges
+      // Create hazard→loss links
       if (nodeType === 'hazard' && selectedLossIds.length > 0) {
         const linkedIds = []
         for (const lid of selectedLossIds) {
@@ -140,6 +141,22 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
         }
         if (linkedIds.length > 0) {
           useCanvasStore.getState().updateRFNode(`hazard-${nodeData.id}`, { loss_ids: linkedIds })
+        }
+      }
+
+      // Create hazard links for UCA / LS / SC
+      if (['uca', 'loss_scenario', 'system_constraint'].includes(nodeType) && selectedHazardIds.length > 0) {
+        const linkedHazardIds = []
+        const prefix = NODE_TYPE_PREFIXES[nodeType]
+        for (const hid of selectedHazardIds) {
+          try {
+            await createLink(projectId, nodeType, nodeData.id, 'hazard', hid)
+            addRFEdge(makeRFEdge(`${prefix}-${nodeData.id}`, `hazard-${hid}`, true))
+            linkedHazardIds.push(hid)
+          } catch (_) {}
+        }
+        if (linkedHazardIds.length > 0) {
+          useCanvasStore.getState().updateRFNode(rfNode.id, { hazard_ids: linkedHazardIds })
         }
       }
 
@@ -157,7 +174,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
         nodeId: nodeData.id,
         projectId,
         snapshot: {
-          nodeData: { ...nodeData, nodeType, loss_ids: selectedLossIds.length > 0 ? selectedLossIds : [] },
+          nodeData: { ...nodeData, nodeType, loss_ids: selectedLossIds.length > 0 ? selectedLossIds : [], hazard_ids: selectedHazardIds.length > 0 ? selectedHazardIds : [] },
           position,
           rfNodeType: RF_NODE_TYPES[nodeType],
         },
@@ -275,19 +292,27 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                 required
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Linked Hazard (optional)</label>
-              <select
-                value={formData.linked_hazard_id || ''}
-                onChange={e => handleChange('linked_hazard_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              >
-                <option value="">None</option>
-                {allHazards.map(h => (
-                  <option key={h.id} value={h.id}>{h.label}</option>
-                ))}
-              </select>
-            </div>
+            {allHazards.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Link to Hazards (optional)</label>
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
+                  {allHazards.map(h => (
+                    <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedHazardIds.includes(h.id)}
+                        onChange={e => setSelectedHazardIds(prev =>
+                          e.target.checked ? [...prev, h.id] : prev.filter(id => id !== h.id)
+                        )}
+                        className="accent-yellow-500"
+                      />
+                      <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                      {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -347,6 +372,27 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                 ))}
               </select>
             </div>
+            {allHazards.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Link to Hazards (optional)</label>
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
+                  {allHazards.map(h => (
+                    <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedHazardIds.includes(h.id)}
+                        onChange={e => setSelectedHazardIds(prev =>
+                          e.target.checked ? [...prev, h.id] : prev.filter(id => id !== h.id)
+                        )}
+                        className="accent-blue-500"
+                      />
+                      <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                      {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -377,6 +423,27 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                 ))}
               </select>
             </div>
+            {allHazards.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Link to Hazards (optional)</label>
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
+                  {allHazards.map(h => (
+                    <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedHazardIds.includes(h.id)}
+                        onChange={e => setSelectedHazardIds(prev =>
+                          e.target.checked ? [...prev, h.id] : prev.filter(id => id !== h.id)
+                        )}
+                        className="accent-purple-500"
+                      />
+                      <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                      {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 

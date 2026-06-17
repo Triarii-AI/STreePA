@@ -102,7 +102,11 @@ export default function NodePanel({ projectId }) {
       if (Object.keys(changedFields).length === 0) { setSaving(false); return }
 
       const result = await updateNode(projectId, nodeType, nodeId, changedFields)
-      updateRFNode(rfNodeId, changedFields)
+      const mergedUpdate = { ...changedFields }
+      if (result && result.label && result.label !== nodeData.label) {
+        mergedUpdate.label = result.label
+      }
+      updateRFNode(rfNodeId, mergedUpdate)
       // Update parent edges when structural parent fields change
       if ('parent_hazard_id' in changedFields) {
         const oldPid = nodeData.parent_hazard_id
@@ -139,6 +143,9 @@ export default function NodePanel({ projectId }) {
     if (!window.confirm('Delete this node? This may affect dependent nodes.')) return
     setDeleting(true)
     try {
+      const childHazardRfIds = nodeType === 'hazard'
+        ? edges.filter(e => e.source === rfNodeId && !e.style?.strokeDasharray && e.target?.startsWith('hazard-')).map(e => e.target)
+        : []
       await deleteNode(projectId, nodeType, nodeId)
       socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
       removeRFNode(rfNodeId)
@@ -154,6 +161,9 @@ export default function NodePanel({ projectId }) {
           position: { ...(selectedNode?.position || {}) },
           rfNodeType: selectedNode?.type,
         },
+      })
+      childHazardRfIds.forEach(chId => {
+        useCanvasStore.getState().updateRFNode(chId, { parent_hazard_id: null })
       })
     } catch (err) {
       alert(err.message || 'Failed to delete node.')
@@ -506,34 +516,24 @@ export default function NodePanel({ projectId }) {
           </div>
         )}
 
-        {/* System Constraint → Hazard (single FK shown as checkboxes, only one can be active) */}
+        {/* System Constraint → Hazards (multi-select checkboxes) */}
         {nodeType === 'system_constraint' && (
           <div className="border-t border-gray-100 pt-3">
-            <p className="text-xs font-semibold text-gray-600 mb-2">Linked Hazard</p>
+            <p className="text-xs font-semibold text-gray-600 mb-2">Linked Hazards</p>
             {allHazards.length === 0
               ? <p className="text-xs text-gray-400">No hazards exist yet.</p>
               : (
                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
                   {allHazards.map(h => {
-                    const isLinked = linkedHazardId === h.id
+                    const isLinked = currentHazardIds.includes(h.id)
                     return (
                       <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={isLinked}
-                          onChange={async e => {
-                            const newVal = e.target.checked ? h.id : null
-                            const oldVal = linkedHazardId
-                            setLinkError('')
-                            try {
-                              await updateNode(projectId, 'system_constraint', nodeId, { linked_hazard_id: newVal })
-                              updateRFNode(rfNodeId, { linked_hazard_id: newVal })
-                              setFormData(prev => ({ ...prev, linked_hazard_id: newVal }))
-                              if (oldVal) removeRFEdge(`e-sc-${nodeId}-hazard-${oldVal}`)
-                              if (newVal) addRFEdge(makeRFEdge(`sc-${nodeId}`, `hazard-${newVal}`, true))
-                            } catch (err) {
-                              setLinkError(err.message || 'Failed to update linked hazard.')
-                            }
+                          onChange={e => {
+                            if (e.target.checked) handleAddLink('system_constraint', nodeId, 'hazard', h.id)
+                            else handleRemoveLink('system_constraint', nodeId, 'hazard', h.id)
                           }}
                           className="accent-yellow-500"
                         />

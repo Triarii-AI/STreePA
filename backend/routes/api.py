@@ -4,7 +4,7 @@ from extensions import db
 from models import (
     Project, Loss, Hazard, SystemConstraint, ControlAction,
     UCA, LossScenario, CanvasEdge,
-    hazard_loss_links, uca_hazard_links, ls_hazard_links
+    hazard_loss_links, uca_hazard_links, ls_hazard_links, sc_hazard_links
 )
 
 api_bp = Blueprint('api', __name__)
@@ -161,7 +161,19 @@ def update_hazard(project_id, node_id):
     if 'description' in data:
         node.description = data['description']
     if 'parent_hazard_id' in data:
-        node.parent_hazard_id = data['parent_hazard_id']
+        new_parent = data['parent_hazard_id']
+        if new_parent != node.parent_hazard_id:
+            node.parent_hazard_id = new_parent
+            if new_parent is None:
+                top_count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).filter(Hazard.id != node_id).count()
+                node.label = f'H-{top_count + 1}'
+            else:
+                parent = Hazard.query.get(new_parent)
+                parent_label = parent.label if parent else 'H-?'
+                sibling_count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=new_parent).filter(Hazard.id != node_id).count()
+                node.label = f'{parent_label}.{sibling_count + 1}'
+        else:
+            node.parent_hazard_id = new_parent
     if 'x' in data:
         node.x = data['x']
     if 'y' in data:
@@ -174,9 +186,16 @@ def update_hazard(project_id, node_id):
 @login_required
 def delete_hazard(project_id, node_id):
     node = Hazard.query.filter_by(id=node_id, project_id=project_id).first_or_404()
+    children = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=node_id).all()
+    orphaned_ids = []
+    for child in children:
+        child.parent_hazard_id = None
+        top_count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).filter(Hazard.id != child.id).count()
+        child.label = f'H-{top_count + 1}'
+        orphaned_ids.append({'id': child.id, 'label': child.label})
     db.session.delete(node)
     db.session.commit()
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'orphaned_children': orphaned_ids})
 
 
 # ─────────────────────────────────────────────
@@ -317,7 +336,15 @@ def update_uca(project_id, node_id):
     if 'uca_type' in data:
         node.uca_type = data['uca_type']
     if 'control_action_id' in data:
-        node.control_action_id = data['control_action_id']
+        new_ca_id = int(data['control_action_id'])
+        if new_ca_id != node.control_action_id:
+            node.control_action_id = new_ca_id
+            ca = ControlAction.query.get(new_ca_id)
+            ca_num = ca.label[3:] if ca and ca.label.startswith('CA-') else str(new_ca_id)
+            sibling_count = UCA.query.filter_by(project_id=project_id, control_action_id=new_ca_id).filter(UCA.id != node_id).count()
+            node.label = f'UCA-{ca_num}.{sibling_count + 1}'
+        else:
+            node.control_action_id = new_ca_id
     if 'x' in data:
         node.x = data['x']
     if 'y' in data:
@@ -370,7 +397,15 @@ def update_loss_scenario(project_id, node_id):
     if 'description' in data:
         node.description = data['description']
     if 'uca_id' in data:
-        node.uca_id = data['uca_id']
+        new_uca_id = int(data['uca_id'])
+        if new_uca_id != node.uca_id:
+            node.uca_id = new_uca_id
+            uca = UCA.query.get(new_uca_id)
+            uca_num = uca.label[4:] if uca and uca.label.startswith('UCA-') else str(new_uca_id)
+            sibling_count = LossScenario.query.filter_by(project_id=project_id, uca_id=new_uca_id).filter(LossScenario.id != node_id).count()
+            node.label = f'LS-{uca_num}.{sibling_count + 1}'
+        else:
+            node.uca_id = new_uca_id
     if 'x' in data:
         node.x = data['x']
     if 'y' in data:
@@ -432,6 +467,16 @@ def create_link(project_id):
         if not existing:
             db.session.execute(ls_hazard_links.insert().values(ls_id=from_id, hazard_id=to_id))
             db.session.commit()
+    elif from_type == 'system_constraint' and to_type == 'hazard':
+        existing = db.session.execute(
+            db.select(sc_hazard_links).where(
+                sc_hazard_links.c.sc_id == from_id,
+                sc_hazard_links.c.hazard_id == to_id
+            )
+        ).first()
+        if not existing:
+            db.session.execute(sc_hazard_links.insert().values(sc_id=from_id, hazard_id=to_id))
+            db.session.commit()
     else:
         return jsonify({'error': 'Unsupported link type combination'}), 400
 
@@ -469,6 +514,14 @@ def delete_link(project_id):
             ls_hazard_links.delete().where(
                 ls_hazard_links.c.ls_id == from_id,
                 ls_hazard_links.c.hazard_id == to_id
+            )
+        )
+        db.session.commit()
+    elif from_type == 'system_constraint' and to_type == 'hazard':
+        db.session.execute(
+            sc_hazard_links.delete().where(
+                sc_hazard_links.c.sc_id == from_id,
+                sc_hazard_links.c.hazard_id == to_id
             )
         )
         db.session.commit()

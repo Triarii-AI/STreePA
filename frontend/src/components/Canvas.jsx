@@ -273,11 +273,15 @@ function CanvasInner({ projectId }) {
           rfNodeType: selectedNode.type,
         }
         try {
+          const childHazardRfIds = nodeType === 'hazard'
+            ? store.edges.filter(e => e.source === selectedNode.id && !e.style?.strokeDasharray && e.target?.startsWith('hazard-')).map(e => e.target)
+            : []
           await deleteNode(projectId, nodeType, nodeId)
           socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
           store.removeRFNode(selectedNode.id)
           store.setSelectedNode(null)
           store.pushHistory({ action: 'delete', rfId: selectedNode.id, nodeType, nodeId, projectId, snapshot })
+          childHazardRfIds.forEach(chId => store.updateRFNode(chId, { parent_hazard_id: null }))
         } catch (err) { console.error('Delete failed:', err) }
         return
       }
