@@ -18,6 +18,12 @@ export default function CANode({ data, selected }) {
         position={Position.Top}
         style={{ background: '#22c55e', width: 8, height: 8 }}
       />
+      <Handle
+        type="source"
+        id="top-source"
+        position={Position.Top}
+        style={{ background: '#22c55e', width: 6, height: 6, opacity: 0.5, left: '30%' }}
+      />
 
       <div className="flex items-start justify-between gap-1 mb-1">
         <span className="font-bold text-green-800 text-sm leading-tight break-words flex-1">
@@ -38,6 +44,12 @@ export default function CANode({ data, selected }) {
         type="source"
         position={Position.Bottom}
         style={{ background: '#22c55e', width: 8, height: 8 }}
+      />
+      <Handle
+        type="target"
+        id="bottom-target"
+        position={Position.Bottom}
+        style={{ background: '#22c55e', width: 6, height: 6, opacity: 0.5, left: '70%' }}
       />
     </div>
   )

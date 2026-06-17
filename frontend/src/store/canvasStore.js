@@ -7,14 +7,19 @@ const SOLID_MARKER = { type: 'arrowclosed', width: 16, height: 16, color: '#6474
 const DASHED_MARKER = { type: 'arrow', width: 16, height: 16, color: '#94a3b8' }
 
 function makeEdge(source, target, dashed = false) {
-  return {
+  const edge = {
     id: `e-${source}-${target}`,
     source,
     target,
-    type: 'smoothstep',
+    type: 'default',
     style: dashed ? DASHED_EDGE_STYLE : SOLID_EDGE_STYLE,
     markerEnd: dashed ? DASHED_MARKER : SOLID_MARKER,
   }
+  if (dashed) {
+    edge.sourceHandle = 'top-source'
+    edge.targetHandle = 'bottom-target'
+  }
+  return edge
 }
 
 function nodeTypeToPrefix(nodeType) {
@@ -76,11 +81,11 @@ function buildNodesAndEdges(data) {
     edges.push(makeEdge(`hazard-${h.parent_hazard_id}`, `hazard-${h.id}`, false))
   })
 
-  // Hazard → Loss dashed edges
+  // Loss → Hazard solid edges (Loss is parent, Hazard is child)
   hazards.forEach(h => {
     if (h.loss_ids && Array.isArray(h.loss_ids)) {
       h.loss_ids.forEach(lid => {
-        edges.push(makeEdge(`hazard-${h.id}`, `loss-${lid}`, true))
+        edges.push(makeEdge(`loss-${lid}`, `hazard-${h.id}`, false))
       })
     }
   })
@@ -153,9 +158,10 @@ function buildNodesAndEdges(data) {
       id: `e-canvas-${ce.id}`,
       source: src,
       target: tgt,
-      type: 'smoothstep',
+      type: 'default',
       style: isSolid ? SOLID_EDGE_STYLE : DASHED_EDGE_STYLE,
       markerEnd: isSolid ? SOLID_MARKER : DASHED_MARKER,
+      ...(isSolid ? {} : { sourceHandle: 'top-source', targetHandle: 'bottom-target' }),
     })
   })
 
@@ -204,6 +210,9 @@ const useCanvasStore = create((set, get) => ({
       nodes: state.nodes.map(n =>
         n.id === nodeId ? { ...n, data: { ...n.data, ...changes } } : n
       ),
+      selectedNode: state.selectedNode?.id === nodeId
+        ? { ...state.selectedNode, data: { ...state.selectedNode.data, ...changes } }
+        : state.selectedNode,
     }))
   },
 

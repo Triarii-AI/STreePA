@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import useCanvasStore from '../store/canvasStore.js'
-import { updateNode, deleteNode, createLink, deleteLink, pluralize } from '../api.js'
+import { updateNode, deleteNode, createLink, deleteLink } from '../api.js'
 import socket from '../socket.js'
 import { LAYER_COLORS, UCA_TYPE_COLORS, UCA_TYPE_LABELS, makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 
@@ -101,7 +101,7 @@ export default function NodePanel({ projectId }) {
       })
       if (Object.keys(changedFields).length === 0) { setSaving(false); return }
 
-      const result = await updateNode(projectId, pluralize(nodeType), nodeId, changedFields)
+      const result = await updateNode(projectId, nodeType, nodeId, changedFields)
       updateRFNode(rfNodeId, changedFields)
       socket.emit('node:updated', {
         project_id: projectId,
@@ -120,7 +120,7 @@ export default function NodePanel({ projectId }) {
     if (!window.confirm('Delete this node? This may affect dependent nodes.')) return
     setDeleting(true)
     try {
-      await deleteNode(projectId, pluralize(nodeType), nodeId)
+      await deleteNode(projectId, nodeType, nodeId)
       socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
       removeRFNode(rfNodeId)
       setSelectedNode(null)
@@ -138,7 +138,12 @@ export default function NodePanel({ projectId }) {
       const newIds = [...idList, toId]
       updateRFNode(rfNodeId, { [`${toType}_ids`]: newIds })
       setFormData(prev => ({ ...prev, [`${toType}_ids`]: newIds }))
-      addRFEdge(makeRFEdge(`${nodeTypeToPrefix(fromType)}-${fromId}`, `${nodeTypeToPrefix(toType)}-${toId}`, true))
+      // Loss is parent of Hazard: edge runs loss→hazard (solid), not hazard→loss
+      if (fromType === 'hazard' && toType === 'loss') {
+        addRFEdge(makeRFEdge(`loss-${toId}`, `hazard-${fromId}`, false))
+      } else {
+        addRFEdge(makeRFEdge(`${nodeTypeToPrefix(fromType)}-${fromId}`, `${nodeTypeToPrefix(toType)}-${toId}`, true))
+      }
     } catch (err) {
       setLinkError(err.message || 'Failed to add link.')
     }
@@ -152,7 +157,11 @@ export default function NodePanel({ projectId }) {
       const newIds = idList.filter(id => id !== toId)
       updateRFNode(rfNodeId, { [`${toType}_ids`]: newIds })
       setFormData(prev => ({ ...prev, [`${toType}_ids`]: newIds }))
-      removeRFEdge(`e-${nodeTypeToPrefix(fromType)}-${fromId}-${nodeTypeToPrefix(toType)}-${toId}`)
+      // Edge was stored as loss→hazard, so the ID uses that order
+      const edgeId = (fromType === 'hazard' && toType === 'loss')
+        ? `e-loss-${toId}-hazard-${fromId}`
+        : `e-${nodeTypeToPrefix(fromType)}-${fromId}-${nodeTypeToPrefix(toType)}-${toId}`
+      removeRFEdge(edgeId)
     } catch (err) {
       setLinkError(err.message || 'Failed to remove link.')
     }
@@ -329,29 +338,33 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'hazard' && (
           <div className="border-t border-gray-100 pt-3">
             <p className="text-xs font-semibold text-gray-600 mb-2">Linked Losses</p>
-            <div className="flex flex-wrap gap-1 mb-2">
-              {currentLossIds.map(lid => {
-                const lossNode = allLosses.find(l => l.id === lid)
-                return (
-                  <LinkChip
-                    key={lid}
-                    label={lossNode?.label || `L-${lid}`}
-                    onRemove={() => handleRemoveLink('hazard', nodeId, 'loss', lid)}
-                  />
-                )
-              })}
-              {currentLossIds.length === 0 && <span className="text-xs text-gray-400">None linked</span>}
-            </div>
-            <select
-              onChange={e => { if (e.target.value) { handleAddLink('hazard', nodeId, 'loss', parseInt(e.target.value)); e.target.value = '' } }}
-              className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-red-400"
-              defaultValue=""
-            >
-              <option value="">+ Link Loss</option>
-              {allLosses.filter(l => !currentLossIds.includes(l.id)).map(l => (
-                <option key={l.id} value={l.id}>{l.label}</option>
-              ))}
-            </select>
+            {allLosses.length === 0
+              ? <p className="text-xs text-gray-400">No losses exist yet.</p>
+              : (
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
+                  {allLosses.map(l => {
+                    const isLinked = currentLossIds.includes(l.id)
+                    return (
+                      <label key={l.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isLinked}
+                          onChange={e => {
+                            if (e.target.checked) handleAddLink('hazard', nodeId, 'loss', l.id)
+                            else handleRemoveLink('hazard', nodeId, 'loss', l.id)
+                          }}
+                          className="accent-orange-500"
+                        />
+                        <span className="text-xs font-medium text-gray-700">{l.label}</span>
+                        {l.description && (
+                          <span className="text-xs text-gray-400 truncate">{l.description}</span>
+                        )}
+                      </label>
+                    )
+                  })}
+                </div>
+              )
+            }
           </div>
         )}
 
@@ -359,29 +372,33 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'uca' && (
           <div className="border-t border-gray-100 pt-3">
             <p className="text-xs font-semibold text-gray-600 mb-2">Linked Hazards</p>
-            <div className="flex flex-wrap gap-1 mb-2">
-              {currentHazardIds.map(hid => {
-                const hNode = allHazards.find(h => h.id === hid)
-                return (
-                  <LinkChip
-                    key={hid}
-                    label={hNode?.label || `H-${hid}`}
-                    onRemove={() => handleRemoveLink('uca', nodeId, 'hazard', hid)}
-                  />
-                )
-              })}
-              {currentHazardIds.length === 0 && <span className="text-xs text-gray-400">None linked</span>}
-            </div>
-            <select
-              onChange={e => { if (e.target.value) { handleAddLink('uca', nodeId, 'hazard', parseInt(e.target.value)); e.target.value = '' } }}
-              className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
-              defaultValue=""
-            >
-              <option value="">+ Link Hazard</option>
-              {allHazards.filter(h => !currentHazardIds.includes(h.id)).map(h => (
-                <option key={h.id} value={h.id}>{h.label}</option>
-              ))}
-            </select>
+            {allHazards.length === 0
+              ? <p className="text-xs text-gray-400">No hazards exist yet.</p>
+              : (
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
+                  {allHazards.map(h => {
+                    const isLinked = currentHazardIds.includes(h.id)
+                    return (
+                      <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isLinked}
+                          onChange={e => {
+                            if (e.target.checked) handleAddLink('uca', nodeId, 'hazard', h.id)
+                            else handleRemoveLink('uca', nodeId, 'hazard', h.id)
+                          }}
+                          className="accent-blue-500"
+                        />
+                        <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                        {h.description && (
+                          <span className="text-xs text-gray-400 truncate">{h.description}</span>
+                        )}
+                      </label>
+                    )
+                  })}
+                </div>
+              )
+            }
           </div>
         )}
 
@@ -389,29 +406,33 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'loss_scenario' && (
           <div className="border-t border-gray-100 pt-3">
             <p className="text-xs font-semibold text-gray-600 mb-2">Linked Hazards</p>
-            <div className="flex flex-wrap gap-1 mb-2">
-              {currentHazardIds.map(hid => {
-                const hNode = allHazards.find(h => h.id === hid)
-                return (
-                  <LinkChip
-                    key={hid}
-                    label={hNode?.label || `H-${hid}`}
-                    onRemove={() => handleRemoveLink('loss_scenario', nodeId, 'hazard', hid)}
-                  />
-                )
-              })}
-              {currentHazardIds.length === 0 && <span className="text-xs text-gray-400">None linked</span>}
-            </div>
-            <select
-              onChange={e => { if (e.target.value) { handleAddLink('loss_scenario', nodeId, 'hazard', parseInt(e.target.value)); e.target.value = '' } }}
-              className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
-              defaultValue=""
-            >
-              <option value="">+ Link Hazard</option>
-              {allHazards.filter(h => !currentHazardIds.includes(h.id)).map(h => (
-                <option key={h.id} value={h.id}>{h.label}</option>
-              ))}
-            </select>
+            {allHazards.length === 0
+              ? <p className="text-xs text-gray-400">No hazards exist yet.</p>
+              : (
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
+                  {allHazards.map(h => {
+                    const isLinked = currentHazardIds.includes(h.id)
+                    return (
+                      <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isLinked}
+                          onChange={e => {
+                            if (e.target.checked) handleAddLink('loss_scenario', nodeId, 'hazard', h.id)
+                            else handleRemoveLink('loss_scenario', nodeId, 'hazard', h.id)
+                          }}
+                          className="accent-purple-500"
+                        />
+                        <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                        {h.description && (
+                          <span className="text-xs text-gray-400 truncate">{h.description}</span>
+                        )}
+                      </label>
+                    )
+                  })}
+                </div>
+              )
+            }
           </div>
         )}
 
@@ -425,7 +446,7 @@ export default function NodePanel({ projectId }) {
                 const newVal = e.target.value ? parseInt(e.target.value) : null
                 setLinkError('')
                 try {
-                  await updateNode(projectId, 'system_constraints', nodeId, { linked_hazard_id: newVal })
+                  await updateNode(projectId, 'system_constraint', nodeId, { linked_hazard_id: newVal })
                   updateRFNode(rfNodeId, { linked_hazard_id: newVal })
                   setFormData(prev => ({ ...prev, linked_hazard_id: newVal }))
                 } catch (err) {

@@ -128,13 +128,18 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
         addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, `ls-${nodeData.id}`, false))
       }
 
-      // Create hazard→loss links and add dashed edges
+      // Create hazard→loss links and add solid edges
       if (nodeType === 'hazard' && selectedLossIds.length > 0) {
+        const linkedIds = []
         for (const lid of selectedLossIds) {
           try {
             await createLink(projectId, 'hazard', nodeData.id, 'loss', lid)
-            addRFEdge(makeRFEdge(`hazard-${nodeData.id}`, `loss-${lid}`, true))
+            addRFEdge(makeRFEdge(`loss-${lid}`, `hazard-${nodeData.id}`, false))
+            linkedIds.push(lid)
           } catch (_) {}
+        }
+        if (linkedIds.length > 0) {
+          useCanvasStore.getState().updateRFNode(`hazard-${nodeData.id}`, { loss_ids: linkedIds })
         }
       }
 

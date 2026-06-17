@@ -18,7 +18,7 @@ import '@xyflow/react/dist/style.css'
 
 import useCanvasStore from '../store/canvasStore.js'
 import socket from '../socket.js'
-import { updateNode, createCanvasEdge, pluralize } from '../api.js'
+import { updateNode, createCanvasEdge } from '../api.js'
 
 import RootNode from './nodes/RootNode.jsx'
 import LossNode from './nodes/LossNode.jsx'
@@ -144,7 +144,7 @@ function CanvasInner({ projectId }) {
     if (!nodeType || nodeType === 'root') return
 
     try {
-      await updateNode(projectId, pluralize(nodeType), nodeId, {
+      await updateNode(projectId, nodeType, nodeId, {
         x: node.position.x,
         y: node.position.y,
       })
@@ -175,7 +175,9 @@ function CanvasInner({ projectId }) {
         id: `e-canvas-${result?.id || Date.now()}`,
         source: connection.source,
         target: connection.target,
-        type: 'smoothstep',
+        sourceHandle: connection.sourceHandle,
+        targetHandle: connection.targetHandle,
+        type: 'default',
         style: { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5,5' },
         markerEnd: { type: 'arrow', width: 16, height: 16, color: '#94a3b8' },
       }
@@ -202,7 +204,7 @@ function CanvasInner({ projectId }) {
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
-        defaultEdgeOptions={{ type: 'smoothstep' }}
+        defaultEdgeOptions={{ type: 'default' }}
         fitView
         proOptions={{ hideAttribution: true }}
       >

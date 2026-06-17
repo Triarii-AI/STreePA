@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
+import { useNavigate } from 'react-router-dom'
 import { updateProject } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
 
@@ -30,6 +31,7 @@ function UserAvatar({ user, index }) {
 
 export default function Toolbar({ project }) {
   const reactFlow = useReactFlow()
+  const navigate = useNavigate()
   const currentProject = useCanvasStore(s => s.currentProject)
   const activeUsers = useCanvasStore(s => s.activeUsers)
 
@@ -65,6 +67,18 @@ export default function Toolbar({ project }) {
 
   return (
     <div className="h-14 bg-white border-b border-gray-200 shadow-sm flex items-center px-4 gap-4 flex-shrink-0 z-10">
+      {/* Back to Dashboard */}
+      <button
+        onClick={() => navigate('/dashboard')}
+        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
+        title="Back to Dashboard"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Dashboard
+      </button>
+
       {/* Left: Title */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
         <div className="w-7 h-7 rounded-lg bg-indigo-600 flex-shrink-0 flex items-center justify-center">
