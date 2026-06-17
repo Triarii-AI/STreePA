@@ -24,12 +24,6 @@ export default function LSNode({ data, selected }) {
         position={Position.Top}
         style={{ background: '#8b5cf6', width: 6, height: 6, opacity: 0.5, left: '30%' }}
       />
-      <Handle
-        type="target"
-        id="bottom-target"
-        position={Position.Bottom}
-        style={{ background: '#8b5cf6', width: 6, height: 6, opacity: 0.5, left: '70%' }}
-      />
 
       <div className="flex items-start justify-between gap-1 mb-1">
         <span className="font-bold text-purple-800 text-sm leading-tight break-words flex-1">

@@ -28,12 +28,6 @@ export default function HazardNode({ data, selected, id }) {
         style={{ background: '#f97316', width: 8, height: 8 }}
       />
       <Handle
-        type="source"
-        id="top-source"
-        position={Position.Top}
-        style={{ background: '#f97316', width: 6, height: 6, opacity: 0.5, left: '30%' }}
-      />
-      <Handle
         type="target"
         position={Position.Left}
         id="left-target"

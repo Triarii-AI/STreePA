@@ -30,20 +30,8 @@ export default function RootNode({ data, selected }) {
 
       <Handle
         type="source"
-        id="top-source"
-        position={Position.Top}
-        style={{ background: '#6366f1', width: 6, height: 6, opacity: 0.5, left: '30%' }}
-      />
-      <Handle
-        type="source"
         position={Position.Bottom}
         style={{ background: '#6366f1', width: 10, height: 10 }}
-      />
-      <Handle
-        type="target"
-        id="bottom-target"
-        position={Position.Bottom}
-        style={{ background: '#6366f1', width: 6, height: 6, opacity: 0.5, left: '70%' }}
       />
     </div>
   )

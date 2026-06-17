@@ -436,30 +436,47 @@ export default function NodePanel({ projectId }) {
           </div>
         )}
 
-        {/* System Constraint → Hazard (single FK, updated via updateNode) */}
+        {/* System Constraint → Hazard (single FK shown as checkboxes, only one can be active) */}
         {nodeType === 'system_constraint' && (
           <div className="border-t border-gray-100 pt-3">
             <p className="text-xs font-semibold text-gray-600 mb-2">Linked Hazard</p>
-            <select
-              value={linkedHazardId || ''}
-              onChange={async e => {
-                const newVal = e.target.value ? parseInt(e.target.value) : null
-                setLinkError('')
-                try {
-                  await updateNode(projectId, 'system_constraint', nodeId, { linked_hazard_id: newVal })
-                  updateRFNode(rfNodeId, { linked_hazard_id: newVal })
-                  setFormData(prev => ({ ...prev, linked_hazard_id: newVal }))
-                } catch (err) {
-                  setLinkError(err.message || 'Failed to update linked hazard.')
-                }
-              }}
-              className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            >
-              <option value="">None</option>
-              {allHazards.map(h => (
-                <option key={h.id} value={h.id}>{h.label}</option>
-              ))}
-            </select>
+            {allHazards.length === 0
+              ? <p className="text-xs text-gray-400">No hazards exist yet.</p>
+              : (
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
+                  {allHazards.map(h => {
+                    const isLinked = linkedHazardId === h.id
+                    return (
+                      <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isLinked}
+                          onChange={async e => {
+                            const newVal = e.target.checked ? h.id : null
+                            const oldVal = linkedHazardId
+                            setLinkError('')
+                            try {
+                              await updateNode(projectId, 'system_constraint', nodeId, { linked_hazard_id: newVal })
+                              updateRFNode(rfNodeId, { linked_hazard_id: newVal })
+                              setFormData(prev => ({ ...prev, linked_hazard_id: newVal }))
+                              if (oldVal) removeRFEdge(`e-sc-${nodeId}-hazard-${oldVal}`)
+                              if (newVal) addRFEdge(makeRFEdge(`sc-${nodeId}`, `hazard-${newVal}`, true))
+                            } catch (err) {
+                              setLinkError(err.message || 'Failed to update linked hazard.')
+                            }
+                          }}
+                          className="accent-yellow-500"
+                        />
+                        <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                        {h.description && (
+                          <span className="text-xs text-gray-400 truncate">{h.description}</span>
+                        )}
+                      </label>
+                    )
+                  })}
+                </div>
+              )
+            }
           </div>
         )}
 

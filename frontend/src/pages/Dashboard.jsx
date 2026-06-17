@@ -48,6 +48,7 @@ export default function Dashboard() {
     setCreateError('')
     try {
       const data = await createProject(newTitle.trim(), newPurpose.trim())
+      setProjects([...projects, data.project])
       setShowNewModal(false)
       setNewTitle('')
       setNewPurpose('')
