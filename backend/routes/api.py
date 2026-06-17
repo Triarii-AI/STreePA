@@ -190,9 +190,10 @@ def delete_hazard(project_id, node_id):
     orphaned_ids = []
     for child in children:
         child.parent_hazard_id = None
-        top_count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).filter(Hazard.id != child.id).count()
-        child.label = f'H-{top_count + 1}'
+        parts = child.label.split('.', 1)
+        child.label = f'H-x.{parts[1]}' if len(parts) == 2 else 'H-x'
         orphaned_ids.append({'id': child.id, 'label': child.label})
+    db.session.flush()
     db.session.delete(node)
     db.session.commit()
     return jsonify({'success': True, 'orphaned_children': orphaned_ids})

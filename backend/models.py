@@ -145,7 +145,7 @@ class SystemConstraint(db.Model):
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
 
-    linked_hazards = db.relationship('Hazard', secondary='sc_hazard_links', lazy=True)
+    linked_hazards = db.relationship('Hazard', secondary=sc_hazard_links, lazy=True)
 
     def to_dict(self):
         hazard_ids = [row.hazard_id for row in db.session.execute(

@@ -22,6 +22,11 @@ export default function HazardNode({ data, selected }) {
       />
       <Handle
         type="source"
+        position={Position.Bottom}
+        style={{ background: '#f97316', width: 8, height: 8 }}
+      />
+      <Handle
+        type="source"
         id="top-source"
         position={Position.Top}
         style={{ background: '#f97316', width: 6, height: 6, opacity: 0.5, left: '30%' }}
@@ -54,11 +59,6 @@ export default function HazardNode({ data, selected }) {
       )}
 
 
-<Handle
-        type="source"
-        position={Position.Bottom}
-        style={{ background: '#f97316', width: 8, height: 8 }}
-      />
       <Handle
         type="target"
         id="bottom-target"
