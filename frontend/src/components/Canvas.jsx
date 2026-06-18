@@ -18,7 +18,7 @@ import '@xyflow/react/dist/style.css'
 
 import useCanvasStore from '../store/canvasStore.js'
 import socket from '../socket.js'
-import { updateNode, createCanvasEdge, deleteNode, createNode, createLink } from '../api.js'
+import { updateNode, deleteNode, createNode, createLink } from '../api.js'
 import { makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 
 import RootNode from './nodes/RootNode.jsx'
@@ -70,14 +70,6 @@ function getNodeColor(type) {
 const RF_PREFIX_TO_TYPE = {
   sc: 'system_constraint', ca: 'control_action', uca: 'uca',
   ls: 'loss_scenario', loss: 'loss', hazard: 'hazard', root: 'root',
-}
-
-function rfIdParts(rfId) {
-  const parts = rfId.split('-')
-  const prefix = parts[0]
-  const nodeType = RF_PREFIX_TO_TYPE[prefix] || prefix
-  const nodeId = parseInt(parts[parts.length - 1])
-  return { nodeType, nodeId }
 }
 
 async function recreateNode(entry) {
@@ -146,8 +138,6 @@ function CanvasInner({ projectId }) {
   const setSelectedNode = useCanvasStore(s => s.setSelectedNode)
   const focusNodeId = useCanvasStore(s => s.focusNodeId)
   const clearFocusNode = useCanvasStore(s => s.clearFocusNode)
-  const addRFEdge = useCanvasStore(s => s.addRFEdge)
-
   const [addFormType, setAddFormType] = useState(null)
   const [fitDone, setFitDone] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -217,32 +207,6 @@ function CanvasInner({ projectId }) {
       }
     }
   }, [projectId])
-
-  const onConnect = useCallback(async (connection) => {
-    const { nodeType: fromType, nodeId: fromId } = rfIdParts(connection.source)
-    const { nodeType: toType, nodeId: toId } = rfIdParts(connection.target)
-    try {
-      const result = await createCanvasEdge(projectId, {
-        from_node_type: fromType,
-        from_node_id: fromId,
-        to_node_type: toType,
-        to_node_id: toId,
-        style: 'dashed',
-      })
-      const rfEdge = {
-        id: `e-canvas-${result?.id || Date.now()}`,
-        source: connection.source,
-        target: connection.target,
-        type: 'floating',
-        style: { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5,5' },
-        markerEnd: { type: 'arrow', width: 16, height: 16, color: '#94a3b8' },
-      }
-      addRFEdge(rfEdge)
-      socket.emit('edge:added', { ...rfEdge, project_id: projectId })
-    } catch (err) {
-      console.error('Failed to create edge:', err)
-    }
-  }, [projectId, addRFEdge])
 
   // Keyboard shortcuts: Delete, Ctrl+C/V, Ctrl+Z/Y
   useEffect(() => {
@@ -418,7 +382,6 @@ function CanvasInner({ projectId }) {
         onNodeClick={onNodeClick}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
-        onConnect={onConnect}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'floating' }}

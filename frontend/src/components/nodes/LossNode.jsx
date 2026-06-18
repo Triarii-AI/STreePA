@@ -1,5 +1,4 @@
 import React from 'react'
-import { Handle, Position } from '@xyflow/react'
 
 export default function LossNode({ data, selected }) {
   if (data.hidden) return null
@@ -13,12 +12,6 @@ export default function LossNode({ data, selected }) {
         ${selected ? 'ring-2 ring-blue-400 ring-offset-1' : ''}
       `}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        style={{ background: '#ef4444', width: 8, height: 8 }}
-      />
-
       <div className="flex items-start justify-between gap-1 mb-1">
         <span className="font-bold text-red-800 text-sm leading-tight break-words flex-1">
           {data.label || 'Loss'}
@@ -33,18 +26,6 @@ export default function LossNode({ data, selected }) {
           {data.description}
         </p>
       )}
-
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        style={{ background: '#ef4444', width: 8, height: 8 }}
-      />
-      <Handle
-        type="target"
-        id="bottom-target"
-        position={Position.Bottom}
-        style={{ background: '#ef4444', width: 6, height: 6, opacity: 0.5, left: '70%' }}
-      />
     </div>
   )
 }

@@ -1,5 +1,4 @@
 import React from 'react'
-import { Handle, Position } from '@xyflow/react'
 
 export default function CANode({ data, selected }) {
   if (data.hidden) return null
@@ -13,12 +12,6 @@ export default function CANode({ data, selected }) {
         ${selected ? 'ring-2 ring-blue-400 ring-offset-1' : ''}
       `}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        style={{ background: '#22c55e', width: 8, height: 8 }}
-      />
-
       <div className="flex items-start justify-between gap-1 mb-1">
         <span className="font-bold text-green-800 text-sm leading-tight break-words flex-1">
           {data.label || data.name || 'Control Action'}
@@ -33,12 +26,6 @@ export default function CANode({ data, selected }) {
           {data.name}
         </p>
       )}
-
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        style={{ background: '#22c55e', width: 8, height: 8 }}
-      />
     </div>
   )
 }
