@@ -28,33 +28,28 @@ success "Python: $(python3 --version)"
 if ! command -v node >/dev/null 2>&1; then
   info "Node.js not found — installing..."
 
-  # Try nvm first (works without sudo)
   if command -v nvm >/dev/null 2>&1 || [[ -s "$HOME/.nvm/nvm.sh" ]]; then
-    # shellcheck source=/dev/null
     [[ -s "$HOME/.nvm/nvm.sh" ]] && source "$HOME/.nvm/nvm.sh"
     nvm install --lts
     nvm use --lts
     success "Node installed via nvm: $(node --version)"
 
-  # Debian/Ubuntu/Kali — use NodeSource LTS setup script
   elif command -v apt-get >/dev/null 2>&1; then
     info "Installing Node.js LTS via NodeSource (requires sudo)..."
     curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
     sudo apt-get install -y nodejs
     success "Node installed via apt: $(node --version)"
 
-  # Arch / Manjaro
   elif command -v pacman >/dev/null 2>&1; then
     sudo pacman -S --noconfirm nodejs npm
     success "Node installed via pacman: $(node --version)"
 
-  # Fedora / RHEL
   elif command -v dnf >/dev/null 2>&1; then
     sudo dnf install -y nodejs npm
     success "Node installed via dnf: $(node --version)"
 
   else
-    die "Cannot install Node.js automatically on this system. Please install Node.js 18+ manually from https://nodejs.org and re-run this script."
+    die "Cannot install Node.js automatically. Please install Node.js 18+ manually from https://nodejs.org and re-run this script."
   fi
 else
   success "Node:   $(node --version)"
@@ -63,71 +58,22 @@ fi
 command -v npm >/dev/null 2>&1 || die "npm not found after Node install — something went wrong."
 success "npm:    $(npm --version)"
 
-command -v mysql >/dev/null 2>&1 || die "mysql client not found. Install MySQL 8.0+."
-success "MySQL:  $(mysql --version | head -1)"
-
-info "Ensuring MySQL is running..."
-if ! sudo service mysql status >/dev/null 2>&1; then
-  info "MySQL is not running — starting it..."
-  sudo service mysql start || die "Failed to start MySQL. Try: sudo service mysql start"
-  success "MySQL started."
-else
-  success "MySQL is already running."
-fi
-
-# ── MySQL database + backend .env ─────────────────────────────────────────────
-# These two steps are merged: credentials are only set up when .env is absent.
-# On a fresh pull, .env doesn't exist → full setup runs.
-# On re-runs, .env exists → skip to avoid password drift.
+# ── Backend .env ──────────────────────────────────────────────────────────────
 
 echo ""
-info "Setting up MySQL..."
+info "Setting up backend configuration..."
 
 ENV_FILE="$BACKEND/.env"
-read -rp "  Database name [stpa_db]: " DB_NAME; DB_NAME="${DB_NAME:-stpa_db}"
 
 if [[ -f "$ENV_FILE" ]]; then
-  warn ".env already exists — skipping credential setup (delete it to reconfigure)."
-  # Still ensure the database exists in case this is a partial setup
-  sudo mysql -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
-  success "Database check done."
+  warn ".env already exists — skipping (delete it to reconfigure)."
 else
-  if sudo mysql -e "SELECT 1;" >/dev/null 2>&1; then
-    # unix_socket auth — create a dedicated app user Flask can connect to via TCP
-    APP_USER="stpa_user"
-    APP_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(20))")
-    warn "MySQL root uses unix_socket auth — setting up app user '${APP_USER}'..."
-    # Drop + recreate so the password always matches what we're about to write to .env
-    sudo mysql -e "DROP USER IF EXISTS '${APP_USER}'@'localhost';"
-    sudo mysql -e "CREATE USER '${APP_USER}'@'localhost' IDENTIFIED BY '${APP_PASS}';"
-    sudo mysql -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-    sudo mysql -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${APP_USER}'@'localhost';"
-    sudo mysql -e "FLUSH PRIVILEGES;"
-    # Use 127.0.0.1 (TCP) instead of localhost (socket) so PyMySQL uses password auth
-    DB_URL="mysql+pymysql://${APP_USER}:${APP_PASS}@127.0.0.1:3306/${DB_NAME}"
-    success "App user '${APP_USER}' ready."
-  else
-    # Password auth
-    read -rp "  MySQL host   [localhost]: " DB_HOST; DB_HOST="${DB_HOST:-localhost}"
-    read -rp "  MySQL port   [3306]:      " DB_PORT; DB_PORT="${DB_PORT:-3306}"
-    read -rp "  MySQL user   [root]:      " DB_USER; DB_USER="${DB_USER:-root}"
-    read -rsp "  MySQL password:           " DB_PASS; echo ""
-    MYSQL_CMD="mysql -h$DB_HOST -P$DB_PORT -u$DB_USER"
-    [[ -n "$DB_PASS" ]] && MYSQL_CMD="$MYSQL_CMD -p$DB_PASS"
-    $MYSQL_CMD -e "SELECT 1;" >/dev/null 2>&1 \
-      || die "Cannot connect to MySQL as '$DB_USER'. Check your credentials."
-    $MYSQL_CMD -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" \
-      || die "Failed to create database."
-    DB_URL="mysql+pymysql://${DB_USER}${DB_PASS:+:$DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
-  fi
-
-  success "Database '${DB_NAME}' ready."
   SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
   cat > "$ENV_FILE" <<EOF
 SECRET_KEY=$SECRET_KEY
-DATABASE_URL=$DB_URL
+DATABASE_URL=sqlite:///stpa.db
 EOF
-  success ".env written."
+  success ".env written (SQLite database will be created at backend/stpa.db on first run)."
 fi
 
 # ── Python virtual environment ────────────────────────────────────────────────
@@ -146,7 +92,6 @@ else
 fi
 
 info "Activating venv and installing Python dependencies..."
-# shellcheck source=/dev/null
 source "$VENV_DIR/bin/activate"
 pip install --quiet --upgrade pip
 pip install --quiet -r "$BACKEND/requirements.txt"

@@ -9,7 +9,7 @@ Build a web-based collaborative tool that visualizes the STPA (System-Theoretic 
 ## Tech Stack
 
 - **Backend:** Python / Flask with **Flask-SocketIO** for real-time WebSocket communication
-- **Database:** MySQL
+- **Database:** SQLite
 - **Frontend:** JavaScript single-page canvas application. The developer should choose the most appropriate canvas library (e.g. React Flow, Cytoscape.js, or similar) based on what best supports draggable nodes, custom edges, and programmatic layout. The choice should be justified in a brief comment in the code.
 - **Authentication:** Session-based username/password login (Flask-Login or equivalent)
 - **Real-time sync:** WebSocket-based via Flask-SocketIO. All canvas mutations (add node, edit node, move node, draw edge, delete) must be broadcast to all other connected clients in the same project room instantly.
@@ -165,7 +165,7 @@ The backend uses Flask-SocketIO. The frontend uses the Socket.IO client library.
 
 1. User performs an action (e.g. adds a node).
 2. Frontend sends a SocketIO event to the server with the action payload.
-3. Server writes the change to MySQL.
+3. Server writes the change to SQLite.
 4. Server broadcasts the event to all other clients in the same project room.
 5. Each receiving client applies the change to their local canvas state.
 

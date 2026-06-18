@@ -22,16 +22,6 @@ echo ""
 [[ -d "$BACKEND/venv" ]] || die "Python venv not found. Run ./setup.sh first."
 [[ -d "$FRONTEND/node_modules" ]] || die "node_modules not found. Run ./setup.sh first."
 
-# ── MySQL ─────────────────────────────────────────────────────────────────────
-
-info "Ensuring MySQL is running..."
-if ! sudo service mysql status >/dev/null 2>&1; then
-  sudo service mysql start || die "Failed to start MySQL."
-  success "MySQL started."
-else
-  success "MySQL already running."
-fi
-
 # ── Cleanup on exit ───────────────────────────────────────────────────────────
 
 BACKEND_PID=""
