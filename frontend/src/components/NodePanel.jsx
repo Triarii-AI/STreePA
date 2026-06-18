@@ -146,8 +146,8 @@ export default function NodePanel({ projectId }) {
       if ('linked_hazard_id' in changedFields) {
         const oldHid = nodeData.linked_hazard_id
         const newHid = changedFields.linked_hazard_id
-        if (oldHid) removeRFEdge(`e-sc-${nodeId}-hazard-${oldHid}`)
-        if (newHid) addRFEdge(makeRFEdge(`sc-${nodeId}`, `hazard-${newHid}`, true))
+        if (oldHid) removeRFEdge(`e-hazard-${oldHid}-sc-${nodeId}`)
+        if (newHid) addRFEdge(makeRFEdge(`hazard-${newHid}`, `sc-${nodeId}`, false))
       }
       socket.emit('node:updated', {
         project_id: projectId,

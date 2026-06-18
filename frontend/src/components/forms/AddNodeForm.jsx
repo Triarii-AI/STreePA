@@ -133,7 +133,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
         addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, `ls-${nodeData.id}`, false))
       }
       if (nodeType === 'system_constraint' && payload.linked_hazard_id) {
-        addRFEdge(makeRFEdge(`sc-${nodeData.id}`, `hazard-${payload.linked_hazard_id}`, true))
+        addRFEdge(makeRFEdge(`hazard-${payload.linked_hazard_id}`, `sc-${nodeData.id}`, false))
       }
 
       // Create hazard→loss links
