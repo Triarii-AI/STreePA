@@ -1,5 +1,8 @@
 import React from 'react'
+import { Handle, Position } from '@xyflow/react'
 import { UCA_TYPE_COLORS, UCA_TYPE_LABELS } from '../../constants.js'
+
+const H = { opacity: 0, pointerEvents: 'none', width: 1, height: 1 }
 
 export default function UCANode({ data, selected }) {
   if (data.hidden) return null
@@ -41,6 +44,8 @@ export default function UCANode({ data, selected }) {
           </span>
         </div>
       )}
+      <Handle type="source" position={Position.Bottom} style={H} isConnectable={false} />
+      <Handle type="target" position={Position.Top} style={H} isConnectable={false} />
     </div>
   )
 }

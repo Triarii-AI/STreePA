@@ -1,4 +1,7 @@
 import React from 'react'
+import { Handle, Position } from '@xyflow/react'
+
+const H = { opacity: 0, pointerEvents: 'none', width: 1, height: 1 }
 
 export default function RootNode({ data, selected }) {
   return (
@@ -26,6 +29,8 @@ export default function RootNode({ data, selected }) {
           {data.purpose_statement}
         </p>
       )}
+      <Handle type="source" position={Position.Bottom} style={H} isConnectable={false} />
+      <Handle type="target" position={Position.Top} style={H} isConnectable={false} />
     </div>
   )
 }
