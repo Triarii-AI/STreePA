@@ -186,35 +186,30 @@ function CanvasInner({ projectId }) {
     setSelectedNode(node)
   }, [setSelectedNode])
 
-  const onNodeDragStart = useCallback((e, node) => {
-    dragStartPos.current[node.id] = { ...node.position }
+  const onNodeDragStart = useCallback((e, node, draggedNodes) => {
+    const all = draggedNodes?.length > 1 ? draggedNodes : [node]
+    all.forEach(n => { dragStartPos.current[n.id] = { ...n.position } })
   }, [])
 
-  const onNodeDragStop = useCallback(async (e, node) => {
-    const rfId = node.id
-    const parts = rfId.split('-')
-    const prefixToType = {
-      sc: 'system_constraint', ca: 'control_action', uca: 'uca',
-      ls: 'loss_scenario', loss: 'loss', hazard: 'hazard', root: 'root',
-    }
-    const prefix = parts[0]
-    const nodeType = prefixToType[prefix]
-    const nodeId = parseInt(parts[parts.length - 1])
-
-    if (!nodeType || nodeType === 'root') return
-
-    const oldPos = dragStartPos.current[rfId]
-    const newPos = { x: node.position.x, y: node.position.y }
-    delete dragStartPos.current[rfId]
-
-    try {
-      await updateNode(projectId, nodeType, nodeId, newPos)
-      socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, ...newPos })
-      if (oldPos && (oldPos.x !== newPos.x || oldPos.y !== newPos.y)) {
-        useCanvasStore.getState().pushHistory({ action: 'move', rfId, nodeType, nodeId, projectId, oldPos, newPos })
+  const onNodeDragStop = useCallback(async (e, node, draggedNodes) => {
+    const all = draggedNodes?.length > 1 ? draggedNodes : [node]
+    for (const n of all) {
+      const parts = n.id.split('-')
+      const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
+      const nodeId = parseInt(parts[parts.length - 1])
+      if (!nodeType || nodeType === 'root') continue
+      const oldPos = dragStartPos.current[n.id]
+      const newPos = { x: n.position.x, y: n.position.y }
+      delete dragStartPos.current[n.id]
+      try {
+        await updateNode(projectId, nodeType, nodeId, newPos)
+        socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, ...newPos })
+        if (oldPos && (oldPos.x !== newPos.x || oldPos.y !== newPos.y)) {
+          useCanvasStore.getState().pushHistory({ action: 'move', rfId: n.id, nodeType, nodeId, projectId, oldPos, newPos })
+        }
+      } catch (err) {
+        console.error('Failed to persist node position:', err)
       }
-    } catch (err) {
-      console.error('Failed to persist node position:', err)
     }
   }, [projectId])
 
@@ -260,39 +255,39 @@ function CanvasInner({ projectId }) {
       const ctrl = e.ctrlKey || e.metaKey
       const store = useCanvasStore.getState()
 
-      // ── Delete selected node ───────────────────────────────────────────
+      // ── Delete selected node(s) ───────────────────────────────────────
       if ((e.key === 'Delete' || e.key === 'Backspace') && !ctrl) {
-        const { selectedNode } = store
-        if (!selectedNode || selectedNode.data.nodeType === 'root') return
+        const selectedNodes = reactFlow.getNodes().filter(n => n.selected && n.data.nodeType !== 'root')
+        if (selectedNodes.length === 0) return
         e.preventDefault()
-        const { nodeType, id: nodeId } = selectedNode.data
-        if (!window.confirm('Delete this node?')) return
-        const snapshot = {
-          nodeData: { ...selectedNode.data },
-          position: { ...selectedNode.position },
-          rfNodeType: selectedNode.type,
+        const confirmMsg = selectedNodes.length === 1 ? 'Delete this node?' : `Delete ${selectedNodes.length} nodes?`
+        if (!window.confirm(confirmMsg)) return
+        const ORPHAN_NULL_FIELD = {
+          hazard: 'parent_hazard_id',
+          system_constraint: 'linked_hazard_id',
+          uca: 'control_action_id',
+          loss_scenario: 'uca_id',
         }
-        try {
-          const result = await deleteNode(projectId, nodeType, nodeId)
-          socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
-          store.removeRFNode(selectedNode.id)
-          store.setSelectedNode(null)
-          store.pushHistory({ action: 'delete', rfId: selectedNode.id, nodeType, nodeId, projectId, snapshot })
-          const ORPHAN_NULL_FIELD = {
-            hazard: 'parent_hazard_id',
-            system_constraint: 'linked_hazard_id',
-            uca: 'control_action_id',
-            loss_scenario: 'uca_id',
+        for (const node of selectedNodes) {
+          const { nodeType, id: nodeId } = node.data
+          const snapshot = {
+            nodeData: { ...node.data },
+            position: { ...node.position },
+            rfNodeType: node.type,
           }
-          ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
-            const nullField = ORPHAN_NULL_FIELD[nt]
-            const prefix = nodeTypeToPrefix(nt)
-            store.updateRFNode(`${prefix}-${id}`, {
-              label,
-              ...(nullField ? { [nullField]: null } : {}),
+          try {
+            const result = await deleteNode(projectId, nodeType, nodeId)
+            socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
+            store.removeRFNode(node.id)
+            store.pushHistory({ action: 'delete', rfId: node.id, nodeType, nodeId, projectId, snapshot })
+            ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
+              const nullField = ORPHAN_NULL_FIELD[nt]
+              const prefix = nodeTypeToPrefix(nt)
+              store.updateRFNode(`${prefix}-${id}`, { label, ...(nullField ? { [nullField]: null } : {}) })
             })
-          })
-        } catch (err) { console.error('Delete failed:', err) }
+          } catch (err) { console.error('Delete failed:', err) }
+        }
+        store.setSelectedNode(null)
         return
       }
 
@@ -424,6 +419,10 @@ function CanvasInner({ projectId }) {
         nodeTypes={nodeTypes}
         defaultEdgeOptions={{ type: 'default' }}
         deleteKeyCode={null}
+        selectionOnDrag
+        panOnDrag={[1, 2]}
+        multiSelectionKeyCode="Shift"
+        panActivationKeyCode="Space"
         fitView
         proOptions={{ hideAttribution: true }}
       >
@@ -467,7 +466,10 @@ function CanvasInner({ projectId }) {
                   <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Keyboard Shortcuts</div>
                   <div className="space-y-1.5">
                     {[
-                      { keys: 'Del / Backspace', desc: 'Delete node' },
+                      { keys: 'Drag canvas', desc: 'Select box' },
+                      { keys: 'Shift+click', desc: 'Add to selection' },
+                      { keys: 'Space+drag', desc: 'Pan canvas' },
+                      { keys: 'Del / Backspace', desc: 'Delete node(s)' },
                       { keys: 'Ctrl+C', desc: 'Copy node' },
                       { keys: 'Ctrl+V', desc: 'Paste / duplicate' },
                       { keys: 'Ctrl+Z', desc: 'Undo last move' },
