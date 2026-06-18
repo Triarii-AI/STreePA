@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getProjects, createProject, deleteProject, logout } from '../api.js'
+import { getProjects, createProject, deleteProject, logout, importProject } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
 
 function formatDate(dateStr) {
@@ -25,6 +25,8 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const importInputRef = useRef(null)
 
   useEffect(() => {
     getProjects()
@@ -56,6 +58,25 @@ export default function Dashboard() {
     } catch (err) {
       setCreateError(err.message || 'Failed to create project.')
       setCreating(false)
+    }
+  }
+
+  async function handleImport(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      const result = await importProject(data)
+      const updated = await getProjects()
+      setProjects(updated || [])
+      navigate(`/projects/${result.project.id}`)
+    } catch (err) {
+      alert(err.message || 'Failed to import project. Make sure the file is a valid .stpa.json backup.')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -103,15 +124,34 @@ export default function Dashboard() {
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900">My Projects</h1>
-          <button
-            onClick={() => { setShowNewModal(true); setCreateError('') }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Project
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,.stpa.json"
+              className="hidden"
+              onChange={handleImport}
+            />
+            <button
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing}
+              className="border border-gray-300 hover:border-indigo-400 text-gray-700 hover:text-indigo-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              {importing ? 'Importing…' : 'Import'}
+            </button>
+            <button
+              onClick={() => { setShowNewModal(true); setCreateError('') }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Project
+            </button>
+          </div>
         </div>
 
         {projects.length === 0 ? (

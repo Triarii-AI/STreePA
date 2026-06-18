@@ -111,6 +111,25 @@ export async function deleteLink(projectId, fromType, fromId, toType, toId) {
   })
 }
 
+export async function importProject(jsonData) {
+  return request('/api/projects/import', {
+    method: 'POST',
+    body: JSON.stringify(jsonData),
+  })
+}
+
+export function downloadProjectJson(projectId) {
+  const a = document.createElement('a')
+  a.href = `/api/projects/${projectId}/export/json`
+  a.click()
+}
+
+export function downloadProjectExcel(projectId) {
+  const a = document.createElement('a')
+  a.href = `/api/projects/${projectId}/export/excel`
+  a.click()
+}
+
 export async function createCanvasEdge(projectId, data) {
   return request(`/api/projects/${projectId}/canvas_edges`, {
     method: 'POST',
