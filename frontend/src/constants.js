@@ -57,17 +57,12 @@ const SOLID_MARKER = { type: 'arrowclosed', width: 16, height: 16, color: '#6474
 const DASHED_MARKER = { type: 'arrow', width: 16, height: 16, color: '#94a3b8' }
 
 export function makeRFEdge(source, target, dashed = false) {
-  const edge = {
+  return {
     id: `e-${source}-${target}`,
     source,
     target,
-    type: 'default',
+    type: 'floating',
     style: dashed ? DASHED_EDGE_STYLE : SOLID_EDGE_STYLE,
     markerEnd: dashed ? DASHED_MARKER : SOLID_MARKER,
   }
-  if (dashed) {
-    edge.sourceHandle = 'top-source'
-    edge.targetHandle = 'bottom-target'
-  }
-  return edge
 }

@@ -29,6 +29,7 @@ import CANode from './nodes/CANode.jsx'
 import UCANode from './nodes/UCANode.jsx'
 import LSNode from './nodes/LSNode.jsx'
 import AddNodeForm from './forms/AddNodeForm.jsx'
+import FloatingEdge from './edges/FloatingEdge.jsx'
 
 const nodeTypes = {
   rootNode: RootNode,
@@ -38,6 +39,10 @@ const nodeTypes = {
   caNode: CANode,
   ucaNode: UCANode,
   lsNode: LSNode,
+}
+
+const edgeTypes = {
+  floating: FloatingEdge,
 }
 
 const LAYER_BUTTONS = [
@@ -228,9 +233,7 @@ function CanvasInner({ projectId }) {
         id: `e-canvas-${result?.id || Date.now()}`,
         source: connection.source,
         target: connection.target,
-        sourceHandle: connection.sourceHandle,
-        targetHandle: connection.targetHandle,
-        type: 'default',
+        type: 'floating',
         style: { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5,5' },
         markerEnd: { type: 'arrow', width: 16, height: 16, color: '#94a3b8' },
       }
@@ -417,7 +420,8 @@ function CanvasInner({ projectId }) {
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
-        defaultEdgeOptions={{ type: 'default' }}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={{ type: 'floating' }}
         deleteKeyCode={null}
         selectionOnDrag
         panOnDrag={[1, 2]}
