@@ -8,6 +8,12 @@ backend/**/*.pyo
 # Environment
 backend/.env
 
+# SQLite database
+backend/instance/
+*.db
+*.db-shm
+*.db-wal
+
 # Node
 frontend/node_modules/
 frontend/dist/
