@@ -170,7 +170,11 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
       socket.emit('node:added', {
         project_id: projectId,
         node_type: nodeType,
-        node_data: nodeData,
+        node_data: {
+          ...nodeData,
+          loss_ids: selectedLossIds,
+          hazard_ids: selectedHazardIds,
+        },
         position,
       })
 

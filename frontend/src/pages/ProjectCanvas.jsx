@@ -8,6 +8,7 @@ import Sidebar from '../components/Sidebar.jsx'
 import Canvas from '../components/Canvas.jsx'
 import NodePanel from '../components/NodePanel.jsx'
 import { ReactFlowProvider } from '@xyflow/react'
+import { makeRFEdge } from '../constants.js'
 
 function nodeTypePrefix(nodeType) {
   const prefixMap = {
@@ -76,7 +77,29 @@ export default function ProjectCanvas() {
 
   const handleNodeAdded = useCallback((data) => {
     addRFNode(convertToRFNode(data))
-  }, [addRFNode])
+    const { node_type, node_data, project_id } = data
+    const id = node_data.id
+    const prefix = nodeTypePrefix(node_type)
+    // Solid structural edges
+    if (node_type === 'loss') {
+      addRFEdge(makeRFEdge(`root-${project_id}`, `loss-${id}`, false))
+    } else if (node_type === 'hazard' && node_data.parent_hazard_id) {
+      addRFEdge(makeRFEdge(`hazard-${node_data.parent_hazard_id}`, `hazard-${id}`, false))
+    } else if (node_type === 'uca' && node_data.control_action_id) {
+      addRFEdge(makeRFEdge(`ca-${node_data.control_action_id}`, `uca-${id}`, false))
+    } else if (node_type === 'loss_scenario' && node_data.uca_id) {
+      addRFEdge(makeRFEdge(`uca-${node_data.uca_id}`, `ls-${id}`, false))
+    } else if (node_type === 'system_constraint' && node_data.linked_hazard_id) {
+      addRFEdge(makeRFEdge(`hazard-${node_data.linked_hazard_id}`, `sc-${id}`, false))
+    }
+    // Dashed link edges
+    ;(node_data.loss_ids || []).forEach(lid => {
+      addRFEdge(makeRFEdge(`hazard-${id}`, `loss-${lid}`, true))
+    })
+    ;(node_data.hazard_ids || []).forEach(hid => {
+      addRFEdge(makeRFEdge(`${prefix}-${id}`, `hazard-${hid}`, true))
+    })
+  }, [addRFNode, addRFEdge])
 
   const handleNodeUpdated = useCallback((data) => {
     const rfId = nodeTypeId(data)
@@ -112,8 +135,13 @@ export default function ProjectCanvas() {
       .then(data => loadProject(data))
       .catch(err => console.error('Failed to load project:', err))
 
+    function rejoinRoom() {
+      socket.emit('project:join', { project_id: id })
+    }
+
     socket.connect()
-    socket.emit('project:join', { project_id: id })
+    socket.on('connect', rejoinRoom)
+    rejoinRoom()
 
     socket.on('node:added', handleNodeAdded)
     socket.on('node:updated', handleNodeUpdated)
@@ -124,6 +152,7 @@ export default function ProjectCanvas() {
     socket.on('presence:update', handlePresenceUpdate)
 
     return () => {
+      socket.off('connect', rejoinRoom)
       socket.off('node:added', handleNodeAdded)
       socket.off('node:updated', handleNodeUpdated)
       socket.off('node:moved', handleNodeMoved)

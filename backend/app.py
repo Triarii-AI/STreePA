@@ -9,6 +9,7 @@ _FRONTEND_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 
 
 def create_app():
     app = Flask(__name__)
+    app.url_map.strict_slashes = False
     app.config.from_object(Config)
 
     db.init_app(app)
