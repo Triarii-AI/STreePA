@@ -32,10 +32,12 @@ def create_app():
     from routes.auth import auth_bp
     from routes.projects import projects_bp
     from routes.api import api_bp
+    from routes.backups import backups_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(projects_bp, url_prefix='/api/projects')
     app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(backups_bp, url_prefix='/api/backups')
 
     from events import register_events
     register_events(socketio)
@@ -57,6 +59,9 @@ def create_app():
 
 
 app = create_app()
+
+from routes.backups import start_backup_scheduler
+start_backup_scheduler(app)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, use_reloader=False, host='0.0.0.0', port=5000)

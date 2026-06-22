@@ -130,6 +130,29 @@ export function downloadProjectExcel(projectId) {
   a.click()
 }
 
+export async function listBackups() {
+  return request('/api/backups')
+}
+
+export async function createBackup() {
+  return request('/api/backups', { method: 'POST' })
+}
+
+export async function deleteBackupFile(filename) {
+  return request(`/api/backups/${encodeURIComponent(filename)}`, { method: 'DELETE' })
+}
+
+export async function getBackupSettings() {
+  return request('/api/backups/settings')
+}
+
+export async function saveBackupSettings(settings) {
+  return request('/api/backups/settings', {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  })
+}
+
 export async function createCanvasEdge(projectId, data) {
   return request(`/api/projects/${projectId}/canvas_edges`, {
     method: 'POST',
