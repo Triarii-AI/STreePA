@@ -14,6 +14,25 @@ function formatDate(dateStr) {
   }
 }
 
+function formatLastEdited(dateStr) {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now - d
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+    if (diffMins < 1) return 'just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+  } catch (_) {
+    return ''
+  }
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const user = useCanvasStore(s => s.user)
@@ -473,8 +492,13 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                    Created {formatDate(project.created_at)}
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <span>Created {formatDate(project.created_at)}</span>
+                    {project.updated_at && (
+                      <span title={new Date(project.updated_at).toLocaleString()}>
+                        Edited {formatLastEdited(project.updated_at)}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -513,15 +537,24 @@ export default function Dashboard() {
                       <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
                     )}
                   </div>
-                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <span>Created {formatDate(project.created_at)}</span>
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span>Created {formatDate(project.created_at)}</span>
+                      {project.updated_at && (
+                        <span title={new Date(project.updated_at).toLocaleString()}>
+                          Edited {formatLastEdited(project.updated_at)}
+                        </span>
+                      )}
+                    </div>
                     {project.owner_username && (
-                      <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full text-xs">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        {project.owner_username}
-                      </span>
+                      <div className="flex justify-end">
+                        <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full text-xs">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          {project.owner_username}
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
