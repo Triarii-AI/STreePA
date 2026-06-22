@@ -30,6 +30,7 @@ import UCANode from './nodes/UCANode.jsx'
 import LSNode from './nodes/LSNode.jsx'
 import AddNodeForm from './forms/AddNodeForm.jsx'
 import FloatingEdge from './edges/FloatingEdge.jsx'
+import html2canvas from 'html2canvas'
 
 const nodeTypes = {
   rootNode: RootNode,
@@ -224,6 +225,7 @@ function CanvasInner({ projectId }) {
   const [fitDone, setFitDone] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [selectionCount, setSelectionCount] = useState(0)
+  const [isExporting, setIsExporting] = useState(false)
   const dragStartPos = useRef({})
   const containerRef = useRef(null)
 
@@ -548,6 +550,50 @@ function CanvasInner({ projectId }) {
     await applyAlignPositions(updates)
   }
 
+  async function exportScreenshot() {
+    if (isExporting) return
+    setIsExporting(true)
+    try {
+      const { currentProject } = useCanvasStore.getState()
+      const projectName = currentProject?.name || 'stpa-diagram'
+      const savedViewport = reactFlow.getViewport()
+
+      reactFlow.fitView({ padding: 0.06, duration: 0 })
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+      const flowEl = containerRef.current?.querySelector('.react-flow')
+      if (!flowEl) return
+
+      const canvas = await html2canvas(flowEl, {
+        backgroundColor: '#f8fafc',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        ignoreElements: el => {
+          const cls = el.classList
+          if (!cls) return false
+          return cls.contains('react-flow__minimap') ||
+                 cls.contains('react-flow__controls') ||
+                 cls.contains('react-flow__panel')
+        },
+      })
+
+      reactFlow.setViewport(savedViewport, { duration: 300 })
+
+      const slug = projectName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      const date = new Date().toISOString().slice(0, 10)
+      const a = document.createElement('a')
+      a.download = `${slug}-${date}.png`
+      a.href = canvas.toDataURL('image/png')
+      a.click()
+    } catch (err) {
+      console.error('Screenshot export failed:', err)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   function handleNodeCreated(newNode) {
     setAddFormType(null)
   }
@@ -642,6 +688,30 @@ function CanvasInner({ projectId }) {
         {/* Legend + Shortcuts */}
         <Panel position="bottom-right" style={{ bottom: 24, right: 12 }}>
           <div className="flex flex-col items-end gap-2">
+            {/* Export screenshot */}
+            <button
+              onClick={exportScreenshot}
+              disabled={isExporting}
+              className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
+                isExporting
+                  ? 'bg-gray-100 border-gray-200 text-gray-300 cursor-wait'
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+              title="Export screenshot"
+            >
+              {isExporting ? (
+                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="15 50" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="14" height="10" rx="1.5" />
+                  <circle cx="8" cy="9" r="2.5" />
+                  <path d="M5.5 4L6.5 2h3l1 2" />
+                </svg>
+              )}
+            </button>
+
             {/* Keyboard shortcuts toggle */}
             <div className="relative">
               <button
