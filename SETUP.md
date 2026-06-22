@@ -1,55 +1,74 @@
 # STPA Tree Graph — Setup Guide
 
 ## Prerequisites
-- Python 3.10+
-- Node.js 18+
-- MySQL 8.0+
 
-## Database Setup
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Python | 3.10+ | |
+| Node.js | 18+ | |
+| cloudflared | any | Optional — only needed for `./run.sh --tunnel` |
 
-```sql
-CREATE DATABASE stpa_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-## Backend
+## Quick start
 
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-cp .env.example .env
-# Edit .env and set your DATABASE_URL and SECRET_KEY
-
-python app.py
+./setup.sh
+./run.sh
 ```
 
-The backend runs on http://localhost:5000.
-Tables are created automatically on first run via SQLAlchemy.
+`setup.sh` handles everything: creates the Python venv, installs backend and frontend
+dependencies, and writes a `.env` with a random secret key. It is safe to re-run — it
+skips steps that are already done.
 
-## Frontend
+## What setup.sh does
+
+1. Checks/installs Python 3 and Node.js
+2. Detects `cloudflared` (optional, warns if missing)
+3. Creates `backend/.env` with a generated `SECRET_KEY` and `DATABASE_URL=sqlite:///stpa.db`
+4. Creates `backend/venv` and installs Python packages
+5. Runs `npm install` in `frontend/`
+
+The SQLite database (`backend/stpa.db`) is created automatically on first run.
+
+## Running the app
+
+### Development mode
 
 ```bash
-cd frontend
-npm install
-npm run dev
+./run.sh
 ```
 
-The frontend runs on http://localhost:5173 and proxies API calls to the backend.
+Starts the Flask backend on **http://localhost:5000** and the Vite dev server on
+**http://localhost:5173**. Open the Vite URL in your browser.
 
-## Usage
+### Tunnel mode (Cloudflare Quick Tunnel)
 
-1. Open http://localhost:5173
-2. Register an account (click "Register" on the login page)
+```bash
+./run.sh --tunnel
+```
+
+Builds the frontend, serves it from Flask on port 5000, and starts a Cloudflare Quick
+Tunnel. The public `trycloudflare.com` URL is printed in the terminal once the tunnel
+is ready. No Cloudflare account required.
+
+Install `cloudflared` if you haven't:
+
+```bash
+# Debian / Kali / Ubuntu
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+```
+
+## First-time usage
+
+1. Open the app URL
+2. Click **Register** on the login page to create an account
 3. Create a new project from the dashboard
-4. Use the canvas to add nodes layer by layer:
-   - **+ Loss** (Layer 2) — add loss events
-   - **+ Hazard** (Layer 3) — add hazards, optionally linked to losses
-   - **+ Sys. Constraint** (Layer 4) — add system constraints linked to hazards
-   - **+ Control Action** (Layer 5) — add control actions
-   - **+ UCA** (Layer 6) — add unsafe control actions under a control action
-   - **+ Loss Scenario** (Layer 7) — add loss scenarios under a UCA
+4. Add nodes layer by layer using the **+ Loss / + Hazard / …** buttons on the canvas
 5. Click any node to open its detail panel (edit, delete, manage links)
-6. Draw edges between nodes by dragging from a handle to another node
-7. Open the same project URL in another browser tab to test real-time collaboration
+
+## Database utilities
+
+```bash
+./reset-db.sh    # drop and recreate all tables (wipes all data)
+./repair-db.sh   # run ALTER TABLE migrations on an existing DB
+```
