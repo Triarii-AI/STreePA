@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import useCanvasStore from '../store/canvasStore.js'
-import { LAYER_COLORS } from '../constants.js'
 
 const LAYER_DOT_COLORS = {
   loss: 'bg-red-400',
@@ -21,17 +20,66 @@ const LAYER_SECTION_LABELS = {
   loss_scenario: 'Loss Scenarios',
 }
 
+function naturalLabelSort(a, b) {
+  const nums = s => (s || '').replace(/[^\d.]/g, '').split('.').map(n => parseInt(n) || 0)
+  const pa = nums(a.label), pb = nums(b.label)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0)
+    if (d !== 0) return d
+  }
+  return 0
+}
+
+// Depth-first flatten of the hazard tree, children sorted naturally within each level
+function buildHazardTree(hazardNodes) {
+  const byParent = {}
+  hazardNodes.forEach(n => {
+    const pid = n.data.parent_hazard_id ?? null
+    if (!byParent[pid]) byParent[pid] = []
+    byParent[pid].push(n)
+  })
+  Object.values(byParent).forEach(g => g.sort(naturalLabelSort))
+
+  const result = []
+  function visit(parentDbId, depth) {
+    for (const n of (byParent[parentDbId] || [])) {
+      result.push({
+        rfId: n.id,
+        label: n.data.label || n.id,
+        description: n.data.description || '',
+        depth,
+        isLast: false, // filled below per-group
+      })
+      visit(n.data.id, depth + 1)
+    }
+  }
+  visit(null, 0)
+
+  // Mark last child in each sibling group so we can draw └ vs ├
+  // Track per (parentDbId, depth) which index is last — simpler: scan in reverse
+  // We'll just mark isLast by checking if the next item has same or smaller depth
+  for (let i = 0; i < result.length; i++) {
+    const next = result[i + 1]
+    result[i].isLast = !next || next.depth <= result[i].depth
+  }
+
+  return result
+}
+
 function SidebarSection({ title, items, nodeType, searchQuery, onItemClick }) {
   const [open, setOpen] = useState(true)
   const dotColor = LAYER_DOT_COLORS[nodeType] || 'bg-gray-400'
+  const isHazard = nodeType === 'hazard'
 
-  const filtered = items.filter(item => {
-    if (!searchQuery) return true
+  const filtered = useMemo(() => {
+    if (!searchQuery) return items
     const q = searchQuery.toLowerCase()
-    const label = (item.label || '').toLowerCase()
-    const desc = (item.description || item.name || '').toLowerCase()
-    return label.includes(q) || desc.includes(q)
-  })
+    return items.filter(item => {
+      const label = (item.label || '').toLowerCase()
+      const desc = (item.description || '').toLowerCase()
+      return label.includes(q) || desc.includes(q)
+    })
+  }, [items, searchQuery])
 
   if (filtered.length === 0 && searchQuery) return null
 
@@ -58,21 +106,34 @@ function SidebarSection({ title, items, nodeType, searchQuery, onItemClick }) {
           {filtered.length === 0 ? (
             <p className="px-3 py-1.5 text-xs text-gray-400 italic">None yet</p>
           ) : (
-            filtered.map(item => (
-              <button
-                key={item.rfId}
-                onClick={() => onItemClick(item.rfId)}
-                className={`w-full flex items-start gap-2 px-3 py-1.5 text-left rounded-lg hover:bg-gray-100 transition-colors ${item.isSubHazard ? 'pl-6' : ''}`}
-              >
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${dotColor}`} />
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-gray-800 truncate">{item.label}</div>
-                  {(item.description || item.name) && (
-                    <div className="text-xs text-gray-400 truncate">{item.description || item.name}</div>
+            filtered.map(item => {
+              const depth = item.depth || 0
+              return (
+                <button
+                  key={item.rfId}
+                  onClick={() => onItemClick(item.rfId)}
+                  className="w-full flex items-start gap-2 pr-3 py-1.5 text-left rounded-lg hover:bg-gray-100 transition-colors"
+                  style={{ paddingLeft: depth === 0 ? 12 : 12 + depth * 14 }}
+                >
+                  {isHazard && depth > 0 ? (
+                    // Tree connector: └ for last child, ├ otherwise
+                    <span className="flex-shrink-0 mt-0.5 text-gray-300 leading-none select-none" style={{ fontSize: 11, marginRight: -2 }}>
+                      {item.isLast ? '└' : '├'}
+                    </span>
+                  ) : (
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${dotColor}`} />
                   )}
-                </div>
-              </button>
-            ))
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-xs truncate ${depth === 0 ? 'font-semibold text-gray-800' : 'font-medium text-gray-700'}`}>
+                      {item.label}
+                    </div>
+                    {item.description && (
+                      <div className="text-xs text-gray-400 truncate">{item.description}</div>
+                    )}
+                  </div>
+                </button>
+              )
+            })
           )}
         </div>
       )}
@@ -88,28 +149,29 @@ export default function Sidebar() {
   const reactFlow = useReactFlow()
 
   const layers = useMemo(() => {
-    const groups = {
-      loss: [],
-      hazard: [],
-      system_constraint: [],
-      control_action: [],
-      uca: [],
-      loss_scenario: [],
+    const hazardNodes = nodes.filter(n => n.data?.nodeType === 'hazard')
+
+    function flatItems(nodeType) {
+      return nodes
+        .filter(n => n.data?.nodeType === nodeType)
+        .map(n => ({
+          rfId: n.id,
+          label: n.data.label || n.data.name || n.id,
+          description: n.data.description || n.data.name || '',
+          depth: 0,
+          isLast: true,
+        }))
+        .sort(naturalLabelSort)
     }
 
-    nodes.forEach(n => {
-      const nt = n.data?.nodeType
-      if (!nt || nt === 'root' || !groups[nt]) return
-      groups[nt].push({
-        rfId: n.id,
-        label: n.data.label || n.data.name || n.id,
-        description: n.data.description || n.data.name || '',
-        name: n.data.name,
-        isSubHazard: nt === 'hazard' && !!n.data.parent_hazard_id,
-      })
-    })
-
-    return groups
+    return {
+      loss: flatItems('loss'),
+      hazard: buildHazardTree(hazardNodes),
+      system_constraint: flatItems('system_constraint'),
+      control_action: flatItems('control_action'),
+      uca: flatItems('uca'),
+      loss_scenario: flatItems('loss_scenario'),
+    }
   }, [nodes])
 
   function handleItemClick(rfNodeId) {
