@@ -99,6 +99,11 @@ def update_share(project_id, user_id):
         return jsonify({'error': 'role must be "editor" or "viewer"'}), 400
     share.role = role
     db.session.commit()
+    socketio.emit('share:role_changed', {
+        'project_id': project_id,
+        'user_id': user_id,
+        'new_role': share.role,
+    }, room=f'project:{project_id}')
     return jsonify({'user_id': user_id, 'username': share.user.username, 'role': share.role})
 
 

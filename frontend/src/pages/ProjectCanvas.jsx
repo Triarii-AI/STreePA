@@ -144,6 +144,14 @@ export default function ProjectCanvas() {
     socket.on('connect', rejoinRoom)
     rejoinRoom()
 
+    function onRoleChanged(data) {
+      const { user, patchCurrentProject, setViewOnly } = useCanvasStore.getState()
+      if (user && data.user_id === user.id) {
+        patchCurrentProject({ user_role: data.new_role })
+        setViewOnly(data.new_role === 'viewer')
+      }
+    }
+
     socket.on('node:added', handleNodeAdded)
     socket.on('node:updated', handleNodeUpdated)
     socket.on('node:moved', handleNodeMoved)
@@ -151,6 +159,7 @@ export default function ProjectCanvas() {
     socket.on('edge:added', handleEdgeAdded)
     socket.on('edge:deleted', handleEdgeDeleted)
     socket.on('presence:update', handlePresenceUpdate)
+    socket.on('share:role_changed', onRoleChanged)
 
     return () => {
       socket.off('connect', rejoinRoom)
@@ -161,6 +170,7 @@ export default function ProjectCanvas() {
       socket.off('edge:added', handleEdgeAdded)
       socket.off('edge:deleted', handleEdgeDeleted)
       socket.off('presence:update', handlePresenceUpdate)
+      socket.off('share:role_changed', onRoleChanged)
       socket.disconnect()
     }
   }, [id])
@@ -169,6 +179,7 @@ export default function ProjectCanvas() {
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-gray-900">
       <ReactFlowProvider>
         <Toolbar project={currentProject} />
+
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
           <Canvas projectId={id} />
