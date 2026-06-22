@@ -8,6 +8,21 @@ const AVATAR_COLORS = [
   'bg-pink-500', 'bg-teal-500', 'bg-red-500', 'bg-indigo-500',
 ]
 
+const ICON_COLORS = [
+  { name: 'indigo', bg: 'bg-indigo-600' },
+  { name: 'blue',   bg: 'bg-blue-500' },
+  { name: 'teal',   bg: 'bg-teal-500' },
+  { name: 'green',  bg: 'bg-green-500' },
+  { name: 'yellow', bg: 'bg-yellow-500' },
+  { name: 'orange', bg: 'bg-orange-500' },
+  { name: 'red',    bg: 'bg-red-500' },
+  { name: 'pink',   bg: 'bg-pink-500' },
+  { name: 'purple', bg: 'bg-purple-600' },
+]
+function iconColorBg(colorName) {
+  return (ICON_COLORS.find(c => c.name === colorName) || ICON_COLORS[0]).bg
+}
+
 function userInitials(user) {
   return (user.username || user.name || 'U')
     .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -41,6 +56,7 @@ export default function Toolbar({ project }) {
   const [titleValue, setTitleValue] = useState('')
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showUsersPanel, setShowUsersPanel] = useState(false)
+  const [showColorPicker, setShowColorPicker] = useState(false)
   const [shareInput, setShareInput] = useState('')
   const [shareStatus, setShareStatus] = useState(null) // { type: 'success'|'error', text }
   const [shareLoading, setShareLoading] = useState(false)
@@ -89,6 +105,20 @@ export default function Toolbar({ project }) {
     }
   }
 
+  async function handleIconColorChange(colorName) {
+    setShowColorPicker(false)
+    const proj = project || currentProject
+    if (!proj) return
+    const prev = proj.icon_color
+    patchCurrentProject({ icon_color: colorName })
+    try {
+      await updateProject(proj.id, { icon_color: colorName })
+    } catch (_) {
+      patchCurrentProject({ icon_color: prev })
+    }
+  }
+
+  const iconColor = (project || currentProject)?.icon_color || 'indigo'
   const displayTitle = project?.title || currentProject?.title || 'Untitled Project'
   const visibleUsers = activeUsers.slice(0, 3)
   const extraCount = activeUsers.length > 3 ? activeUsers.length - 3 : 0
@@ -109,10 +139,35 @@ export default function Toolbar({ project }) {
 
       {/* Left: Title */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <div className="w-7 h-7 rounded-lg bg-indigo-600 flex-shrink-0 flex items-center justify-center">
-          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-          </svg>
+        {/* Project icon — click to change color */}
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={() => setShowColorPicker(v => !v)}
+            className={`w-7 h-7 rounded-lg ${iconColorBg(iconColor)} flex items-center justify-center hover:opacity-85 transition-opacity`}
+            title="Change project color"
+          >
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+          </button>
+          {showColorPicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
+              <div className="absolute left-0 top-full mt-2 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-3" onClick={e => e.stopPropagation()}>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Icon color</p>
+                <div className="flex gap-1.5 flex-wrap" style={{ width: 132 }}>
+                  {ICON_COLORS.map(c => (
+                    <button
+                      key={c.name}
+                      onClick={() => handleIconColorChange(c.name)}
+                      className={`w-6 h-6 rounded-full ${c.bg} transition-transform hover:scale-110 ${iconColor === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-gray-500' : ''}`}
+                      title={c.name}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {editingTitle ? (
