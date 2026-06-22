@@ -57,6 +57,14 @@ trap cleanup SIGINT SIGTERM
 
 # ── Backend ───────────────────────────────────────────────────────────────────
 
+# Kill any leftover process on port 5000 (stale Flask child from previous run)
+STALE_PID=$(lsof -t -i:5000 2>/dev/null || true)
+if [[ -n "$STALE_PID" ]]; then
+  warn "Killing stale process on port 5000 (PID $STALE_PID)..."
+  kill "$STALE_PID" 2>/dev/null || true
+  sleep 0.5
+fi
+
 info "Starting backend..."
 source "$BACKEND/venv/bin/activate"
 cd "$BACKEND"
