@@ -133,6 +133,14 @@ export default function NodePanel({ projectId }) {
       if (result && result.label && result.label !== nodeData.label) {
         mergedUpdate.label = result.label
       }
+      // When LS is re-parented to a new UCA, swap hazard links and edges
+      if (nodeType === 'loss_scenario' && 'uca_id' in changedFields && result?.hazard_ids !== undefined) {
+        const oldHazardIds = nodeData.hazard_ids || []
+        const newHazardIds = result.hazard_ids || []
+        mergedUpdate.hazard_ids = newHazardIds
+        for (const hid of oldHazardIds) removeRFEdge(`e-ls-${nodeId}-hazard-${hid}`)
+        for (const hid of newHazardIds) addRFEdge(makeRFEdge(rfNodeId, `hazard-${hid}`, true))
+      }
       updateRFNode(rfNodeId, mergedUpdate)
       ;(result?.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
         updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
@@ -218,7 +226,7 @@ export default function NodePanel({ projectId }) {
   async function handleAddLink(fromType, fromId, toType, toId) {
     setLinkError('')
     try {
-      await createLink(projectId, fromType, fromId, toType, toId)
+      const result = await createLink(projectId, fromType, fromId, toType, toId)
       const idList = nodeData[`${toType}_ids`] || []
       const newIds = [...idList, toId]
       updateRFNode(rfNodeId, { [`${toType}_ids`]: newIds })
@@ -228,6 +236,17 @@ export default function NodePanel({ projectId }) {
       } else {
         addRFEdge(makeRFEdge(`${nodeTypeToPrefix(fromType)}-${fromId}`, `${nodeTypeToPrefix(toType)}-${toId}`, true))
       }
+      // Propagate UCA→hazard link down to child LS nodes
+      if (fromType === 'uca' && toType === 'hazard') {
+        for (const lsId of (result?.propagated_ls_ids || [])) {
+          const lsRfId = `ls-${lsId}`
+          const lsNode = nodes.find(n => n.id === lsRfId)
+          if (lsNode && !(lsNode.data.hazard_ids || []).includes(toId)) {
+            updateRFNode(lsRfId, { hazard_ids: [...(lsNode.data.hazard_ids || []), toId] })
+            addRFEdge(makeRFEdge(lsRfId, `hazard-${toId}`, true))
+          }
+        }
+      }
     } catch (err) {
       setLinkError(err.message || 'Failed to add link.')
     }
@@ -236,7 +255,7 @@ export default function NodePanel({ projectId }) {
   async function handleRemoveLink(fromType, fromId, toType, toId) {
     setLinkError('')
     try {
-      await deleteLink(projectId, fromType, fromId, toType, toId)
+      const result = await deleteLink(projectId, fromType, fromId, toType, toId)
       const idList = nodeData[`${toType}_ids`] || []
       const newIds = idList.filter(id => id !== toId)
       updateRFNode(rfNodeId, { [`${toType}_ids`]: newIds })
@@ -245,6 +264,17 @@ export default function NodePanel({ projectId }) {
         ? `e-hazard-${fromId}-loss-${toId}`
         : `e-${nodeTypeToPrefix(fromType)}-${fromId}-${nodeTypeToPrefix(toType)}-${toId}`
       removeRFEdge(edgeId)
+      // Propagate UCA→hazard removal down to child LS nodes
+      if (fromType === 'uca' && toType === 'hazard') {
+        for (const lsId of (result?.propagated_ls_ids || [])) {
+          const lsRfId = `ls-${lsId}`
+          const lsNode = nodes.find(n => n.id === lsRfId)
+          if (lsNode) {
+            updateRFNode(lsRfId, { hazard_ids: (lsNode.data.hazard_ids || []).filter(id => id !== toId) })
+            removeRFEdge(`e-ls-${lsId}-hazard-${toId}`)
+          }
+        }
+      }
     } catch (err) {
       setLinkError(err.message || 'Failed to remove link.')
     }
@@ -536,25 +566,24 @@ export default function NodePanel({ projectId }) {
           </div>
         )}
 
-        {/* Loss Scenario → Hazards */}
+        {/* Loss Scenario → Hazards (inherited from parent UCA, read-only) */}
         {nodeType === 'loss_scenario' && (
           <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Linked Hazards</p>
-            {allHazards.length === 0
-              ? <p className="text-xs text-gray-400 dark:text-gray-500">No hazards exist yet.</p>
-              : (
-                <SearchableCheckboxList
-                  items={allHazards}
-                  selectedIds={currentHazardIds}
-                  onToggle={(id, checked) => {
-                    if (checked) handleAddLink('loss_scenario', nodeId, 'hazard', id)
-                    else handleRemoveLink('loss_scenario', nodeId, 'hazard', id)
-                  }}
-                  accentClass="accent-purple-500"
-                  isMainFn={isMainHazard}
-                />
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Inherited Hazards</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Automatically inherited from parent UCA</p>
+            {(() => {
+              const inherited = allHazards.filter(h => (nodeData.hazard_ids || []).includes(h.id))
+              if (inherited.length === 0) return <p className="text-xs text-gray-400 dark:text-gray-500 italic">None — parent UCA has no linked hazards</p>
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {inherited.map(h => (
+                    <span key={h.id} className="inline-flex items-center text-xs bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full border border-orange-200 dark:border-orange-800">
+                      {h.label}
+                    </span>
+                  ))}
+                </div>
               )
-            }
+            })()}
           </div>
         )}
 

@@ -187,8 +187,8 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         }
       }
 
-      // Create hazard links for UCA / LS / SC
-      if (['uca', 'loss_scenario', 'system_constraint'].includes(nodeType) && selectedHazardIds.length > 0) {
+      // Create hazard links for UCA / SC (LS inherits from UCA automatically)
+      if (['uca', 'system_constraint'].includes(nodeType) && selectedHazardIds.length > 0) {
         const linkedHazardIds = []
         const prefix = NODE_TYPE_PREFIXES[nodeType]
         for (const hid of selectedHazardIds) {
@@ -203,13 +203,20 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         }
       }
 
+      // LS: auto-add RF edges for hazards inherited from parent UCA
+      if (nodeType === 'loss_scenario') {
+        for (const hid of (nodeData.hazard_ids || [])) {
+          addRFEdge(makeRFEdge(`ls-${nodeData.id}`, `hazard-${hid}`, true))
+        }
+      }
+
       socket.emit('node:added', {
         project_id: projectId,
         node_type: nodeType,
         node_data: {
           ...nodeData,
           loss_ids: selectedLossIds,
-          hazard_ids: selectedHazardIds,
+          hazard_ids: nodeType === 'loss_scenario' ? (nodeData.hazard_ids || []) : selectedHazardIds,
         },
         position,
       })
@@ -446,18 +453,27 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
                 required
               />
             </div>
-            {allHazards.length > 0 && (
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Link to Hazards (optional)</label>
-                <SearchableCheckboxList
-                  items={allHazards}
-                  selectedIds={selectedHazardIds}
-                  onToggle={(id, checked) => setSelectedHazardIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
-                  accentClass="accent-purple-500"
-                  isMainFn={isMainHazard}
-                />
-              </div>
-            )}
+            {formData.uca_id && (() => {
+              const selectedUCA = allUCAs.find(u => u.id === parseInt(formData.uca_id))
+              const inherited = allHazards.filter(h => (selectedUCA?.hazard_ids || []).includes(h.id))
+              return (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Inherited Hazards</label>
+                  {inherited.length === 0
+                    ? <p className="text-xs text-gray-400 dark:text-gray-500 italic">None — UCA has no linked hazards</p>
+                    : (
+                      <div className="flex flex-wrap gap-1">
+                        {inherited.map(h => (
+                          <span key={h.id} className="text-xs bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded-full border border-orange-200 dark:border-orange-800">
+                            {h.label}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  }
+                </div>
+              )
+            })()}
           </>
         )}
 

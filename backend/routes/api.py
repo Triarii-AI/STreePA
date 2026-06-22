@@ -509,6 +509,13 @@ def create_loss_scenario(project_id):
         y=data.get('y', LAYER_Y['loss_scenario'])
     )
     db.session.add(node)
+    db.session.flush()
+    # Inherit hazard links from parent UCA
+    uca_hazard_ids = [r.hazard_id for r in db.session.execute(
+        db.select(uca_hazard_links.c.hazard_id).where(uca_hazard_links.c.uca_id == uca_id)
+    ).fetchall()]
+    for hid in uca_hazard_ids:
+        db.session.execute(ls_hazard_links.insert().values(ls_id=node.id, hazard_id=hid))
     db.session.commit()
     return jsonify(node.to_dict()), 201
 
@@ -528,6 +535,12 @@ def update_loss_scenario(project_id, node_id):
             uca_num = uca.label[4:] if uca and uca.label.startswith('UCA-') else str(new_uca_id)
             sibling_count = LossScenario.query.filter_by(project_id=project_id, uca_id=new_uca_id).filter(LossScenario.id != node_id).count()
             node.label = f'LS-{uca_num}.{sibling_count + 1}'
+            # Replace hazard links with those of the new parent UCA
+            db.session.execute(ls_hazard_links.delete().where(ls_hazard_links.c.ls_id == node_id))
+            for row in db.session.execute(
+                db.select(uca_hazard_links.c.hazard_id).where(uca_hazard_links.c.uca_id == new_uca_id)
+            ).fetchall():
+                db.session.execute(ls_hazard_links.insert().values(ls_id=node_id, hazard_id=row.hazard_id))
         else:
             node.uca_id = new_uca_id
     if 'x' in data:
@@ -582,7 +595,20 @@ def create_link(project_id):
         ).first()
         if not existing:
             db.session.execute(uca_hazard_links.insert().values(uca_id=from_id, hazard_id=to_id))
-            db.session.commit()
+        # Propagate to all child Loss Scenarios
+        propagated_ls_ids = []
+        for ls in LossScenario.query.filter_by(project_id=project_id, uca_id=from_id).all():
+            ls_existing = db.session.execute(
+                db.select(ls_hazard_links).where(
+                    ls_hazard_links.c.ls_id == ls.id,
+                    ls_hazard_links.c.hazard_id == to_id
+                )
+            ).first()
+            if not ls_existing:
+                db.session.execute(ls_hazard_links.insert().values(ls_id=ls.id, hazard_id=to_id))
+                propagated_ls_ids.append(ls.id)
+        db.session.commit()
+        return jsonify({'success': True, 'propagated_ls_ids': propagated_ls_ids})
     elif from_type == 'loss_scenario' and to_type == 'hazard':
         existing = db.session.execute(
             db.select(ls_hazard_links).where(
@@ -634,7 +660,23 @@ def delete_link(project_id):
                 uca_hazard_links.c.hazard_id == to_id
             )
         )
+        # Propagate removal to all child Loss Scenarios
+        propagated_ls_ids = []
+        for ls in LossScenario.query.filter_by(project_id=project_id, uca_id=from_id).all():
+            ls_existing = db.session.execute(
+                db.select(ls_hazard_links).where(
+                    ls_hazard_links.c.ls_id == ls.id,
+                    ls_hazard_links.c.hazard_id == to_id
+                )
+            ).first()
+            if ls_existing:
+                db.session.execute(ls_hazard_links.delete().where(
+                    ls_hazard_links.c.ls_id == ls.id,
+                    ls_hazard_links.c.hazard_id == to_id
+                ))
+                propagated_ls_ids.append(ls.id)
         db.session.commit()
+        return jsonify({'success': True, 'propagated_ls_ids': propagated_ls_ids})
     elif from_type == 'loss_scenario' and to_type == 'hazard':
         db.session.execute(
             ls_hazard_links.delete().where(

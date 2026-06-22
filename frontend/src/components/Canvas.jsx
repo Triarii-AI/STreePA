@@ -199,10 +199,17 @@ async function recreateNode(entry) {
       store.addRFEdge(makeRFEdge(newRfId, `loss-${lid}`, true))
     } catch (_) {}
   }
-  for (const hid of (nodeData.hazard_ids || [])) {
-    const fromType = nodeType === 'uca' ? 'uca' : 'loss_scenario'
+  // LS hazard links are auto-inherited from UCA on creation — use server response.
+  // Other node types (UCA, SC) use snapshot hazard_ids to recreate explicit links.
+  const hazardIdsForLinks = nodeType === 'loss_scenario'
+    ? (newNodeData.hazard_ids || [])
+    : (nodeData.hazard_ids || [])
+  for (const hid of hazardIdsForLinks) {
+    const fromType = nodeType === 'uca' ? 'uca' : nodeType
     try {
-      await createLink(projectId, fromType, newNodeId, 'hazard', hid)
+      if (nodeType !== 'loss_scenario') {
+        await createLink(projectId, fromType, newNodeId, 'hazard', hid)
+      }
       store.addRFEdge(makeRFEdge(newRfId, `hazard-${hid}`, true))
     } catch (_) {}
   }
@@ -765,7 +772,7 @@ function CanvasInner({ projectId }) {
         <MiniMap
           position="bottom-left"
           nodeColor={n => getNodeColor(n.type)}
-          style={{ background: darkMode ? '#1e293b' : '#f8fafc', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` }}
+          style={{ background: darkMode ? '#1e293b' : '#f8fafc', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, borderRadius: 8, overflow: 'hidden' }}
           zoomable
           pannable
         />

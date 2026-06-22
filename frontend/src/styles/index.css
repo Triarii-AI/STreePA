@@ -27,6 +27,9 @@ body { margin: 0; overflow: hidden; }
 .dark .react-flow__edge-path { stroke: #64748b; }
 .dark .react-flow__handle { background: #475569; border-color: #475569; }
 
+/* Minimap: rounded corners to match the UI */
+.react-flow__minimap { border-radius: 8px !important; overflow: hidden !important; }
+
 /* Edges are visual-only; clicks pass through to nodes and canvas */
 .react-flow__edge,
 .react-flow__edge-interaction { pointer-events: none !important; }
