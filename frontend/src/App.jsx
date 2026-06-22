@@ -27,8 +27,8 @@ function AppRoutes() {
 
   if (!authChecked) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
-        <div className="text-sm text-gray-400">Loading...</div>
+      <div className="h-screen w-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-sm text-gray-400 dark:text-gray-500">Loading...</div>
       </div>
     )
   }

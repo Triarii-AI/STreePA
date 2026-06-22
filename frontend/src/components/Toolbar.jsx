@@ -36,6 +36,8 @@ export default function Toolbar({ project }) {
   const activeUsers = useCanvasStore(s => s.activeUsers)
   const viewOnly = useCanvasStore(s => s.viewOnly)
   const setViewOnly = useCanvasStore(s => s.setViewOnly)
+  const darkMode = useCanvasStore(s => s.darkMode)
+  const toggleDarkMode = useCanvasStore(s => s.toggleDarkMode)
 
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState('')
@@ -69,11 +71,11 @@ export default function Toolbar({ project }) {
   const extraCount = activeUsers.length > 3 ? activeUsers.length - 3 : 0
 
   return (
-    <div className="h-14 bg-white border-b border-gray-200 shadow-sm flex items-center px-4 gap-4 flex-shrink-0 z-10">
+    <div className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center px-4 gap-4 flex-shrink-0 z-10">
       {/* Back to Dashboard */}
       <button
         onClick={() => navigate('/dashboard')}
-        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
+        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-400 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
         title="Back to Dashboard"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,7 +104,7 @@ export default function Toolbar({ project }) {
         ) : (
           <button
             onClick={startEditTitle}
-            className="text-sm font-semibold text-gray-900 hover:text-indigo-600 truncate max-w-xs text-left"
+            className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:text-indigo-600 truncate max-w-xs text-left"
             title="Click to edit title"
           >
             {displayTitle}
@@ -114,21 +116,21 @@ export default function Toolbar({ project }) {
       <div className="flex items-center gap-1">
         <button
           onClick={() => reactFlow.zoomIn({ duration: 200 })}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors text-sm font-medium"
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
           title="Zoom In"
         >
           +
         </button>
         <button
           onClick={() => reactFlow.zoomOut({ duration: 200 })}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors text-sm font-medium"
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
           title="Zoom Out"
         >
           &minus;
         </button>
         <button
           onClick={() => reactFlow.fitView({ duration: 400, padding: 0.1 })}
-          className="h-8 px-3 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors text-xs font-medium gap-1"
+          className="h-8 px-3 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-xs font-medium gap-1"
           title="Fit View"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -143,8 +145,8 @@ export default function Toolbar({ project }) {
         onClick={() => setViewOnly(!viewOnly)}
         className={`h-8 px-3 flex items-center gap-1.5 rounded-lg border text-xs font-medium transition-colors flex-shrink-0 ${
           viewOnly
-            ? 'bg-amber-50 border-amber-400 text-amber-700 hover:bg-amber-100'
-            : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+            ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-400 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+            : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
         }`}
         title={viewOnly ? 'Switch to edit mode' : 'Switch to view-only mode'}
       >
@@ -161,11 +163,28 @@ export default function Toolbar({ project }) {
         {viewOnly ? 'View Only' : 'Edit'}
       </button>
 
+      {/* Dark mode toggle */}
+      <button
+        onClick={toggleDarkMode}
+        className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+        title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {darkMode ? (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z" />
+          </svg>
+        ) : (
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        )}
+      </button>
+
       {/* Export dropdown */}
       <div className="relative flex-shrink-0">
         <button
           onClick={() => setShowExportMenu(s => !s)}
-          className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors text-xs font-medium"
+          className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-xs font-medium"
           title="Export project"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,10 +198,10 @@ export default function Toolbar({ project }) {
         {showExportMenu && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
-            <div className="absolute right-0 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 w-48">
+            <div className="absolute right-0 top-10 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1 w-48">
               <button
                 onClick={() => { downloadProjectJson((project || currentProject)?.id); setShowExportMenu(false) }}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
               >
                 <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -191,7 +210,7 @@ export default function Toolbar({ project }) {
               </button>
               <button
                 onClick={() => { downloadProjectExcel((project || currentProject)?.id); setShowExportMenu(false) }}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
               >
                 <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />

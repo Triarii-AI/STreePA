@@ -166,7 +166,7 @@ export default function ProjectCanvas() {
   }, [id])
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-gray-900">
       <ReactFlowProvider>
         <Toolbar project={currentProject} />
         <div className="flex flex-1 overflow-hidden">

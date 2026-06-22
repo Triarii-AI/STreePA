@@ -220,6 +220,7 @@ function CanvasInner({ projectId }) {
   const setSelectedNode = useCanvasStore(s => s.setSelectedNode)
   const selectedNode = useCanvasStore(s => s.selectedNode)
   const viewOnly = useCanvasStore(s => s.viewOnly)
+  const darkMode = useCanvasStore(s => s.darkMode)
   const focusNodeId = useCanvasStore(s => s.focusNodeId)
   const clearFocusNode = useCanvasStore(s => s.clearFocusNode)
   const [addFormType, setAddFormType] = useState(null)
@@ -592,7 +593,7 @@ function CanvasInner({ projectId }) {
       if (!viewportEl) return
 
       const dataUrl = await toPng(viewportEl, {
-        backgroundColor: '#f8fafc',
+        backgroundColor: useCanvasStore.getState().darkMode ? '#0f172a' : '#f8fafc',
         width: imageWidth,
         height: imageHeight,
         style: {
@@ -622,7 +623,7 @@ function CanvasInner({ projectId }) {
   }
 
   return (
-    <div ref={containerRef} className="flex-1 relative overflow-hidden">
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-slate-900">
       <ReactFlow
         nodes={visibleNodes}
         edges={displayEdges}
@@ -649,11 +650,11 @@ function CanvasInner({ projectId }) {
         fitView
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant="dots" gap={20} size={1} color="#e2e8f0" />
+        <Background variant="dots" gap={20} size={1} color={darkMode ? '#334155' : '#e2e8f0'} />
         <MiniMap
           position="bottom-left"
           nodeColor={n => getNodeColor(n.type)}
-          style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+          style={{ background: darkMode ? '#1e293b' : '#f8fafc', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}` }}
           zoomable
           pannable
         />
@@ -666,7 +667,7 @@ function CanvasInner({ projectId }) {
               <button
                 key={btn.nodeType}
                 onClick={() => openAddForm(btn.nodeType)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap ${btn.colorClass}`}
+                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap bg-white/90 dark:bg-gray-800/90 ${btn.colorClass}`}
               >
                 {btn.label}
               </button>
@@ -677,8 +678,8 @@ function CanvasInner({ projectId }) {
         {/* Align + Distribute toolbar — visible when 2+ nodes selected and not in view-only */}
         {!viewOnly && selectionCount >= 2 && (
           <Panel position="top-center" style={{ top: 12, pointerEvents: 'auto' }}>
-            <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl shadow-md px-2 py-1.5">
-              <span className="text-[10px] font-medium text-gray-400 pr-1.5 select-none border-r border-gray-200 mr-1">
+            <div className="flex items-center gap-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md px-2 py-1.5">
+              <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 pr-1.5 select-none border-r border-gray-200 dark:border-gray-600 mr-1">
                 {selectionCount} selected
               </span>
               {[
@@ -690,7 +691,7 @@ function CanvasInner({ projectId }) {
                 { type: 'bottom',  title: 'Align Bottom',            Icon: AlignBottomIcon },
               ].map(({ type, title, Icon }) => (
                 <button key={type} onClick={() => alignNodes(type)} title={title}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                   <Icon />
                 </button>
               ))}
@@ -702,7 +703,7 @@ function CanvasInner({ projectId }) {
                     { axis: 'v', title: 'Distribute Vertically',   Icon: DistributeVIcon },
                   ].map(({ axis, title, Icon }) => (
                     <button key={axis} onClick={() => distributeNodes(axis)} title={title}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                       <Icon />
                     </button>
                   ))}
@@ -721,8 +722,8 @@ function CanvasInner({ projectId }) {
               disabled={isExporting}
               className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
                 isExporting
-                  ? 'bg-gray-100 border-gray-200 text-gray-300 cursor-wait'
-                  : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
+                  ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-300 cursor-wait'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'
               }`}
               title="Export screenshot"
             >
@@ -745,7 +746,7 @@ function CanvasInner({ projectId }) {
               className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
                 showCrossRefs
                   ? 'bg-indigo-600 border-indigo-600 text-white'
-                  : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'
               }`}
               title={showCrossRefs ? 'Hide cross-reference arrows' : 'Show all cross-reference arrows'}
             >
@@ -759,14 +760,14 @@ function CanvasInner({ projectId }) {
             <div className="relative">
               <button
                 onClick={() => setShowShortcuts(s => !s)}
-                className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center text-xs font-semibold transition-colors ${showShortcuts ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'}`}
+                className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center text-xs font-semibold transition-colors ${showShortcuts ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'}`}
                 title="Keyboard shortcuts"
               >
                 ?
               </button>
               {showShortcuts && (
-                <div className="absolute bottom-9 right-0 bg-white rounded-lg border border-gray-200 shadow-lg p-3 w-52 z-10">
-                  <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Keyboard Shortcuts</div>
+                <div className="absolute bottom-9 right-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 shadow-lg p-3 w-52 z-10">
+                  <div className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Keyboard Shortcuts</div>
                   <div className="space-y-1.5">
                     {[
                       { keys: 'Drag canvas', desc: 'Select box' },
@@ -779,8 +780,8 @@ function CanvasInner({ projectId }) {
                       { keys: 'Ctrl+Y / Ctrl+Shift+Z', desc: 'Redo last move' },
                     ].map(({ keys, desc }) => (
                       <div key={keys} className="flex items-center justify-between gap-3">
-                        <span className="font-mono text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded whitespace-nowrap">{keys}</span>
-                        <span className="text-xs text-gray-500 text-right">{desc}</span>
+                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded whitespace-nowrap">{keys}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 text-right">{desc}</span>
                       </div>
                     ))}
                   </div>
@@ -789,7 +790,7 @@ function CanvasInner({ projectId }) {
             </div>
 
             {/* Legend */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-3 py-2 text-xs text-gray-500 space-y-1">
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm px-3 py-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
               <div className="flex items-center gap-2">
                 <svg width="32" height="10">
                   <line x1="0" y1="5" x2="32" y2="5" stroke="#64748b" strokeWidth="2" />

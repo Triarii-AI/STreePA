@@ -175,6 +175,9 @@ function getDescendantIds(rfNodeId, allEdges) {
   return descendants
 }
 
+const _initDark = localStorage.getItem('stpa-dark') === 'true'
+if (_initDark) document.documentElement.classList.add('dark')
+
 const useCanvasStore = create((set, get) => ({
   user: null,
   isAuthenticated: false,
@@ -192,6 +195,8 @@ const useCanvasStore = create((set, get) => ({
   copiedNode: null,
   // View-only mode
   viewOnly: false,
+  // Dark mode
+  darkMode: _initDark,
 
   setUser(user) {
     set({ user, isAuthenticated: user != null })
@@ -270,6 +275,15 @@ const useCanvasStore = create((set, get) => ({
 
   setViewOnly(val) {
     set({ viewOnly: val })
+  },
+
+  toggleDarkMode() {
+    set(state => {
+      const next = !state.darkMode
+      localStorage.setItem('stpa-dark', next)
+      document.documentElement.classList.toggle('dark', next)
+      return { darkMode: next }
+    })
   },
 
   pushHistory(entry) {
