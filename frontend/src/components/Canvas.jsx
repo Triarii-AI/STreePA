@@ -670,14 +670,31 @@ function CanvasInner({ projectId }) {
     let updates
     if (axis === 'h') {
       const sorted = [...selected].sort((a, b) => a.position.x - b.position.x)
-      const minX = sorted[0].position.x, maxX = sorted[sorted.length - 1].position.x
-      const step = (maxX - minX) / (sorted.length - 1)
-      updates = sorted.map((n, i) => ({ rfId: n.id, x: Math.round(minX + i * step), y: n.position.y }))
+      const nodeW = n => n.measured?.width ?? 180
+      // Keep the outer edges of the first and last nodes fixed; equal gaps between them
+      const spanStart = sorted[0].position.x
+      const spanEnd   = sorted[sorted.length - 1].position.x + nodeW(sorted[sorted.length - 1])
+      const totalNodeW = sorted.reduce((s, n) => s + nodeW(n), 0)
+      const gap = (spanEnd - spanStart - totalNodeW) / (sorted.length - 1)
+      let x = spanStart
+      updates = sorted.map(n => {
+        const result = { rfId: n.id, x: Math.round(x), y: n.position.y }
+        x += nodeW(n) + gap
+        return result
+      })
     } else {
       const sorted = [...selected].sort((a, b) => a.position.y - b.position.y)
-      const minY = sorted[0].position.y, maxY = sorted[sorted.length - 1].position.y
-      const step = (maxY - minY) / (sorted.length - 1)
-      updates = sorted.map((n, i) => ({ rfId: n.id, x: n.position.x, y: Math.round(minY + i * step) }))
+      const nodeH = n => n.measured?.height ?? 40
+      const spanStart = sorted[0].position.y
+      const spanEnd   = sorted[sorted.length - 1].position.y + nodeH(sorted[sorted.length - 1])
+      const totalNodeH = sorted.reduce((s, n) => s + nodeH(n), 0)
+      const gap = (spanEnd - spanStart - totalNodeH) / (sorted.length - 1)
+      let y = spanStart
+      updates = sorted.map(n => {
+        const result = { rfId: n.id, x: n.position.x, y: Math.round(y) }
+        y += nodeH(n) + gap
+        return result
+      })
     }
     await applyAlignPositions(updates)
   }
