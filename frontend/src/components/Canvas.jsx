@@ -141,9 +141,11 @@ function CanvasInner({ projectId }) {
   const focusNodeId = useCanvasStore(s => s.focusNodeId)
   const clearFocusNode = useCanvasStore(s => s.clearFocusNode)
   const [addFormType, setAddFormType] = useState(null)
+  const [viewportCenter, setViewportCenter] = useState(null)
   const [fitDone, setFitDone] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const dragStartPos = useRef({})
+  const containerRef = useRef(null)
 
   // Fit view on initial load
   useEffect(() => {
@@ -392,12 +394,25 @@ function CanvasInner({ projectId }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [projectId])
 
+  function openAddForm(nodeType) {
+    let center = null
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      center = reactFlow.screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      })
+    }
+    setViewportCenter(center)
+    setAddFormType(nodeType)
+  }
+
   function handleNodeCreated(newNode) {
     setAddFormType(null)
   }
 
   return (
-    <div className="flex-1 relative overflow-hidden">
+    <div ref={containerRef} className="flex-1 relative overflow-hidden">
       <ReactFlow
         nodes={visibleNodes}
         edges={displayEdges}
@@ -435,7 +450,7 @@ function CanvasInner({ projectId }) {
             {LAYER_BUTTONS.map(btn => (
               <button
                 key={btn.nodeType}
-                onClick={() => setAddFormType(btn.nodeType)}
+                onClick={() => openAddForm(btn.nodeType)}
                 className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap ${btn.colorClass}`}
               >
                 {btn.label}
@@ -507,6 +522,7 @@ function CanvasInner({ projectId }) {
           <AddNodeForm
             nodeType={addFormType}
             projectId={projectId}
+            preferredCenter={viewportCenter}
             onClose={() => setAddFormType(null)}
             onCreated={handleNodeCreated}
           />

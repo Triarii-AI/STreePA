@@ -3,6 +3,11 @@ import useCanvasStore from '../store/canvasStore.js'
 import { updateNode, deleteNode, createLink, deleteLink, updateProject } from '../api.js'
 import socket from '../socket.js'
 import { LAYER_COLORS, UCA_TYPE_COLORS, UCA_TYPE_LABELS, makeRFEdge, nodeTypeToPrefix } from '../constants.js'
+import { SearchableSelect, SearchableCheckboxList } from './forms/shared.jsx'
+
+function isMainHazard(h) {
+  return h.label && !h.label.includes('.')
+}
 
 const LAYER_LABELS = {
   root: 'Root',
@@ -339,16 +344,14 @@ export default function NodePanel({ projectId }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Parent Hazard</label>
-              <select
+              <SearchableSelect
                 value={formData.parent_hazard_id || ''}
-                onChange={e => handleFieldChange('parent_hazard_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-              >
-                <option value="">None (top-level)</option>
-                {allHazards.filter(h => h.id !== nodeId).map(h => (
-                  <option key={h.id} value={h.id}>{h.label}</option>
-                ))}
-              </select>
+                onChange={v => handleFieldChange('parent_hazard_id', v)}
+                options={allHazards.filter(h => h.id !== nodeId)}
+                placeholder="None (top-level)"
+                focusRingClass="focus:ring-orange-400"
+                isMainFn={isMainHazard}
+              />
             </div>
           </>
         )}
@@ -366,16 +369,14 @@ export default function NodePanel({ projectId }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Parent Hazard</label>
-              <select
+              <SearchableSelect
                 value={formData.linked_hazard_id || ''}
-                onChange={e => handleFieldChange('linked_hazard_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              >
-                <option value="">None</option>
-                {allHazards.map(h => (
-                  <option key={h.id} value={h.id}>{h.label}</option>
-                ))}
-              </select>
+                onChange={v => handleFieldChange('linked_hazard_id', v)}
+                options={allHazards}
+                placeholder="None"
+                focusRingClass="focus:ring-yellow-400"
+                isMainFn={isMainHazard}
+              />
             </div>
           </>
         )}
@@ -420,16 +421,13 @@ export default function NodePanel({ projectId }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Control Action</label>
-              <select
+              <SearchableSelect
                 value={formData.control_action_id || ''}
-                onChange={e => handleFieldChange('control_action_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                <option value="">None</option>
-                {allCAs.map(ca => (
-                  <option key={ca.id} value={ca.id}>{ca.label || ca.name}</option>
-                ))}
-              </select>
+                onChange={v => handleFieldChange('control_action_id', v)}
+                options={allCAs.map(ca => ({ ...ca, label: ca.label || ca.name }))}
+                placeholder="None"
+                focusRingClass="focus:ring-blue-400"
+              />
             </div>
           </>
         )}
@@ -447,16 +445,13 @@ export default function NodePanel({ projectId }) {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">UCA</label>
-              <select
+              <SearchableSelect
                 value={formData.uca_id || ''}
-                onChange={e => handleFieldChange('uca_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
-              >
-                <option value="">None</option>
-                {allUCAs.map(u => (
-                  <option key={u.id} value={u.id}>{u.label}</option>
-                ))}
-              </select>
+                onChange={v => handleFieldChange('uca_id', v)}
+                options={allUCAs}
+                placeholder="None"
+                focusRingClass="focus:ring-purple-400"
+              />
             </div>
           </>
         )}
@@ -497,28 +492,15 @@ export default function NodePanel({ projectId }) {
             {allLosses.length === 0
               ? <p className="text-xs text-gray-400">No losses exist yet.</p>
               : (
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
-                  {allLosses.map(l => {
-                    const isLinked = currentLossIds.includes(l.id)
-                    return (
-                      <label key={l.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isLinked}
-                          onChange={e => {
-                            if (e.target.checked) handleAddLink('hazard', nodeId, 'loss', l.id)
-                            else handleRemoveLink('hazard', nodeId, 'loss', l.id)
-                          }}
-                          className="accent-orange-500"
-                        />
-                        <span className="text-xs font-medium text-gray-700">{l.label}</span>
-                        {l.description && (
-                          <span className="text-xs text-gray-400 truncate">{l.description}</span>
-                        )}
-                      </label>
-                    )
-                  })}
-                </div>
+                <SearchableCheckboxList
+                  items={allLosses}
+                  selectedIds={currentLossIds}
+                  onToggle={(id, checked) => {
+                    if (checked) handleAddLink('hazard', nodeId, 'loss', id)
+                    else handleRemoveLink('hazard', nodeId, 'loss', id)
+                  }}
+                  accentClass="accent-orange-500"
+                />
               )
             }
           </div>
@@ -531,28 +513,16 @@ export default function NodePanel({ projectId }) {
             {allHazards.length === 0
               ? <p className="text-xs text-gray-400">No hazards exist yet.</p>
               : (
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
-                  {allHazards.map(h => {
-                    const isLinked = currentHazardIds.includes(h.id)
-                    return (
-                      <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isLinked}
-                          onChange={e => {
-                            if (e.target.checked) handleAddLink('uca', nodeId, 'hazard', h.id)
-                            else handleRemoveLink('uca', nodeId, 'hazard', h.id)
-                          }}
-                          className="accent-blue-500"
-                        />
-                        <span className="text-xs font-medium text-gray-700">{h.label}</span>
-                        {h.description && (
-                          <span className="text-xs text-gray-400 truncate">{h.description}</span>
-                        )}
-                      </label>
-                    )
-                  })}
-                </div>
+                <SearchableCheckboxList
+                  items={allHazards}
+                  selectedIds={currentHazardIds}
+                  onToggle={(id, checked) => {
+                    if (checked) handleAddLink('uca', nodeId, 'hazard', id)
+                    else handleRemoveLink('uca', nodeId, 'hazard', id)
+                  }}
+                  accentClass="accent-blue-500"
+                  isMainFn={isMainHazard}
+                />
               )
             }
           </div>
@@ -565,28 +535,16 @@ export default function NodePanel({ projectId }) {
             {allHazards.length === 0
               ? <p className="text-xs text-gray-400">No hazards exist yet.</p>
               : (
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
-                  {allHazards.map(h => {
-                    const isLinked = currentHazardIds.includes(h.id)
-                    return (
-                      <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isLinked}
-                          onChange={e => {
-                            if (e.target.checked) handleAddLink('loss_scenario', nodeId, 'hazard', h.id)
-                            else handleRemoveLink('loss_scenario', nodeId, 'hazard', h.id)
-                          }}
-                          className="accent-purple-500"
-                        />
-                        <span className="text-xs font-medium text-gray-700">{h.label}</span>
-                        {h.description && (
-                          <span className="text-xs text-gray-400 truncate">{h.description}</span>
-                        )}
-                      </label>
-                    )
-                  })}
-                </div>
+                <SearchableCheckboxList
+                  items={allHazards}
+                  selectedIds={currentHazardIds}
+                  onToggle={(id, checked) => {
+                    if (checked) handleAddLink('loss_scenario', nodeId, 'hazard', id)
+                    else handleRemoveLink('loss_scenario', nodeId, 'hazard', id)
+                  }}
+                  accentClass="accent-purple-500"
+                  isMainFn={isMainHazard}
+                />
               )
             }
           </div>
@@ -599,28 +557,16 @@ export default function NodePanel({ projectId }) {
             {allHazards.length === 0
               ? <p className="text-xs text-gray-400">No hazards exist yet.</p>
               : (
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto">
-                  {allHazards.map(h => {
-                    const isLinked = currentHazardIds.includes(h.id)
-                    return (
-                      <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isLinked}
-                          onChange={e => {
-                            if (e.target.checked) handleAddLink('system_constraint', nodeId, 'hazard', h.id)
-                            else handleRemoveLink('system_constraint', nodeId, 'hazard', h.id)
-                          }}
-                          className="accent-yellow-500"
-                        />
-                        <span className="text-xs font-medium text-gray-700">{h.label}</span>
-                        {h.description && (
-                          <span className="text-xs text-gray-400 truncate">{h.description}</span>
-                        )}
-                      </label>
-                    )
-                  })}
-                </div>
+                <SearchableCheckboxList
+                  items={allHazards}
+                  selectedIds={currentHazardIds}
+                  onToggle={(id, checked) => {
+                    if (checked) handleAddLink('system_constraint', nodeId, 'hazard', id)
+                    else handleRemoveLink('system_constraint', nodeId, 'hazard', id)
+                  }}
+                  accentClass="accent-yellow-500"
+                  isMainFn={isMainHazard}
+                />
               )
             }
           </div>
