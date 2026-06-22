@@ -11,14 +11,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 
-PROD=false
+TUNNEL=false
 for arg in "$@"; do
-  [[ "$arg" == "--prod" ]] && PROD=true
+  [[ "$arg" == "--tunnel" ]] && TUNNEL=true
 done
 
 echo ""
-if $PROD; then
-  echo "  STPA Tree Graph — Production Mode"
+if $TUNNEL; then
+  echo "  STPA Tree Graph — Tunnel Mode"
 else
   echo "  STPA Tree Graph — Development Mode"
 fi
@@ -31,9 +31,13 @@ echo ""
 [[ -d "$BACKEND/venv" ]] || die "Python venv not found. Run ./setup.sh first."
 [[ -d "$FRONTEND/node_modules" ]] || die "node_modules not found. Run ./setup.sh first."
 
-# ── Production: build frontend first ─────────────────────────────────────────
+if $TUNNEL; then
+  command -v cloudflared >/dev/null 2>&1 || die "cloudflared not found.\nInstall: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
+fi
 
-if $PROD; then
+# ── Tunnel mode: build frontend first ────────────────────────────────────────
+
+if $TUNNEL; then
   info "Building frontend..."
   cd "$FRONTEND"
   npm run build
@@ -45,12 +49,18 @@ fi
 
 BACKEND_PID=""
 FRONTEND_PID=""
+TUNNEL_PID=""
+TUNNEL_TAIL_PID=""
+TUNNEL_LOG=""
 
 cleanup() {
   echo ""
   info "Shutting down..."
-  [[ -n "$BACKEND_PID" ]]  && kill "$BACKEND_PID"  2>/dev/null && info "Backend stopped."
-  [[ -n "$FRONTEND_PID" ]] && kill "$FRONTEND_PID" 2>/dev/null && info "Frontend stopped."
+  [[ -n "$TUNNEL_TAIL_PID" ]] && kill "$TUNNEL_TAIL_PID" 2>/dev/null; true
+  [[ -n "$TUNNEL_PID" ]]      && kill "$TUNNEL_PID"      2>/dev/null && info "Tunnel stopped."
+  [[ -n "$BACKEND_PID" ]]     && kill "$BACKEND_PID"     2>/dev/null && info "Backend stopped."
+  [[ -n "$FRONTEND_PID" ]]    && kill "$FRONTEND_PID"    2>/dev/null && info "Frontend stopped."
+  [[ -n "$TUNNEL_LOG" ]]      && rm -f "$TUNNEL_LOG"
   exit 0
 }
 trap cleanup SIGINT SIGTERM
@@ -75,7 +85,7 @@ success "Backend running (PID $BACKEND_PID) → http://localhost:5000"
 
 # ── Frontend (dev only) ───────────────────────────────────────────────────────
 
-if ! $PROD; then
+if ! $TUNNEL; then
   info "Starting frontend..."
   cd "$FRONTEND"
   npm run dev &
@@ -84,15 +94,48 @@ if ! $PROD; then
   success "Frontend running (PID $FRONTEND_PID) → http://localhost:5173"
 fi
 
+# ── Cloudflare tunnel ─────────────────────────────────────────────────────────
+
+if $TUNNEL; then
+  TUNNEL_LOG=$(mktemp /tmp/cloudflared-XXXXXX.log)
+  info "Starting Cloudflare tunnel..."
+
+  cloudflared tunnel --url http://localhost:5000 >"$TUNNEL_LOG" 2>&1 &
+  TUNNEL_PID=$!
+
+  # Stream tunnel output live while we wait for the URL
+  tail -f "$TUNNEL_LOG" 2>/dev/null &
+  TUNNEL_TAIL_PID=$!
+
+  # Poll up to 20 s for the public URL
+  TUNNEL_URL=""
+  for i in $(seq 1 40); do
+    TUNNEL_URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | head -1 || true)
+    [[ -n "$TUNNEL_URL" ]] && break
+    sleep 0.5
+  done
+
+  # Stop the tail now that we have the URL
+  kill "$TUNNEL_TAIL_PID" 2>/dev/null || true
+  TUNNEL_TAIL_PID=""
+  sleep 0.1  # let any buffered tail lines flush
+
+  echo ""
+  if [[ -n "$TUNNEL_URL" ]]; then
+    echo -e "  ${GREEN}Tunnel URL:${NC} ${CYAN}${TUNNEL_URL}${NC}"
+  else
+    warn "Tunnel started but URL not detected yet — check $TUNNEL_LOG"
+  fi
+fi
+
 # ── Ready ─────────────────────────────────────────────────────────────────────
 
 echo ""
-if $PROD; then
-  echo -e "  ${GREEN}App is up!${NC} Open http://localhost:5000"
-  echo -e "  Point your Cloudflare tunnel at ${YELLOW}port 5000${NC}."
+if $TUNNEL; then
+  echo -e "  ${GREEN}App is up!${NC} Serving on ${CYAN}${TUNNEL_URL:-http://localhost:5000}${NC}"
 else
   echo -e "  ${GREEN}App is up!${NC} Open http://localhost:5173"
-  echo -e "  For tunnel hosting, use ${YELLOW}./run.sh --prod${NC} instead."
+  echo -e "  For tunnel hosting, use ${YELLOW}./run.sh --tunnel${NC} instead."
 fi
 echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop."
 echo ""
