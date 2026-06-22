@@ -82,7 +82,15 @@ export default function NodePanel({ projectId }) {
   }
 
   const allLosses = getNodesByType('loss')
-  const allHazards = getNodesByType('hazard')
+  const allHazards = getNodesByType('hazard').sort((a, b) => {
+    const pa = (a.label || '').replace(/^H-/, '').split('.').map(n => parseInt(n) || 0)
+    const pb = (b.label || '').replace(/^H-/, '').split('.').map(n => parseInt(n) || 0)
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0)
+      if (d !== 0) return d
+    }
+    return 0
+  })
   const allUCAs = getNodesByType('uca')
   const allCAs = getNodesByType('control_action')
 

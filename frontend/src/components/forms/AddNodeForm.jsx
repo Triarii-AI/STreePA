@@ -68,7 +68,17 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
   }
 
   const allLosses = useMemo(() => getNodesByType('loss'), [nodes])
-  const allHazards = useMemo(() => getNodesByType('hazard'), [nodes])
+  const allHazards = useMemo(() => {
+    return getNodesByType('hazard').sort((a, b) => {
+      const pa = (a.label || '').replace(/^H-/, '').split('.').map(n => parseInt(n) || 0)
+      const pb = (b.label || '').replace(/^H-/, '').split('.').map(n => parseInt(n) || 0)
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const d = (pa[i] || 0) - (pb[i] || 0)
+        if (d !== 0) return d
+      }
+      return 0
+    })
+  }, [nodes])
   const allCAs = useMemo(() => getNodesByType('control_action'), [nodes])
   const allUCAs = useMemo(() => getNodesByType('uca'), [nodes])
 

@@ -57,6 +57,8 @@ class Project(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(255), nullable=False)
     purpose_statement = db.Column(db.Text, nullable=True)
+    root_x = db.Column(db.Float, default=500.0)
+    root_y = db.Column(db.Float, default=50.0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = db.Column(
         db.DateTime,
@@ -78,6 +80,8 @@ class Project(db.Model):
             'id': self.id,
             'title': self.title,
             'purpose_statement': self.purpose_statement,
+            'root_x': self.root_x if self.root_x is not None else 500.0,
+            'root_y': self.root_y if self.root_y is not None else 50.0,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

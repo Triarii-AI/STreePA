@@ -18,7 +18,7 @@ import '@xyflow/react/dist/style.css'
 
 import useCanvasStore from '../store/canvasStore.js'
 import socket from '../socket.js'
-import { updateNode, deleteNode, createNode, createLink } from '../api.js'
+import { updateNode, updateProject, deleteNode, createNode, createLink } from '../api.js'
 import { makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 
 import RootNode from './nodes/RootNode.jsx'
@@ -301,15 +301,19 @@ function CanvasInner({ projectId }) {
       const parts = n.id.split('-')
       const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
       const nodeId = parseInt(parts[parts.length - 1])
-      if (!nodeType || nodeType === 'root') continue
+      if (!nodeType) continue
       const oldPos = dragStartPos.current[n.id]
       const newPos = { x: n.position.x, y: n.position.y }
       delete dragStartPos.current[n.id]
       try {
-        await updateNode(projectId, nodeType, nodeId, newPos)
-        socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, ...newPos })
-        if (oldPos && (oldPos.x !== newPos.x || oldPos.y !== newPos.y)) {
-          useCanvasStore.getState().pushHistory({ action: 'move', rfId: n.id, nodeType, nodeId, projectId, oldPos, newPos })
+        if (nodeType === 'root') {
+          await updateProject(projectId, { root_x: newPos.x, root_y: newPos.y })
+        } else {
+          await updateNode(projectId, nodeType, nodeId, newPos)
+          socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, ...newPos })
+          if (oldPos && (oldPos.x !== newPos.x || oldPos.y !== newPos.y)) {
+            useCanvasStore.getState().pushHistory({ action: 'move', rfId: n.id, nodeType, nodeId, projectId, oldPos, newPos })
+          }
         }
       } catch (err) {
         console.error('Failed to persist node position:', err)

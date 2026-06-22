@@ -15,4 +15,12 @@ def _set_sqlite_pragma(dbapi_conn, _connection_record):
     if isinstance(dbapi_conn, sqlite3.Connection):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        for sql in [
+            "ALTER TABLE projects ADD COLUMN root_x REAL DEFAULT 500.0",
+            "ALTER TABLE projects ADD COLUMN root_y REAL DEFAULT 50.0",
+        ]:
+            try:
+                cursor.execute(sql)
+            except Exception:
+                pass
         cursor.close()

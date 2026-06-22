@@ -67,6 +67,10 @@ def update_project(project_id):
         project.title = data['title']
     if 'purpose_statement' in data:
         project.purpose_statement = data['purpose_statement']
+    if 'root_x' in data:
+        project.root_x = float(data['root_x'])
+    if 'root_y' in data:
+        project.root_y = float(data['root_y'])
 
     db.session.commit()
     return jsonify(project.to_dict())

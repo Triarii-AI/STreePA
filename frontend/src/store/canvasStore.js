@@ -35,7 +35,7 @@ function buildNodesAndEdges(data) {
   nodes.push({
     id: `root-${project.id}`,
     type: 'rootNode',
-    position: { x: 500, y: LAYER_Y_POSITIONS.root },
+    position: { x: project.root_x ?? 500, y: project.root_y ?? LAYER_Y_POSITIONS.root },
     data: { ...project, nodeType: 'root', label: 'ROOT' },
   })
 
