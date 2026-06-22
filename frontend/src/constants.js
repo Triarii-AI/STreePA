@@ -17,7 +17,7 @@ export const UCA_TYPE_COLORS = {
 
 export const UCA_TYPE_LABELS = {
   not_providing: 'Not Providing',
-  providing_causes_hazard: 'Causes Hazard',
+  providing_causes_hazard: 'Providing Causes Hazard',
   wrong_timing_order: 'Wrong Timing/Order',
   duration_issue: 'Duration Issue',
 }

@@ -140,7 +140,7 @@ def export_project_excel(project_id):
 
     UCA_TYPE_LABELS = {
         'not_providing': 'Not Providing',
-        'providing_causes_hazard': 'Provides — Causes Hazard',
+        'providing_causes_hazard': 'Providing Causes Hazard',
         'wrong_timing_order': 'Wrong Timing / Order',
         'duration_issue': 'Duration Issue',
     }
