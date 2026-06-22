@@ -127,3 +127,35 @@ def register_events(socketio):
         if project_id:
             room = get_room_key(project_id)
             emit('edge:deleted', data, room=room, include_self=False)
+
+    @socketio.on('user:select')
+    @login_required_socket
+    def on_user_select(data):
+        project_id = data.get('project_id')
+        rf_node_id = data.get('rf_node_id')
+        if project_id:
+            room = get_room_key(project_id)
+            if room in room_users and request.sid in room_users[room]:
+                room_users[room][request.sid]['selected_node'] = rf_node_id
+            emit('user:select', {
+                'user_id': current_user.id,
+                'username': current_user.username,
+                'avatar_color': get_avatar_color(current_user.id),
+                'rf_node_id': rf_node_id,
+            }, room=room, include_self=False)
+
+    @socketio.on('cursor:move')
+    @login_required_socket
+    def on_cursor_move(data):
+        project_id = data.get('project_id')
+        x = data.get('x')
+        y = data.get('y')
+        if project_id:
+            room = get_room_key(project_id)
+            emit('cursor:move', {
+                'user_id': current_user.id,
+                'username': current_user.username,
+                'avatar_color': get_avatar_color(current_user.id),
+                'x': x,
+                'y': y,
+            }, room=room, include_self=False)

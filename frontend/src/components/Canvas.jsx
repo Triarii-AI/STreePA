@@ -10,6 +10,7 @@ import {
   MiniMap,
   Panel,
   useReactFlow,
+  useViewport,
   applyNodeChanges,
   applyEdgeChanges,
   getNodesBounds,
@@ -229,8 +230,14 @@ function CanvasInner({ projectId }) {
   const [selectionCount, setSelectionCount] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
   const [showCrossRefs, setShowCrossRefs] = useState(false)
+  // { [userId]: { rfNodeId, username, avatarColor } }
+  const [remoteSelections, setRemoteSelections] = useState({})
+  // { [userId]: { x, y, username, avatarColor } }
+  const [remoteCursors, setRemoteCursors] = useState({})
   const dragStartPos = useRef({})
   const containerRef = useRef(null)
+  const cursorThrottleRef = useRef(null)
+  const { x: vpX, y: vpY, zoom: vpZoom } = useViewport()
 
   // Fit view on initial load
   useEffect(() => {
@@ -252,6 +259,44 @@ function CanvasInner({ projectId }) {
       clearFocusNode()
     }
   }, [focusNodeId, nodes, reactFlow, clearFocusNode])
+
+  // Remote presence: selections + cursors
+  useEffect(() => {
+    function onUserSelect({ user_id, username, avatar_color, rf_node_id }) {
+      setRemoteSelections(prev => {
+        if (!rf_node_id) {
+          const next = { ...prev }
+          delete next[user_id]
+          return next
+        }
+        return { ...prev, [user_id]: { rfNodeId: rf_node_id, username, avatarColor: avatar_color } }
+      })
+    }
+    function onCursorMove({ user_id, username, avatar_color, x, y }) {
+      setRemoteCursors(prev => ({ ...prev, [user_id]: { x, y, username, avatarColor: avatar_color } }))
+    }
+    function onPresenceUpdate({ active_users = [] }) {
+      const live = new Set(active_users.map(u => u.user_id))
+      setRemoteSelections(prev => {
+        const next = {}
+        for (const [id, v] of Object.entries(prev)) if (live.has(Number(id))) next[id] = v
+        return next
+      })
+      setRemoteCursors(prev => {
+        const next = {}
+        for (const [id, v] of Object.entries(prev)) if (live.has(Number(id))) next[id] = v
+        return next
+      })
+    }
+    socket.on('user:select', onUserSelect)
+    socket.on('cursor:move', onCursorMove)
+    socket.on('presence:update', onPresenceUpdate)
+    return () => {
+      socket.off('user:select', onUserSelect)
+      socket.off('cursor:move', onCursorMove)
+      socket.off('presence:update', onPresenceUpdate)
+    }
+  }, [])
 
   const visibleNodes = useMemo(() => nodes.filter(n => !n.data?.hidden), [nodes])
   const visibleEdges = useMemo(() => edges.filter(e => !e.hidden), [edges])
@@ -288,11 +333,21 @@ function CanvasInner({ projectId }) {
 
   const onNodeClick = useCallback((e, node) => {
     setSelectedNode(node)
-  }, [setSelectedNode])
+    socket.emit('user:select', { project_id: projectId, rf_node_id: node.id })
+  }, [setSelectedNode, projectId])
 
   const onPaneClick = useCallback(() => {
     setSelectedNode(null)
-  }, [setSelectedNode])
+    socket.emit('user:select', { project_id: projectId, rf_node_id: null })
+  }, [setSelectedNode, projectId])
+
+  const onMouseMove = useCallback((e) => {
+    if (cursorThrottleRef.current) return
+    cursorThrottleRef.current = setTimeout(() => { cursorThrottleRef.current = null }, 50)
+    if (!containerRef.current) return
+    const flowPos = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    socket.emit('cursor:move', { project_id: projectId, x: flowPos.x, y: flowPos.y })
+  }, [projectId, reactFlow])
 
   const onSelectionChange = useCallback(({ nodes }) => {
     setSelectionCount(nodes.filter(n => !n.data?.hidden).length)
@@ -679,7 +734,7 @@ function CanvasInner({ projectId }) {
   }
 
   return (
-    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-slate-900">
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-slate-900" onMouseMove={onMouseMove}>
       <ReactFlow
         nodes={visibleNodes}
         edges={displayEdges}
@@ -898,6 +953,70 @@ function CanvasInner({ projectId }) {
           />
         </div>
       )}
+
+      {/* Remote selection rings — colored border around nodes other users have selected */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 6 }}>
+        {Object.entries(remoteSelections).map(([userId, { rfNodeId, username, avatarColor }]) => {
+          const node = reactFlow.getNode(rfNodeId)
+          if (!node || node.data?.hidden) return null
+          const w = (node.measured?.width ?? 180) * vpZoom
+          const h = (node.measured?.height ?? 40) * vpZoom
+          const sx = node.position.x * vpZoom + vpX
+          const sy = node.position.y * vpZoom + vpY
+          return (
+            <div key={userId} style={{
+              position: 'absolute',
+              left: sx - 3,
+              top: sy - 3,
+              width: w + 6,
+              height: h + 6,
+              border: `2.5px solid ${avatarColor}`,
+              borderRadius: 11,
+              boxShadow: `0 0 0 1px ${avatarColor}55`,
+            }} />
+          )
+        })}
+      </div>
+
+      {/* Remote cursors — colored pointer + name label */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 15 }}>
+        {Object.entries(remoteCursors).map(([userId, { x, y, username, avatarColor }]) => {
+          const sx = x * vpZoom + vpX
+          const sy = y * vpZoom + vpY
+          return (
+            <div key={userId} style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(0, 0)' }}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ display: 'block' }}>
+                <path
+                  d="M2 2L7.5 16.5L10 10L16.5 7.5L2 2Z"
+                  fill={avatarColor}
+                  stroke="white"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <div style={{
+                marginTop: 1,
+                marginLeft: 3,
+                background: avatarColor,
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 600,
+                fontFamily: 'system-ui, sans-serif',
+                lineHeight: 1.2,
+                padding: '2px 5px',
+                borderRadius: 4,
+                whiteSpace: 'nowrap',
+                maxWidth: 100,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              }}>
+                {username}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
