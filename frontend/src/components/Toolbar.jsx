@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { updateProject, downloadProjectJson, downloadProjectExcel } from '../api.js'
+import { updateProject, downloadProjectJson, downloadProjectExcel, addProjectShare } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
 
 const AVATAR_COLORS = [
@@ -40,6 +40,9 @@ export default function Toolbar({ project }) {
   const [titleValue, setTitleValue] = useState('')
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showUsersPanel, setShowUsersPanel] = useState(false)
+  const [shareInput, setShareInput] = useState('')
+  const [shareStatus, setShareStatus] = useState(null) // { type: 'success'|'error', text }
+  const [shareLoading, setShareLoading] = useState(false)
   const titleInputRef = useRef(null)
   const usersPanelRef = useRef(null)
 
@@ -63,6 +66,23 @@ export default function Toolbar({ project }) {
   function handleTitleKeyDown(e) {
     if (e.key === 'Enter') saveTitle()
     if (e.key === 'Escape') setEditingTitle(false)
+  }
+
+  async function handleShareFromPanel(e) {
+    e.preventDefault()
+    const projId = (project || currentProject)?.id
+    if (!projId || !shareInput.trim()) return
+    setShareLoading(true)
+    setShareStatus(null)
+    try {
+      await addProjectShare(projId, shareInput.trim())
+      setShareStatus({ type: 'success', text: `Shared with ${shareInput.trim()}` })
+      setShareInput('')
+    } catch (err) {
+      setShareStatus({ type: 'error', text: err.message || 'Failed to share.' })
+    } finally {
+      setShareLoading(false)
+    }
   }
 
   const displayTitle = project?.title || currentProject?.title || 'Untitled Project'
@@ -216,7 +236,7 @@ export default function Toolbar({ project }) {
           {showUsersPanel && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowUsersPanel(false)} />
-              <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-52 py-2">
+              <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-56 py-2">
                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 pb-1.5 border-b border-gray-100 dark:border-gray-700">
                   Currently online
                 </p>
@@ -232,6 +252,30 @@ export default function Toolbar({ project }) {
                     </li>
                   ))}
                 </ul>
+                <div className="border-t border-gray-100 dark:border-gray-700 mt-1 px-3 pt-2 pb-1">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Invite someone</p>
+                  {shareStatus && (
+                    <p className={`text-xs mb-1.5 ${shareStatus.type === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {shareStatus.text}
+                    </p>
+                  )}
+                  <form onSubmit={handleShareFromPanel} className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={shareInput}
+                      onChange={e => { setShareInput(e.target.value); setShareStatus(null) }}
+                      placeholder="Username"
+                      className="flex-1 min-w-0 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={shareLoading || !shareInput.trim()}
+                      className="flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      {shareLoading ? '…' : 'Share'}
+                    </button>
+                  </form>
+                </div>
               </div>
             </>
           )}

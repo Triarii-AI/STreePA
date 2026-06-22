@@ -255,6 +255,7 @@ export default function Dashboard() {
 
   async function handleColorChange(e, project, colorName) {
     e.stopPropagation()
+    setCardMenu(null)
     try {
       await updateProject(project.id, { icon_color: colorName })
       setProjects(prev => prev.map(p => p.id === project.id ? { ...p, icon_color: colorName } : p))
@@ -290,7 +291,9 @@ export default function Dashboard() {
     setRenameSaving(true)
     try {
       const updated = await updateProject(renamingProject.id, { title: renameValue.trim() })
-      setProjects(prev => prev.map(p => p.id === renamingProject.id ? { ...p, title: updated.title } : p))
+      const newTitle = updated?.title ?? renameValue.trim()
+      setProjects(prev => prev.map(p => p.id === renamingProject.id ? { ...p, title: newTitle } : p))
+      setSharedProjects(prev => prev.map(p => p.id === renamingProject.id ? { ...p, title: newTitle } : p))
       setRenamingProject(null)
     } catch (err) {
       alert(err.message || 'Failed to rename project.')
@@ -543,7 +546,6 @@ export default function Dashboard() {
                         <>
                           <div className="fixed inset-0 z-30" onClick={e => { e.stopPropagation(); setCardMenu(null) }} />
                           <div className="absolute right-0 top-8 z-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-52 py-1.5" onClick={e => e.stopPropagation()}>
-                            {/* Color swatches */}
                             <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
                               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Icon color</p>
                               <div className="flex gap-1.5 flex-wrap">
@@ -589,11 +591,16 @@ export default function Dashboard() {
                     </div>
 
                     <div className="mb-3">
-                      <div className={`w-8 h-8 rounded-lg ${color.bg} flex items-center justify-center mb-3`}>
+                      {/* Clickable icon — opens color picker menu */}
+                      <button
+                        onClick={e => { e.stopPropagation(); setCardMenu(isMenuOpen ? null : { project }) }}
+                        className={`w-8 h-8 rounded-lg ${color.bg} flex items-center justify-center mb-3 hover:opacity-80 transition-opacity`}
+                        title="Change icon color"
+                      >
                         <svg className={`w-4 h-4 ${color.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
-                      </div>
+                      </button>
                       <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1 pr-8">{project.title}</h3>
                       {project.purpose_statement && (
                         <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
@@ -629,45 +636,108 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sharedProjects.map(project => (
-                <div
-                  key={project.id}
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                  className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-md transition-all relative"
-                >
-                  <div className="mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
-                      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                      </svg>
-                    </div>
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1">{project.title}</h3>
-                    {project.purpose_statement && (
-                      <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span>Created {formatDate(project.created_at)}</span>
-                      {project.updated_at && (
-                        <span title={new Date(project.updated_at).toLocaleString()}>
-                          Edited {formatLastEdited(project.updated_at)}
-                        </span>
+              {sharedProjects.map(project => {
+                const color = colorFor(project)
+                const isMenuOpen = cardMenu?.project?.id === project.id
+                return (
+                  <div
+                    key={project.id}
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                    className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-md transition-all relative"
+                  >
+                    {/* Three-dot menu button */}
+                    <div className="absolute top-3 right-3">
+                      <button
+                        onClick={e => { e.stopPropagation(); setCardMenu(isMenuOpen ? null : { project }) }}
+                        className={`p-1.5 rounded-lg transition-opacity ${isMenuOpen ? 'opacity-100 bg-gray-100 dark:bg-gray-700' : 'opacity-0 group-hover:opacity-100'} text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700`}
+                        title="Project options"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>
+                        </svg>
+                      </button>
+                      {isMenuOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={e => { e.stopPropagation(); setCardMenu(null) }} />
+                          <div className="absolute right-0 top-8 z-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-52 py-1.5" onClick={e => e.stopPropagation()}>
+                            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Icon color</p>
+                              <div className="flex gap-1.5 flex-wrap">
+                                {ICON_COLORS.map(c => (
+                                  <button
+                                    key={c.name}
+                                    onClick={e => handleColorChange(e, project, c.name)}
+                                    className={`w-5 h-5 rounded-full ${c.swatch} transition-transform hover:scale-110 ${project.icon_color === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-gray-500' : ''}`}
+                                    title={c.name}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            <button onClick={e => openRename(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              Rename
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); openShareModal(e, project) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                              Share
+                            </button>
+                            <button onClick={e => handleDuplicate(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                              Duplicate
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectJson(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                              Download JSON
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectExcel(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                              Download Excel
+                            </button>
+                          </div>
+                        </>
                       )}
                     </div>
-                    {project.owner_username && (
-                      <div className="flex justify-end">
-                        <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full text-xs">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                          {project.owner_username}
-                        </span>
+
+                    <div className="mb-3">
+                      {/* Clickable icon — opens color picker menu */}
+                      <button
+                        onClick={e => { e.stopPropagation(); setCardMenu(isMenuOpen ? null : { project }) }}
+                        className={`w-8 h-8 rounded-lg ${color.bg} flex items-center justify-center mb-3 hover:opacity-80 transition-opacity`}
+                        title="Change icon color"
+                      >
+                        <svg className={`w-4 h-4 ${color.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        </svg>
+                      </button>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1 pr-8">{project.title}</h3>
+                      {project.purpose_statement && (
+                        <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
+                      )}
+                    </div>
+
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span>Created {formatDate(project.created_at)}</span>
+                        {project.updated_at && (
+                          <span title={new Date(project.updated_at).toLocaleString()}>
+                            Edited {formatLastEdited(project.updated_at)}
+                          </span>
+                        )}
                       </div>
-                    )}
+                      {project.owner_username && (
+                        <div className="flex justify-end">
+                          <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full text-xs">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            {project.owner_username}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )
         )}

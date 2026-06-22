@@ -572,7 +572,9 @@ export default function NodePanel({ projectId }) {
             <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Inherited Hazards</p>
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Automatically inherited from parent UCA</p>
             {(() => {
-              const inherited = allHazards.filter(h => (nodeData.hazard_ids || []).includes(h.id))
+              const parentUCA = allUCAs.find(u => u.id === nodeData.uca_id)
+              const hazardIds = parentUCA ? (parentUCA.hazard_ids || []) : (nodeData.hazard_ids || [])
+              const inherited = allHazards.filter(h => hazardIds.includes(h.id))
               if (inherited.length === 0) return <p className="text-xs text-gray-400 dark:text-gray-500 italic">None — parent UCA has no linked hazards</p>
               return (
                 <div className="flex flex-wrap gap-1">

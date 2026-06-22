@@ -48,7 +48,7 @@ def create_project():
 @projects_bp.route('/<int:project_id>/shares', methods=['GET'])
 @login_required
 def list_shares(project_id):
-    check_project_access(project_id, owner_only=True)
+    check_project_access(project_id)
     shares = ProjectShare.query.filter_by(project_id=project_id).all()
     return jsonify([{
         'user_id': s.user_id,
@@ -59,7 +59,7 @@ def list_shares(project_id):
 @projects_bp.route('/<int:project_id>/shares', methods=['POST'])
 @login_required
 def add_share(project_id):
-    check_project_access(project_id, owner_only=True)
+    check_project_access(project_id)
     data = request.get_json() or {}
     username = data.get('username', '').strip()
     if not username:
