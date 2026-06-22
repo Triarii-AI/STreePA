@@ -387,7 +387,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
               <SearchableSelect
                 value={formData.control_action_id || ''}
                 onChange={v => handleChange('control_action_id', v)}
-                options={allCAs.map(ca => ({ ...ca, label: ca.label || ca.name }))}
+                options={allCAs.map(ca => ({ ...ca, label: ca.label && ca.name ? `${ca.label} — ${ca.name}` : (ca.label || ca.name) }))}
                 placeholder="Select control action..."
                 focusRingClass="focus:ring-blue-400"
                 required
