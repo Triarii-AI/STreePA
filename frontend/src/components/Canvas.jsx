@@ -253,32 +253,28 @@ function CanvasInner({ projectId }) {
   const visibleNodes = useMemo(() => nodes.filter(n => !n.data?.hidden), [nodes])
   const visibleEdges = useMemo(() => edges.filter(e => !e.hidden), [edges])
 
+  // Only elevate connected edges' z-index — visual dimming/highlighting is handled
+  // inside FloatingEdge via a targeted Zustand selector so memo can bail out per edge.
   const displayEdges = useMemo(() => {
     if (!selectedNode) return visibleEdges
     const nodeId = selectedNode.id
-    return visibleEdges.map(e => {
-      const connected = e.source === nodeId || e.target === nodeId
-      if (connected) {
-        const isDashed = !!e.style?.strokeDasharray
-        return {
-          ...e,
-          style: { ...e.style, stroke: isDashed ? '#f97316' : '#6366f1', strokeWidth: isDashed ? 2.5 : 3, opacity: 1 },
-          zIndex: 10,
-        }
-      }
-      return { ...e, style: { ...e.style, opacity: 0.15 } }
-    })
+    return visibleEdges.map(e =>
+      (e.source === nodeId || e.target === nodeId) ? { ...e, zIndex: 10 } : e
+    )
   }, [visibleEdges, selectedNode])
 
+  // Empty dep arrays: read current state via getState() so these callbacks are created
+  // once and never recreated. Stable references prevent React Flow from re-reconciling
+  // on every state change, which is critical during fast drag events.
   const onNodesChange = useCallback((changes) => {
-    const newNodes = applyNodeChanges(changes, nodes)
+    const newNodes = applyNodeChanges(changes, useCanvasStore.getState().nodes)
     useCanvasStore.setState({ nodes: newNodes })
-  }, [nodes])
+  }, [])
 
   const onEdgesChange = useCallback((changes) => {
-    const newEdges = applyEdgeChanges(changes, edges)
+    const newEdges = applyEdgeChanges(changes, useCanvasStore.getState().edges)
     useCanvasStore.setState({ edges: newEdges })
-  }, [edges])
+  }, [])
 
   const onNodeClick = useCallback((e, node) => {
     setSelectedNode(node)
@@ -499,19 +495,21 @@ function CanvasInner({ projectId }) {
 
   async function applyAlignPositions(updates) {
     const store = useCanvasStore.getState()
-    for (const { rfId, x, y } of updates) {
+    // Single state update for all positions (one re-render instead of N)
+    store.moveMultipleRFNodes(updates)
+    // Persist to DB in parallel
+    await Promise.all(updates.map(async ({ rfId, x, y }) => {
       const parts = rfId.split('-')
       const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
       const nodeId = parseInt(parts[parts.length - 1])
-      if (!nodeType || nodeType === 'root') continue
-      store.moveRFNode(rfId, x, y)
+      if (!nodeType || nodeType === 'root') return
       try {
         await updateNode(projectId, nodeType, nodeId, { x, y })
         socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, x, y })
       } catch (err) {
         console.error('Align failed:', err)
       }
-    }
+    }))
   }
 
   async function alignNodes(type) {
@@ -611,6 +609,8 @@ function CanvasInner({ projectId }) {
         onNodeDragStop={viewOnly ? undefined : onNodeDragStop}
         onSelectionChange={onSelectionChange}
         nodesDraggable={!viewOnly}
+        nodesFocusable={false}
+        edgesFocusable={false}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'floating' }}

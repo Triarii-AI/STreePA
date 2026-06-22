@@ -1,4 +1,6 @@
+import { memo, useMemo } from 'react'
 import { BaseEdge, getBezierPath, Position, useInternalNode } from '@xyflow/react'
+import useCanvasStore from '../../store/canvasStore.js'
 
 function borderPoint(node, towardX, towardY) {
   const { x, y } = node.internals.positionAbsolute
@@ -9,13 +11,10 @@ function borderPoint(node, towardX, towardY) {
 
   const dx = towardX - cx
   const dy = towardY - cy
-
   if (dx === 0 && dy === 0) return { x: cx, y: cy, pos: Position.Bottom }
 
   const hw = w / 2
   const hh = h / 2
-
-  // Whichever axis hits the border first determines the exit side
   const onSide = Math.abs(dx) / hw > Math.abs(dy) / hh
   let bx, by, pos
 
@@ -34,31 +33,46 @@ function borderPoint(node, towardX, towardY) {
   return { x: bx, y: by, pos }
 }
 
-export default function FloatingEdge({ id, source, target, style, markerEnd }) {
+function FloatingEdge({ id, source, target, style, markerEnd }) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
 
+  // Per-edge selection status using a targeted selector so Zustand only re-renders
+  // THIS component when ITS own connection status changes, not when any node is clicked.
+  // 'none' → no selection; 'connected' → touches selected node; 'dimmed' → everything else
+  const selStatus = useCanvasStore(s => {
+    const selId = s.selectedNode?.id
+    if (!selId) return 'none'
+    return (source === selId || target === selId) ? 'connected' : 'dimmed'
+  })
+
+  const effectiveStyle = useMemo(() => {
+    if (selStatus === 'none') return style
+    if (selStatus === 'connected') {
+      const isDashed = !!style?.strokeDasharray
+      return { ...style, stroke: isDashed ? '#f97316' : '#6366f1', strokeWidth: isDashed ? 2.5 : 3, opacity: 1 }
+    }
+    return { ...style, opacity: 0.15 }
+  }, [style, selStatus])
+
   if (!sourceNode || !targetNode) return null
 
-  const { x: sx, y: sy } = sourceNode.internals.positionAbsolute
   const sw = sourceNode.measured?.width ?? 150
   const sh = sourceNode.measured?.height ?? 40
-  const tCx = (targetNode.internals.positionAbsolute.x) + (targetNode.measured?.width ?? 150) / 2
-  const tCy = (targetNode.internals.positionAbsolute.y) + (targetNode.measured?.height ?? 40) / 2
-  const sCx = sx + sw / 2
-  const sCy = sy + sh / 2
+  const tCx = targetNode.internals.positionAbsolute.x + (targetNode.measured?.width ?? 150) / 2
+  const tCy = targetNode.internals.positionAbsolute.y + (targetNode.measured?.height ?? 40) / 2
+  const sCx = sourceNode.internals.positionAbsolute.x + sw / 2
+  const sCy = sourceNode.internals.positionAbsolute.y + sh / 2
 
   const src = borderPoint(sourceNode, tCx, tCy)
   const tgt = borderPoint(targetNode, sCx, sCy)
 
   const [edgePath] = getBezierPath({
-    sourceX: src.x,
-    sourceY: src.y,
-    sourcePosition: src.pos,
-    targetX: tgt.x,
-    targetY: tgt.y,
-    targetPosition: tgt.pos,
+    sourceX: src.x, sourceY: src.y, sourcePosition: src.pos,
+    targetX: tgt.x, targetY: tgt.y, targetPosition: tgt.pos,
   })
 
-  return <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
+  return <BaseEdge id={id} path={edgePath} style={effectiveStyle} markerEnd={markerEnd} />
 }
+
+export default memo(FloatingEdge)

@@ -229,6 +229,17 @@ const useCanvasStore = create((set, get) => ({
     }))
   },
 
+  // Batch-move multiple nodes in a single state update (avoids N re-renders for align/distribute)
+  moveMultipleRFNodes(updates) {
+    const map = new Map(updates.map(({ rfId, x, y }) => [rfId, { x, y }]))
+    set(state => ({
+      nodes: state.nodes.map(n => {
+        const pos = map.get(n.id)
+        return pos ? { ...n, position: pos } : n
+      }),
+    }))
+  },
+
   removeRFNode(rfNodeId) {
     set(state => ({
       nodes: state.nodes.filter(n => n.id !== rfNodeId),
