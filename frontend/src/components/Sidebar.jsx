@@ -190,7 +190,7 @@ export default function Sidebar() {
       {/* Toggle button — sibling of overflow container so it never gets clipped */}
       <button
         onClick={() => setIsOpen(o => !o)}
-        className="absolute -right-3 top-4 z-20 w-6 h-6 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:shadow-md transition-all"
+        className={`absolute -right-3 top-4 z-20 w-6 h-6 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:shadow-md transition-all ${isOpen ? '' : 'translate-x-3'}`}
         title={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
       >
         <svg

@@ -173,7 +173,7 @@ export default function Toolbar({ project }) {
   const extraCount = activeUsers.length > 3 ? activeUsers.length - 3 : 0
 
   return (
-    <div className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center px-4 gap-4 flex-shrink-0 z-10">
+    <div className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center px-4 gap-4 flex-shrink-0 z-30">
       {/* Back to Dashboard */}
       <button
         onClick={() => navigate('/dashboard')}
