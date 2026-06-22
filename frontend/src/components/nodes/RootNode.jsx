@@ -8,7 +8,7 @@ function RootNode({ data, selected }) {
   const darkMode = useCanvasStore(s => s.darkMode)
   return (
     <div
-      className={`rounded-xl p-4 min-w-[280px] max-w-[360px] shadow-md border-2 transition-all ${selected ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
+      className={`rounded-xl p-4 w-fit min-w-[280px] max-w-[420px] shadow-md border-2 transition-all ${selected ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
       style={{
         background: darkMode
           ? 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)'
