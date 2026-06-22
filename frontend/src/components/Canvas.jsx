@@ -640,6 +640,7 @@ function CanvasInner({ projectId }) {
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'floating' }}
         deleteKeyCode={null}
+        minZoom={0.05}
         onlyRenderVisibleElements={!isExporting}
         selectionOnDrag
         panOnDrag={[1, 2]}
