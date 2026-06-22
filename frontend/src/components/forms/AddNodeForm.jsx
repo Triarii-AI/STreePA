@@ -128,6 +128,54 @@ function SearchableSelect({ value, onChange, options, placeholder, focusRingClas
   )
 }
 
+function SearchableCheckboxList({ items, selectedIds, onToggle, accentClass, isMainFn }) {
+  const [query, setQuery] = useState('')
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase()
+    return q ? items.filter(i => i.label?.toLowerCase().includes(q) || (i.description || '').toLowerCase().includes(q)) : items
+  }, [items, query])
+  const selectedCount = selectedIds.length
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="px-2 py-1.5 border-b border-gray-100 flex items-center gap-1.5">
+        <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search..."
+          className="flex-1 text-xs focus:outline-none bg-transparent placeholder-gray-400"
+        />
+        {selectedCount > 0 && (
+          <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+            {selectedCount} selected
+          </span>
+        )}
+      </div>
+      <div className="divide-y divide-gray-100 max-h-32 overflow-y-auto">
+        {filtered.length === 0 && (
+          <div className="px-3 py-2 text-xs text-gray-400">No results</div>
+        )}
+        {filtered.map(item => (
+          <label key={item.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selectedIds.includes(item.id)}
+              onChange={e => onToggle(item.id, e.target.checked)}
+              className={accentClass}
+            />
+            <span className={`text-xs text-gray-700 ${isMainFn && isMainFn(item) ? 'font-bold' : 'font-medium'}`}>{item.label}</span>
+            {item.description && <span className="text-xs text-gray-400 truncate">{item.description}</span>}
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AddNodeForm({ nodeType, projectId, onClose, onCreated }) {
   const addRFNode = useCanvasStore(s => s.addRFNode)
   const addRFEdge = useCanvasStore(s => s.addRFEdge)
@@ -357,22 +405,12 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
             {allLosses.length > 0 && (
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Link to Losses (optional)</label>
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
-                  {allLosses.map(l => (
-                    <label key={l.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedLossIds.includes(l.id)}
-                        onChange={e => setSelectedLossIds(prev =>
-                          e.target.checked ? [...prev, l.id] : prev.filter(id => id !== l.id)
-                        )}
-                        className="accent-orange-500"
-                      />
-                      <span className="text-xs text-gray-700 font-medium">{l.label}</span>
-                      {l.description && <span className="text-xs text-gray-400 truncate">{l.description}</span>}
-                    </label>
-                  ))}
-                </div>
+                <SearchableCheckboxList
+                  items={allLosses}
+                  selectedIds={selectedLossIds}
+                  onToggle={(id, checked) => setSelectedLossIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
+                  accentClass="accent-orange-500"
+                />
               </div>
             )}
           </>
@@ -407,22 +445,13 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
             {allHazards.length > 0 && (
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Additional Linked Hazards (optional)</label>
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
-                  {allHazards.map(h => (
-                    <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedHazardIds.includes(h.id)}
-                        onChange={e => setSelectedHazardIds(prev =>
-                          e.target.checked ? [...prev, h.id] : prev.filter(id => id !== h.id)
-                        )}
-                        className="accent-yellow-500"
-                      />
-                      <span className={`text-xs text-gray-700 ${isMainHazard(h) ? 'font-bold' : 'font-medium'}`}>{h.label}</span>
-                      {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
-                    </label>
-                  ))}
-                </div>
+                <SearchableCheckboxList
+                  items={allHazards}
+                  selectedIds={selectedHazardIds}
+                  onToggle={(id, checked) => setSelectedHazardIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
+                  accentClass="accent-yellow-500"
+                  isMainFn={isMainHazard}
+                />
               </div>
             )}
           </>
@@ -484,22 +513,13 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
             {allHazards.length > 0 && (
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Link to Hazards (optional)</label>
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
-                  {allHazards.map(h => (
-                    <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedHazardIds.includes(h.id)}
-                        onChange={e => setSelectedHazardIds(prev =>
-                          e.target.checked ? [...prev, h.id] : prev.filter(id => id !== h.id)
-                        )}
-                        className="accent-blue-500"
-                      />
-                      <span className={`text-xs text-gray-700 ${isMainHazard(h) ? 'font-bold' : 'font-medium'}`}>{h.label}</span>
-                      {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
-                    </label>
-                  ))}
-                </div>
+                <SearchableCheckboxList
+                  items={allHazards}
+                  selectedIds={selectedHazardIds}
+                  onToggle={(id, checked) => setSelectedHazardIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
+                  accentClass="accent-blue-500"
+                  isMainFn={isMainHazard}
+                />
               </div>
             )}
           </>
@@ -532,22 +552,13 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
             {allHazards.length > 0 && (
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Link to Hazards (optional)</label>
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-32 overflow-y-auto">
-                  {allHazards.map(h => (
-                    <label key={h.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedHazardIds.includes(h.id)}
-                        onChange={e => setSelectedHazardIds(prev =>
-                          e.target.checked ? [...prev, h.id] : prev.filter(id => id !== h.id)
-                        )}
-                        className="accent-purple-500"
-                      />
-                      <span className={`text-xs text-gray-700 ${isMainHazard(h) ? 'font-bold' : 'font-medium'}`}>{h.label}</span>
-                      {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
-                    </label>
-                  ))}
-                </div>
+                <SearchableCheckboxList
+                  items={allHazards}
+                  selectedIds={selectedHazardIds}
+                  onToggle={(id, checked) => setSelectedHazardIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
+                  accentClass="accent-purple-500"
+                  isMainFn={isMainHazard}
+                />
               </div>
             )}
           </>
