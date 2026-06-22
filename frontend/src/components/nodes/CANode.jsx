@@ -20,7 +20,7 @@ export default function CANode({ data, selected }) {
           {data.label || data.name || 'Control Action'}
         </span>
         <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0 whitespace-nowrap">
-          CA
+          R
         </span>
       </div>
 

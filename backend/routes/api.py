@@ -56,14 +56,14 @@ def _next_sc_label(project_id, hazard_id=None):
 
 def _next_ca_label(project_id):
     count = ControlAction.query.filter_by(project_id=project_id).count()
-    return f'CA-{count + 1}'
+    return f'R-{count + 1}'
 
 
 def _next_uca_label(project_id, control_action_id):
     ca = ControlAction.query.get(control_action_id)
-    # Extract the numeric part from e.g. "CA-3"
-    if ca and ca.label.startswith('CA-'):
-        ca_num = ca.label[3:]
+    # Extract the numeric part from e.g. "R-3"
+    if ca and ca.label.startswith('R-'):
+        ca_num = ca.label[2:]
     else:
         ca_num = str(control_action_id)
     count = UCA.query.filter_by(project_id=project_id, control_action_id=control_action_id).count()
@@ -126,7 +126,7 @@ def _relabel_ca_children(project_id, ca_id):
     ca = ControlAction.query.get(ca_id)
     if not ca:
         return []
-    ca_num = ca.label[3:] if ca.label.startswith('CA-') else str(ca_id)
+    ca_num = ca.label[2:] if ca.label.startswith('R-') else str(ca_id)
     updated = []
     for child in UCA.query.filter_by(project_id=project_id, control_action_id=ca_id).all():
         parts = child.label.rsplit('.', 1)
@@ -449,7 +449,7 @@ def update_uca(project_id, node_id):
         if new_ca_id != node.control_action_id:
             node.control_action_id = new_ca_id
             ca = ControlAction.query.get(new_ca_id)
-            ca_num = ca.label[3:] if ca and ca.label.startswith('CA-') else str(new_ca_id)
+            ca_num = ca.label[2:] if ca and ca.label.startswith('R-') else str(new_ca_id)
             sibling_count = UCA.query.filter_by(project_id=project_id, control_action_id=new_ca_id).filter(UCA.id != node_id).count()
             node.label = f'UCA-{ca_num}.{sibling_count + 1}'
         else:

@@ -17,7 +17,7 @@ const LABEL_EXAMPLES = {
   loss: 'e.g. L-3',
   hazard: 'e.g. H-4',
   system_constraint: 'e.g. SC-2',
-  control_action: 'e.g. CA-1',
+  control_action: 'e.g. R-1',
   uca: 'e.g. UCA-5',
   loss_scenario: 'e.g. LS-6',
 }
