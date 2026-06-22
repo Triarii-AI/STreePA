@@ -175,7 +175,15 @@ function getDescendantIds(rfNodeId, allEdges) {
   return descendants
 }
 
-const _initDark = localStorage.getItem('stpa-dark') === 'true'
+function _readDarkCookie() {
+  const m = document.cookie.match(/(?:^|;\s*)stpa-dark=([^;]*)/)
+  return m ? m[1] === 'true' : false
+}
+function _writeDarkCookie(val) {
+  const d = new Date(); d.setFullYear(d.getFullYear() + 1)
+  document.cookie = `stpa-dark=${val}; expires=${d.toUTCString()}; path=/; SameSite=Lax`
+}
+const _initDark = _readDarkCookie()
 if (_initDark) document.documentElement.classList.add('dark')
 
 const useCanvasStore = create((set, get) => ({
@@ -202,7 +210,7 @@ const useCanvasStore = create((set, get) => ({
     const updates = { user, isAuthenticated: user != null }
     if (user && typeof user.dark_mode === 'boolean') {
       updates.darkMode = user.dark_mode
-      localStorage.setItem('stpa-dark', user.dark_mode)
+      _writeDarkCookie(user.dark_mode)
       document.documentElement.classList.toggle('dark', user.dark_mode)
     }
     set(updates)
@@ -292,14 +300,16 @@ const useCanvasStore = create((set, get) => ({
   toggleDarkMode() {
     set(state => {
       const next = !state.darkMode
-      localStorage.setItem('stpa-dark', next)
+      _writeDarkCookie(next)
       document.documentElement.classList.toggle('dark', next)
-      fetch('/api/auth/preferences', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ dark_mode: next }),
-      }).catch(() => {})
+      if (state.isAuthenticated) {
+        fetch('/api/auth/preferences', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ dark_mode: next }),
+        }).catch(() => {})
+      }
       return { darkMode: next }
     })
   },
