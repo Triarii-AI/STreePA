@@ -51,6 +51,17 @@ export async function getMe() {
   return request('/auth/me')
 }
 
+export async function updateUser({ currentPassword, newUsername, newPassword }) {
+  return request('/auth/user', {
+    method: 'PUT',
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_username: newUsername || undefined,
+      new_password: newPassword || undefined,
+    }),
+  })
+}
+
 export async function getProjects() {
   return request('/api/projects')
 }

@@ -7,7 +7,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
-  Controls,
   MiniMap,
   Panel,
   useReactFlow,
@@ -658,7 +657,27 @@ function CanvasInner({ projectId }) {
           zoomable
           pannable
         />
-        <Controls position="top-right" />
+        <Panel position="top-right" style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: 12 }}>
+          <button
+            onClick={() => reactFlow.zoomIn({ duration: 200 })}
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm transition-colors text-lg font-medium"
+            title="Zoom In"
+          >+</button>
+          <button
+            onClick={() => reactFlow.zoomOut({ duration: 200 })}
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm transition-colors text-lg font-medium"
+            title="Zoom Out"
+          >&minus;</button>
+          <button
+            onClick={() => reactFlow.fitView({ duration: 400, padding: 0.1 })}
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm transition-colors"
+            title="Fit View"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0 0l-5-5m-7 11l-5 5m5-5v4m0-4H4m16 0v4m0-4h-4m0 0l5 5" />
+            </svg>
+          </button>
+        </Panel>
 
         {/* Add node buttons — hidden in view-only mode */}
         {!viewOnly && (
