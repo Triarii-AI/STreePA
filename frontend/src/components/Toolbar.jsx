@@ -4,25 +4,24 @@ import { useNavigate } from 'react-router-dom'
 import { updateProject, downloadProjectJson, downloadProjectExcel } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
 
-function UserAvatar({ user, index }) {
-  const colors = [
-    'bg-purple-500', 'bg-blue-500', 'bg-green-500', 'bg-orange-500',
-    'bg-pink-500', 'bg-teal-500', 'bg-red-500', 'bg-indigo-500',
-  ]
-  const colorClass = colors[index % colors.length]
-  const initials = (user.username || user.name || 'U')
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
+const AVATAR_COLORS = [
+  'bg-purple-500', 'bg-blue-500', 'bg-green-500', 'bg-orange-500',
+  'bg-pink-500', 'bg-teal-500', 'bg-red-500', 'bg-indigo-500',
+]
 
+function userInitials(user) {
+  return (user.username || user.name || 'U')
+    .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
+
+function UserAvatar({ user, index }) {
+  const colorClass = AVATAR_COLORS[index % AVATAR_COLORS.length]
   return (
     <div className="relative group">
-      <div className={`w-7 h-7 rounded-full ${colorClass} flex items-center justify-center text-white text-xs font-medium ring-2 ring-white`}>
-        {initials}
+      <div className={`w-7 h-7 rounded-full ${colorClass} flex items-center justify-center text-white text-xs font-medium ring-2 ring-white dark:ring-gray-800`}>
+        {userInitials(user)}
       </div>
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
         {user.username || user.name}
       </div>
     </div>
@@ -42,7 +41,9 @@ export default function Toolbar({ project }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleValue, setTitleValue] = useState('')
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showUsersPanel, setShowUsersPanel] = useState(false)
   const titleInputRef = useRef(null)
+  const usersPanelRef = useRef(null)
 
   function startEditTitle() {
     setTitleValue(project?.title || currentProject?.title || '')
@@ -224,18 +225,46 @@ export default function Toolbar({ project }) {
 
       {/* Right: Active users */}
       {activeUsers.length > 0 && (
-        <div className="flex items-center gap-1.5 ml-2">
-          <div className="flex items-center -space-x-1">
-            {visibleUsers.map((u, i) => (
-              <UserAvatar key={u.id || u.username || i} user={u} index={i} />
-            ))}
-          </div>
-          {extraCount > 0 && (
-            <span className="text-xs text-gray-500 font-medium">+{extraCount}</span>
+        <div className="relative ml-2" ref={usersPanelRef}>
+          <button
+            onClick={() => setShowUsersPanel(v => !v)}
+            className="flex items-center gap-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg px-2 py-1 transition-colors"
+          >
+            <div className="flex items-center -space-x-1">
+              {visibleUsers.map((u, i) => (
+                <UserAvatar key={u.id || u.username || i} user={u} index={i} />
+              ))}
+            </div>
+            {extraCount > 0 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">+{extraCount}</span>
+            )}
+            <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">
+              {activeUsers.length} online
+            </span>
+          </button>
+
+          {showUsersPanel && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowUsersPanel(false)} />
+              <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-52 py-2">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 pb-1.5 border-b border-gray-100 dark:border-gray-700">
+                  Currently online
+                </p>
+                <ul className="mt-1">
+                  {activeUsers.map((u, i) => (
+                    <li key={u.id || u.username || i} className="flex items-center gap-2.5 px-3 py-2">
+                      <div className={`w-7 h-7 rounded-full ${AVATAR_COLORS[i % AVATAR_COLORS.length]} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>
+                        {userInitials(u)}
+                      </div>
+                      <span className="text-sm text-gray-800 dark:text-gray-200 truncate">
+                        {u.username || u.name}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
           )}
-          <span className="text-xs text-gray-400 ml-1">
-            {activeUsers.length} online
-          </span>
         </div>
       )}
     </div>
