@@ -30,6 +30,7 @@ function UserAvatar({ user, index }) {
 export default function Toolbar({ project }) {
   const navigate = useNavigate()
   const currentProject = useCanvasStore(s => s.currentProject)
+  const patchCurrentProject = useCanvasStore(s => s.patchCurrentProject)
   const activeUsers = useCanvasStore(s => s.activeUsers)
   const viewOnly = useCanvasStore(s => s.viewOnly)
   const setViewOnly = useCanvasStore(s => s.setViewOnly)
@@ -57,10 +58,13 @@ export default function Toolbar({ project }) {
     if (!proj) { setEditingTitle(false); return }
     const trimmed = titleValue.trim()
     if (!trimmed || trimmed === proj.title) { setEditingTitle(false); return }
+    patchCurrentProject({ title: trimmed })
+    setEditingTitle(false)
     try {
       await updateProject(proj.id, { title: trimmed })
-    } catch (_) {}
-    setEditingTitle(false)
+    } catch (_) {
+      patchCurrentProject({ title: proj.title })
+    }
   }
 
   function handleTitleKeyDown(e) {

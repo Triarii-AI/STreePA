@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, Response, send_file
 from flask_login import login_required, current_user
-from extensions import db
+from extensions import db, socketio
 from models import (
     Project, ProjectShare, User, Loss, Hazard, SystemConstraint,
     ControlAction, UCA, LossScenario, CanvasEdge
@@ -131,6 +131,11 @@ def update_project(project_id):
         project.icon_color = data['icon_color']
 
     db.session.commit()
+    socketio.emit('project:updated', {
+        'project_id': project_id,
+        'title': project.title,
+        'icon_color': project.icon_color,
+    }, room=f'project:{project_id}')
     return jsonify(project.to_dict())
 
 

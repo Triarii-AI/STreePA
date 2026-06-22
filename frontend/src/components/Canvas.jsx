@@ -295,13 +295,18 @@ function CanvasInner({ projectId }) {
         return next
       })
     }
+    function onProjectUpdated({ title, icon_color }) {
+      useCanvasStore.getState().patchCurrentProject({ title, icon_color })
+    }
     socket.on('user:select', onUserSelect)
     socket.on('cursor:move', onCursorMove)
     socket.on('presence:update', onPresenceUpdate)
+    socket.on('project:updated', onProjectUpdated)
     return () => {
       socket.off('user:select', onUserSelect)
       socket.off('cursor:move', onCursorMove)
       socket.off('presence:update', onPresenceUpdate)
+      socket.off('project:updated', onProjectUpdated)
     }
   }, [])
 

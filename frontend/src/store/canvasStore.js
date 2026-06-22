@@ -211,6 +211,12 @@ const useCanvasStore = create((set, get) => ({
     set({ currentProject: projectData.project, nodes, edges, selectedNode: null, collapsedNodes: new Set() })
   },
 
+  patchCurrentProject(fields) {
+    set(state => ({
+      currentProject: state.currentProject ? { ...state.currentProject, ...fields } : state.currentProject,
+    }))
+  },
+
   addRFNode(rfNode) {
     set(state => ({ nodes: [...state.nodes, rfNode] }))
   },
