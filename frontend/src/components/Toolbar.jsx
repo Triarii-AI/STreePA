@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react'
-import { useReactFlow } from '@xyflow/react'
 import { useNavigate } from 'react-router-dom'
 import { updateProject, downloadProjectJson, downloadProjectExcel } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
@@ -29,7 +28,6 @@ function UserAvatar({ user, index }) {
 }
 
 export default function Toolbar({ project }) {
-  const reactFlow = useReactFlow()
   const navigate = useNavigate()
   const currentProject = useCanvasStore(s => s.currentProject)
   const activeUsers = useCanvasStore(s => s.activeUsers)
@@ -111,34 +109,6 @@ export default function Toolbar({ project }) {
             {displayTitle}
           </button>
         )}
-      </div>
-
-      {/* Center: Zoom controls */}
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => reactFlow.zoomIn({ duration: 200 })}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
-          title="Zoom In"
-        >
-          +
-        </button>
-        <button
-          onClick={() => reactFlow.zoomOut({ duration: 200 })}
-          className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
-          title="Zoom Out"
-        >
-          &minus;
-        </button>
-        <button
-          onClick={() => reactFlow.fitView({ duration: 400, padding: 0.1 })}
-          className="h-8 px-3 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-xs font-medium gap-1"
-          title="Fit View"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0 0l-5-5m-7 11l-5 5m5-5v4m0-4H4m16 0v4m0-4h-4m0 0l5 5" />
-          </svg>
-          Fit
-        </button>
       </div>
 
       {/* View-only toggle */}

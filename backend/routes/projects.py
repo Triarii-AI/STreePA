@@ -16,7 +16,9 @@ projects_bp = Blueprint('projects', __name__)
 @projects_bp.route('/', methods=['GET'])
 @login_required
 def list_projects():
-    projects = Project.query.filter_by(owner_id=current_user.id).order_by(Project.updated_at.desc()).all()
+    projects = Project.query.filter(
+        (Project.owner_id == current_user.id) | (Project.owner_id == None)
+    ).order_by(Project.updated_at.desc()).all()
     return jsonify([p.to_dict() for p in projects])
 
 
