@@ -85,3 +85,13 @@ def update_user():
 
     db.session.commit()
     return jsonify({'success': True, 'user': current_user.to_dict()})
+
+
+@auth_bp.route('/preferences', methods=['PATCH'])
+@login_required
+def update_preferences():
+    data = request.get_json() or {}
+    if 'dark_mode' in data:
+        current_user.dark_mode = bool(data['dark_mode'])
+    db.session.commit()
+    return jsonify({'success': True, 'user': current_user.to_dict()})

@@ -199,7 +199,13 @@ const useCanvasStore = create((set, get) => ({
   darkMode: _initDark,
 
   setUser(user) {
-    set({ user, isAuthenticated: user != null })
+    const updates = { user, isAuthenticated: user != null }
+    if (user && typeof user.dark_mode === 'boolean') {
+      updates.darkMode = user.dark_mode
+      localStorage.setItem('stpa-dark', user.dark_mode)
+      document.documentElement.classList.toggle('dark', user.dark_mode)
+    }
+    set(updates)
   },
 
   setProjects(projects) {
@@ -288,6 +294,12 @@ const useCanvasStore = create((set, get) => ({
       const next = !state.darkMode
       localStorage.setItem('stpa-dark', next)
       document.documentElement.classList.toggle('dark', next)
+      fetch('/api/auth/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ dark_mode: next }),
+      }).catch(() => {})
       return { darkMode: next }
     })
   },

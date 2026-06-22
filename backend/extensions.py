@@ -18,6 +18,7 @@ def _set_sqlite_pragma(dbapi_conn, _connection_record):
         for sql in [
             "ALTER TABLE projects ADD COLUMN root_x REAL DEFAULT 500.0",
             "ALTER TABLE projects ADD COLUMN root_y REAL DEFAULT 50.0",
+            "ALTER TABLE users ADD COLUMN dark_mode BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE projects ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
             "ALTER TABLE projects ADD COLUMN icon_color TEXT NOT NULL DEFAULT 'indigo'",
             """CREATE TABLE IF NOT EXISTS project_shares (
