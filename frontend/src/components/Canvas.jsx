@@ -13,6 +13,8 @@ import {
   useReactFlow,
   applyNodeChanges,
   applyEdgeChanges,
+  getNodesBounds,
+  getViewportForBounds,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -30,7 +32,7 @@ import UCANode from './nodes/UCANode.jsx'
 import LSNode from './nodes/LSNode.jsx'
 import AddNodeForm from './forms/AddNodeForm.jsx'
 import FloatingEdge from './edges/FloatingEdge.jsx'
-import html2canvas from 'html2canvas'
+import { toPng } from 'html-to-image'
 
 const nodeTypes = {
   rootNode: RootNode,
@@ -559,29 +561,44 @@ function CanvasInner({ projectId }) {
   async function exportScreenshot() {
     if (isExporting) return
     setIsExporting(true)
+    // onlyRenderVisibleElements is disabled while isExporting is true,
+    // so React Flow will render every node into the DOM.
     try {
       const { currentProject } = useCanvasStore.getState()
       const projectName = currentProject?.name || 'stpa-diagram'
       const savedViewport = reactFlow.getViewport()
 
-      reactFlow.fitView({ padding: 0.06, duration: 0 })
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+      // Wait until all nodes are rendered and measured (up to ~1s).
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => requestAnimationFrame(r))
+        const rfNodes = reactFlow.getNodes().filter(n => !n.hidden && !n.data?.hidden)
+        if (rfNodes.length > 0 && rfNodes.every(n => n.measured?.width && n.measured?.height)) break
+      }
 
-      const flowEl = containerRef.current?.querySelector('.react-flow')
-      if (!flowEl) return
+      const rfNodes = reactFlow.getNodes().filter(n => !n.hidden && !n.data?.hidden)
+      if (!rfNodes.length) return
 
-      const canvas = await html2canvas(flowEl, {
+      // Compute the bounding box of all nodes and size the image to fit them at 2× resolution.
+      const bounds = getNodesBounds(rfNodes)
+      const SCALE = 2
+      const PADDING = 0.08
+      const imageWidth  = Math.max(400, Math.round(bounds.width  * SCALE * (1 + PADDING * 2)))
+      const imageHeight = Math.max(300, Math.round(bounds.height * SCALE * (1 + PADDING * 2)))
+
+      // getViewportForBounds returns the x/y/zoom transform that maps the full diagram into the image.
+      const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, 0.1, 10, PADDING)
+
+      const viewportEl = containerRef.current?.querySelector('.react-flow__viewport')
+      if (!viewportEl) return
+
+      const dataUrl = await toPng(viewportEl, {
         backgroundColor: '#f8fafc',
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        ignoreElements: el => {
-          const cls = el.classList
-          if (!cls) return false
-          return cls.contains('react-flow__minimap') ||
-                 cls.contains('react-flow__controls') ||
-                 cls.contains('react-flow__panel')
+        width: imageWidth,
+        height: imageHeight,
+        style: {
+          width:     `${imageWidth}px`,
+          height:    `${imageHeight}px`,
+          transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
         },
       })
 
@@ -591,7 +608,7 @@ function CanvasInner({ projectId }) {
       const date = new Date().toISOString().slice(0, 10)
       const a = document.createElement('a')
       a.download = `${slug}-${date}.png`
-      a.href = canvas.toDataURL('image/png')
+      a.href = dataUrl
       a.click()
     } catch (err) {
       console.error('Screenshot export failed:', err)
@@ -623,7 +640,7 @@ function CanvasInner({ projectId }) {
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'floating' }}
         deleteKeyCode={null}
-        onlyRenderVisibleElements
+        onlyRenderVisibleElements={!isExporting}
         selectionOnDrag
         panOnDrag={[1, 2]}
         multiSelectionKeyCode="Shift"
