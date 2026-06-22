@@ -11,8 +11,17 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 
+PROD=false
+for arg in "$@"; do
+  [[ "$arg" == "--prod" ]] && PROD=true
+done
+
 echo ""
-echo "  STPA Tree Graph — Starting"
+if $PROD; then
+  echo "  STPA Tree Graph — Production Mode"
+else
+  echo "  STPA Tree Graph — Development Mode"
+fi
 echo "  ==========================="
 echo ""
 
@@ -21,6 +30,16 @@ echo ""
 [[ -f "$BACKEND/.env" ]] || die "backend/.env not found. Run ./setup.sh first."
 [[ -d "$BACKEND/venv" ]] || die "Python venv not found. Run ./setup.sh first."
 [[ -d "$FRONTEND/node_modules" ]] || die "node_modules not found. Run ./setup.sh first."
+
+# ── Production: build frontend first ─────────────────────────────────────────
+
+if $PROD; then
+  info "Building frontend..."
+  cd "$FRONTEND"
+  npm run build
+  cd "$ROOT"
+  success "Frontend built → frontend/dist"
+fi
 
 # ── Cleanup on exit ───────────────────────────────────────────────────────────
 
@@ -46,20 +65,28 @@ BACKEND_PID=$!
 cd "$ROOT"
 success "Backend running (PID $BACKEND_PID) → http://localhost:5000"
 
-# ── Frontend ──────────────────────────────────────────────────────────────────
+# ── Frontend (dev only) ───────────────────────────────────────────────────────
 
-info "Starting frontend..."
-cd "$FRONTEND"
-npm run dev &
-FRONTEND_PID=$!
-cd "$ROOT"
-success "Frontend running (PID $FRONTEND_PID) → http://localhost:5173"
+if ! $PROD; then
+  info "Starting frontend..."
+  cd "$FRONTEND"
+  npm run dev &
+  FRONTEND_PID=$!
+  cd "$ROOT"
+  success "Frontend running (PID $FRONTEND_PID) → http://localhost:5173"
+fi
 
 # ── Ready ─────────────────────────────────────────────────────────────────────
 
 echo ""
-echo -e "  ${GREEN}App is up!${NC} Open http://localhost:5173"
-echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop both servers."
+if $PROD; then
+  echo -e "  ${GREEN}App is up!${NC} Open http://localhost:5000"
+  echo -e "  Point your Cloudflare tunnel at ${YELLOW}port 5000${NC}."
+else
+  echo -e "  ${GREEN}App is up!${NC} Open http://localhost:5173"
+  echo -e "  For tunnel hosting, use ${YELLOW}./run.sh --prod${NC} instead."
+fi
+echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop."
 echo ""
 
 wait

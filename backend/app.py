@@ -1,7 +1,10 @@
-from flask import Flask
+import os
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from config import Config
 from extensions import db, socketio, login_manager
+
+_FRONTEND_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'dist')
 
 
 def create_app():
@@ -35,6 +38,16 @@ def create_app():
 
     from events import register_events
     register_events(socketio)
+
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_frontend(path):
+        if not os.path.isdir(_FRONTEND_DIST):
+            return ('Frontend not built. Run: cd frontend && npm run build', 503)
+        target = os.path.join(_FRONTEND_DIST, path)
+        if path and os.path.isfile(target):
+            return send_from_directory(_FRONTEND_DIST, path)
+        return send_from_directory(_FRONTEND_DIST, 'index.html')
 
     with app.app_context():
         db.create_all()
