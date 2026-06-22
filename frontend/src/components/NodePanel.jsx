@@ -432,7 +432,7 @@ export default function NodePanel({ projectId }) {
               <SearchableSelect
                 value={formData.control_action_id || ''}
                 onChange={v => handleFieldChange('control_action_id', v)}
-                options={allCAs.map(ca => ({ ...ca, label: ca.label && ca.name ? `${ca.label} — ${ca.name}` : (ca.label || ca.name) }))}
+                options={allCAs.map(ca => ({ ...ca, label: ca.label || ca.name, description: ca.label ? ca.name : undefined }))}
                 placeholder="None"
                 focusRingClass="focus:ring-blue-400"
               />
