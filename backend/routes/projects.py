@@ -127,6 +127,8 @@ def update_project(project_id):
         project.root_x = float(data['root_x'])
     if 'root_y' in data:
         project.root_y = float(data['root_y'])
+    if 'icon_color' in data:
+        project.icon_color = data['icon_color']
 
     db.session.commit()
     return jsonify(project.to_dict())
@@ -139,6 +141,87 @@ def delete_project(project_id):
     db.session.delete(project)
     db.session.commit()
     return jsonify({'success': True})
+
+
+@projects_bp.route('/<int:project_id>/duplicate', methods=['POST'])
+@login_required
+def duplicate_project(project_id):
+    src = check_project_access(project_id)
+
+    copy = Project(
+        title=src.title + ' (Copy)',
+        purpose_statement=src.purpose_statement,
+        root_x=src.root_x, root_y=src.root_y,
+        icon_color=src.icon_color,
+        owner_id=current_user.id,
+    )
+    db.session.add(copy)
+    db.session.flush()
+
+    loss_map, hazard_map, sc_map, ca_map, uca_map = {}, {}, {}, {}, {}
+
+    for l in Loss.query.filter_by(project_id=project_id).all():
+        n = Loss(project_id=copy.id, label=l.label, description=l.description, x=l.x, y=l.y)
+        db.session.add(n); db.session.flush(); loss_map[l.id] = n.id
+
+    for h in Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).all():
+        def copy_hazard(orig, new_parent_id=None):
+            n = Hazard(project_id=copy.id, label=orig.label, description=orig.description,
+                       parent_hazard_id=new_parent_id, x=orig.x, y=orig.y)
+            db.session.add(n); db.session.flush()
+            hazard_map[orig.id] = n.id
+            for child in Hazard.query.filter_by(project_id=project_id, parent_hazard_id=orig.id).all():
+                copy_hazard(child, n.id)
+        copy_hazard(h)
+
+    from models import hazard_loss_links, sc_hazard_links, uca_hazard_links, ls_hazard_links
+    for h in Hazard.query.filter_by(project_id=project_id).all():
+        nh = Hazard.query.get(hazard_map.get(h.id))
+        if not nh: continue
+        for l in h.linked_losses:
+            nl = Loss.query.get(loss_map.get(l.id))
+            if nl: nh.linked_losses.append(nl)
+
+    for sc in SystemConstraint.query.filter_by(project_id=project_id).all():
+        n = SystemConstraint(project_id=copy.id, label=sc.label, description=sc.description,
+                             linked_hazard_id=hazard_map.get(sc.linked_hazard_id), x=sc.x, y=sc.y)
+        db.session.add(n); db.session.flush(); sc_map[sc.id] = n.id
+        for h in sc.linked_hazards:
+            nh = Hazard.query.get(hazard_map.get(h.id))
+            if nh: n.linked_hazards.append(nh)
+
+    for ca in ControlAction.query.filter_by(project_id=project_id).all():
+        n = ControlAction(project_id=copy.id, label=ca.label, name=ca.name, x=ca.x, y=ca.y)
+        db.session.add(n); db.session.flush(); ca_map[ca.id] = n.id
+
+    for u in UCA.query.filter_by(project_id=project_id).all():
+        n = UCA(project_id=copy.id, label=u.label, description=u.description,
+                control_action_id=ca_map.get(u.control_action_id), uca_type=u.uca_type, x=u.x, y=u.y)
+        db.session.add(n); db.session.flush(); uca_map[u.id] = n.id
+        for h in u.linked_hazards:
+            nh = Hazard.query.get(hazard_map.get(h.id))
+            if nh: n.linked_hazards.append(nh)
+
+    for ls in LossScenario.query.filter_by(project_id=project_id).all():
+        n = LossScenario(project_id=copy.id, label=ls.label, description=ls.description,
+                         uca_id=uca_map.get(ls.uca_id), x=ls.x, y=ls.y)
+        db.session.add(n); db.session.flush()
+        for h in ls.linked_hazards:
+            nh = Hazard.query.get(hazard_map.get(h.id))
+            if nh: n.linked_hazards.append(nh)
+
+    type_map = {'loss': loss_map, 'hazard': hazard_map, 'system_constraint': sc_map,
+                'control_action': ca_map, 'uca': uca_map}
+    for ce in CanvasEdge.query.filter_by(project_id=project_id).all():
+        fm = type_map.get(ce.from_node_type, {}); tm = type_map.get(ce.to_node_type, {})
+        nf = fm.get(ce.from_node_id); nt = tm.get(ce.to_node_id)
+        if nf and nt:
+            db.session.add(CanvasEdge(project_id=copy.id, from_node_type=ce.from_node_type,
+                                      from_node_id=nf, to_node_type=ce.to_node_type,
+                                      to_node_id=nt, style=ce.style))
+
+    db.session.commit()
+    return jsonify({'project': copy.to_dict()}), 201
 
 
 # ─────────────────────────────────────────────

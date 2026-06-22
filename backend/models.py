@@ -60,6 +60,7 @@ class Project(db.Model):
     root_x = db.Column(db.Float, default=500.0)
     root_y = db.Column(db.Float, default=50.0)
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    icon_color = db.Column(db.String(20), default='indigo', nullable=False, server_default='indigo')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = db.Column(
         db.DateTime,
@@ -87,6 +88,7 @@ class Project(db.Model):
             'root_y': self.root_y if self.root_y is not None else 50.0,
             'owner_id': self.owner_id,
             'owner_username': self.owner.username if self.owner else None,
+            'icon_color': self.icon_color or 'indigo',
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

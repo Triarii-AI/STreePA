@@ -103,6 +103,10 @@ export async function updateProject(id, data) {
   })
 }
 
+export async function duplicateProject(id) {
+  return request(`/api/projects/${id}/duplicate`, { method: 'POST' })
+}
+
 export async function deleteProject(id) {
   return request(`/api/projects/${id}`, { method: 'DELETE' })
 }

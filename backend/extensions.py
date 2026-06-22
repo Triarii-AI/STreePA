@@ -19,6 +19,7 @@ def _set_sqlite_pragma(dbapi_conn, _connection_record):
             "ALTER TABLE projects ADD COLUMN root_x REAL DEFAULT 500.0",
             "ALTER TABLE projects ADD COLUMN root_y REAL DEFAULT 50.0",
             "ALTER TABLE projects ADD COLUMN owner_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+            "ALTER TABLE projects ADD COLUMN icon_color TEXT NOT NULL DEFAULT 'indigo'",
             """CREATE TABLE IF NOT EXISTS project_shares (
                 project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
                 user_id    INTEGER NOT NULL REFERENCES users(id)    ON DELETE CASCADE,

@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getProjects, getSharedProjects, createProject, deleteProject, logout, importProject,
-         listBackups, createBackup, deleteBackupFile, getBackupSettings, saveBackupSettings, updateUser,
-         getProjectShares, addProjectShare, removeProjectShare } from '../api.js'
+import { getProjects, getSharedProjects, createProject, deleteProject, duplicateProject, logout,
+         importProject, listBackups, createBackup, deleteBackupFile, getBackupSettings, saveBackupSettings,
+         updateUser, updateProject, getProjectShares, addProjectShare, removeProjectShare,
+         downloadProjectJson, downloadProjectExcel } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
 
 function formatDate(dateStr) {
@@ -52,6 +53,11 @@ export default function Dashboard() {
   const [shareError, setShareError] = useState('')
   const [shareLoading, setShareLoading] = useState(false)
   const [removingShare, setRemovingShare] = useState(null)
+
+  const [cardMenu, setCardMenu] = useState(null) // { project, anchorEl }
+  const [renamingProject, setRenamingProject] = useState(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameSaving, setRenameSaving] = useState(false)
 
   const [showNewModal, setShowNewModal] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -231,6 +237,67 @@ export default function Dashboard() {
     { value: 720,  label: 'Every 12 hours' },
     { value: 1440, label: 'Every 24 hours' },
   ]
+
+  const ICON_COLORS = [
+    { name: 'indigo', bg: 'bg-indigo-100 dark:bg-indigo-900/40', icon: 'text-indigo-600', swatch: 'bg-indigo-500' },
+    { name: 'blue',   bg: 'bg-blue-100 dark:bg-blue-900/40',     icon: 'text-blue-600',   swatch: 'bg-blue-500' },
+    { name: 'teal',   bg: 'bg-teal-100 dark:bg-teal-900/40',     icon: 'text-teal-600',   swatch: 'bg-teal-500' },
+    { name: 'green',  bg: 'bg-green-100 dark:bg-green-900/40',   icon: 'text-green-600',  swatch: 'bg-green-500' },
+    { name: 'yellow', bg: 'bg-yellow-100 dark:bg-yellow-900/40', icon: 'text-yellow-600', swatch: 'bg-yellow-500' },
+    { name: 'orange', bg: 'bg-orange-100 dark:bg-orange-900/40', icon: 'text-orange-600', swatch: 'bg-orange-500' },
+    { name: 'red',    bg: 'bg-red-100 dark:bg-red-900/40',       icon: 'text-red-600',    swatch: 'bg-red-500' },
+    { name: 'pink',   bg: 'bg-pink-100 dark:bg-pink-900/40',     icon: 'text-pink-600',   swatch: 'bg-pink-500' },
+    { name: 'purple', bg: 'bg-purple-100 dark:bg-purple-900/40', icon: 'text-purple-600', swatch: 'bg-purple-500' },
+  ]
+  function colorFor(project) {
+    return ICON_COLORS.find(c => c.name === project.icon_color) || ICON_COLORS[0]
+  }
+
+  async function handleColorChange(e, project, colorName) {
+    e.stopPropagation()
+    try {
+      await updateProject(project.id, { icon_color: colorName })
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, icon_color: colorName } : p))
+      setSharedProjects(prev => prev.map(p => p.id === project.id ? { ...p, icon_color: colorName } : p))
+    } catch (err) {
+      console.error('Color change failed:', err)
+    }
+  }
+
+  async function handleDuplicate(e, project) {
+    e.stopPropagation()
+    setCardMenu(null)
+    try {
+      const data = await duplicateProject(project.id)
+      setProjects(prev => [data.project, ...prev])
+    } catch (err) {
+      alert(err.message || 'Failed to duplicate project.')
+    }
+  }
+
+  function openRename(e, project) {
+    e.stopPropagation()
+    setCardMenu(null)
+    setRenamingProject(project)
+    setRenameValue(project.title)
+  }
+
+  async function handleRename(e) {
+    e.preventDefault()
+    if (!renameValue.trim() || renameValue.trim() === renamingProject.title) {
+      setRenamingProject(null); return
+    }
+    setRenameSaving(true)
+    try {
+      const updated = await updateProject(renamingProject.id, { title: renameValue.trim() })
+      setProjects(prev => prev.map(p => p.id === renamingProject.id ? { ...p, title: updated.title } : p))
+      setRenamingProject(null)
+    } catch (err) {
+      alert(err.message || 'Failed to rename project.')
+    } finally {
+      setRenameSaving(false)
+    }
+  }
 
   async function openShareModal(e, project) {
     e.stopPropagation()
@@ -452,56 +519,98 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projects.map(project => (
-                <div
-                  key={project.id}
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                  className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-md transition-all relative"
-                >
-                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={e => openShareModal(e, project)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                      title="Share project"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={e => handleDelete(e, project.id)}
-                      disabled={deletingId === project.id}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-                      title="Delete project"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
-                      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                      </svg>
+              {projects.map(project => {
+                const color = colorFor(project)
+                const isMenuOpen = cardMenu?.project?.id === project.id
+                return (
+                  <div
+                    key={project.id}
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                    className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-md transition-all relative"
+                  >
+                    {/* Three-dot menu button */}
+                    <div className="absolute top-3 right-3">
+                      <button
+                        onClick={e => { e.stopPropagation(); setCardMenu(isMenuOpen ? null : { project }) }}
+                        className={`p-1.5 rounded-lg transition-opacity ${isMenuOpen ? 'opacity-100 bg-gray-100 dark:bg-gray-700' : 'opacity-0 group-hover:opacity-100'} text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700`}
+                        title="Project options"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>
+                        </svg>
+                      </button>
+                      {isMenuOpen && (
+                        <>
+                          <div className="fixed inset-0 z-30" onClick={e => { e.stopPropagation(); setCardMenu(null) }} />
+                          <div className="absolute right-0 top-8 z-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-52 py-1.5" onClick={e => e.stopPropagation()}>
+                            {/* Color swatches */}
+                            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Icon color</p>
+                              <div className="flex gap-1.5 flex-wrap">
+                                {ICON_COLORS.map(c => (
+                                  <button
+                                    key={c.name}
+                                    onClick={e => handleColorChange(e, project, c.name)}
+                                    className={`w-5 h-5 rounded-full ${c.swatch} transition-transform hover:scale-110 ${project.icon_color === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-gray-500' : ''}`}
+                                    title={c.name}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            <button onClick={e => openRename(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              Rename
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); openShareModal(e, project) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                              Share
+                            </button>
+                            <button onClick={e => handleDuplicate(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                              Duplicate
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectJson(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                              Download JSON
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectExcel(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                              Download Excel
+                            </button>
+                            <div className="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1">
+                              <button onClick={e => { e.stopPropagation(); setCardMenu(null); handleDelete(e, project.id) }} className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1">{project.title}</h3>
-                    {project.purpose_statement && (
-                      <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
-                    )}
-                  </div>
 
-                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <span>Created {formatDate(project.created_at)}</span>
-                    {project.updated_at && (
-                      <span title={new Date(project.updated_at).toLocaleString()}>
-                        Edited {formatLastEdited(project.updated_at)}
-                      </span>
-                    )}
+                    <div className="mb-3">
+                      <div className={`w-8 h-8 rounded-lg ${color.bg} flex items-center justify-center mb-3`}>
+                        <svg className={`w-4 h-4 ${color.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        </svg>
+                      </div>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1 pr-8">{project.title}</h3>
+                      {project.purpose_statement && (
+                        <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
+                      )}
+                    </div>
+
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                      <span>Created {formatDate(project.created_at)}</span>
+                      {project.updated_at && (
+                        <span title={new Date(project.updated_at).toLocaleString()}>
+                          Edited {formatLastEdited(project.updated_at)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )
         )}
@@ -851,7 +960,7 @@ export default function Dashboard() {
                   value={acctNewUsername}
                   onChange={e => setAcctNewUsername(e.target.value)}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                  placeholder={user?.username || 'Leave blank to keep current'}
+                  placeholder="Leave blank to keep current"
                 />
               </div>
               <div>
@@ -967,6 +1076,51 @@ export default function Dashboard() {
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
                 >
                   {creating ? 'Creating...' : 'Create Project'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Project Modal */}
+      {renamingProject && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Rename Project</h2>
+              <button
+                onClick={() => setRenamingProject(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleRename} className="p-5 space-y-4">
+              <input
+                type="text"
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                autoFocus
+                required
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRenamingProject(null)}
+                  className="flex-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={renameSaving}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+                >
+                  {renameSaving ? 'Saving…' : 'Rename'}
                 </button>
               </div>
             </form>

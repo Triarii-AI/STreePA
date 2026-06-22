@@ -184,10 +184,10 @@ export default function Sidebar() {
 
   return (
     <div
-      className="relative flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 overflow-hidden"
+      className="relative flex-shrink-0 transition-all duration-300"
       style={{ width: isOpen ? 260 : 0 }}
     >
-      {/* Toggle button */}
+      {/* Toggle button — sibling of overflow container so it never gets clipped */}
       <button
         onClick={() => setIsOpen(o => !o)}
         className="absolute -right-3 top-4 z-20 w-6 h-6 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:shadow-md transition-all"
@@ -201,8 +201,11 @@ export default function Sidebar() {
         </svg>
       </button>
 
-      {isOpen && (
-        <div className="flex flex-col h-full overflow-hidden" style={{ width: 260 }}>
+      {/* Content — overflow-hidden here, not on the outer div */}
+      <div
+        className="flex flex-col h-full overflow-hidden transition-all duration-300 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700"
+        style={{ width: isOpen ? 260 : 0 }}
+      >
           {/* Header */}
           <div className="px-4 pt-4 pb-2 flex-shrink-0">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Navigator</h2>
@@ -233,8 +236,7 @@ export default function Sidebar() {
               />
             ))}
           </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }

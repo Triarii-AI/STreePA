@@ -305,11 +305,12 @@ function CanvasInner({ projectId }) {
 
   const onNodeDragStop = useCallback(async (e, node, draggedNodes) => {
     const all = draggedNodes?.length > 1 ? draggedNodes : [node]
-    for (const n of all) {
+    const historyMoves = []
+    await Promise.all(all.map(async n => {
       const parts = n.id.split('-')
       const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
       const nodeId = parseInt(parts[parts.length - 1])
-      if (!nodeType) continue
+      if (!nodeType) return
       const oldPos = dragStartPos.current[n.id]
       const newPos = { x: n.position.x, y: n.position.y }
       delete dragStartPos.current[n.id]
@@ -320,12 +321,17 @@ function CanvasInner({ projectId }) {
           await updateNode(projectId, nodeType, nodeId, newPos)
           socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, ...newPos })
           if (oldPos && (oldPos.x !== newPos.x || oldPos.y !== newPos.y)) {
-            useCanvasStore.getState().pushHistory({ action: 'move', rfId: n.id, nodeType, nodeId, projectId, oldPos, newPos })
+            historyMoves.push({ rfId: n.id, nodeType, nodeId, projectId, oldPos, newPos })
           }
         }
       } catch (err) {
         console.error('Failed to persist node position:', err)
       }
+    }))
+    if (historyMoves.length === 1) {
+      useCanvasStore.getState().pushHistory({ action: 'move', ...historyMoves[0] })
+    } else if (historyMoves.length > 1) {
+      useCanvasStore.getState().pushHistory({ action: 'batchMove', moves: historyMoves })
     }
   }, [projectId])
 
@@ -391,6 +397,10 @@ function CanvasInner({ projectId }) {
             await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.oldPos.x, y: entry.oldPos.y })
             store.moveRFNode(entry.rfId, entry.oldPos.x, entry.oldPos.y)
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          } else if (entry.action === 'batchMove') {
+            store.moveMultipleRFNodes(entry.moves.map(m => ({ rfId: m.rfId, x: m.oldPos.x, y: m.oldPos.y })))
+            await Promise.all(entry.moves.map(m => updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.oldPos.x, y: m.oldPos.y })))
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           } else if (entry.action === 'create') {
             await deleteNode(entry.projectId, entry.nodeType, entry.nodeId)
             store.removeRFNode(entry.rfId)
@@ -415,6 +425,10 @@ function CanvasInner({ projectId }) {
             await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.newPos.x, y: entry.newPos.y })
             store.moveRFNode(entry.rfId, entry.newPos.x, entry.newPos.y)
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          } else if (entry.action === 'batchMove') {
+            store.moveMultipleRFNodes(entry.moves.map(m => ({ rfId: m.rfId, x: m.newPos.x, y: m.newPos.y })))
+            await Promise.all(entry.moves.map(m => updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.newPos.x, y: m.newPos.y })))
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           } else if (entry.action === 'create') {
             const { newRfId, newNodeId } = await recreateNode(entry)
             store.updateHistoryEntry(moveHistoryIndex + 1, { rfId: newRfId, nodeId: newNodeId })
@@ -425,6 +439,35 @@ function CanvasInner({ projectId }) {
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           }
         } catch (err) { console.error('Redo failed:', err) }
+        return
+      }
+
+      // ── Arrow keys: move selected nodes ───────────────────────────────
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) && !ctrl) {
+        const selected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && !n.data?.hidden)
+        if (selected.length === 0) return
+        e.preventDefault()
+        const step = e.shiftKey ? 20 : 2
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
+        const updates = selected.map(n => ({ rfId: n.id, x: n.position.x + dx, y: n.position.y + dy }))
+        const historyMoves = updates.map(({ rfId, x, y }) => {
+          const n = selected.find(s => s.id === rfId)
+          const parts = rfId.split('-')
+          const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
+          const nodeId = parseInt(parts[parts.length - 1])
+          return { rfId, nodeType, nodeId, projectId, oldPos: { x: n.position.x, y: n.position.y }, newPos: { x, y } }
+        })
+        store.moveMultipleRFNodes(updates)
+        store.pushHistory(historyMoves.length === 1
+          ? { action: 'move', ...historyMoves[0] }
+          : { action: 'batchMove', moves: historyMoves }
+        )
+        await Promise.all(historyMoves.map(m =>
+          updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.newPos.x, y: m.newPos.y })
+            .then(() => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.newPos.x, y: m.newPos.y }))
+            .catch(err => console.error('Arrow move failed:', err))
+        ))
         return
       }
 
@@ -505,14 +548,28 @@ function CanvasInner({ projectId }) {
 
   async function applyAlignPositions(updates) {
     const store = useCanvasStore.getState()
+    // Capture old positions for undo before moving
+    const currentNodes = reactFlow.getNodes()
+    const nodeMap = new Map(currentNodes.map(n => [n.id, n]))
+    const historyMoves = updates
+      .map(({ rfId, x, y }) => {
+        const n = nodeMap.get(rfId)
+        const parts = rfId.split('-')
+        const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
+        const nodeId = parseInt(parts[parts.length - 1])
+        if (!n || !nodeType || nodeType === 'root') return null
+        return { rfId, nodeType, nodeId, projectId, oldPos: { x: n.position.x, y: n.position.y }, newPos: { x, y } }
+      })
+      .filter(Boolean)
     // Single state update for all positions (one re-render instead of N)
     store.moveMultipleRFNodes(updates)
+    if (historyMoves.length > 0) {
+      store.pushHistory({ action: 'batchMove', moves: historyMoves })
+    }
+    // Refocus canvas so arrow keys work immediately after align
+    containerRef.current?.focus()
     // Persist to DB in parallel
-    await Promise.all(updates.map(async ({ rfId, x, y }) => {
-      const parts = rfId.split('-')
-      const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
-      const nodeId = parseInt(parts[parts.length - 1])
-      if (!nodeType || nodeType === 'root') return
+    await Promise.all(historyMoves.map(async ({ rfId, nodeType, nodeId, newPos: { x, y } }) => {
       try {
         await updateNode(projectId, nodeType, nodeId, { x, y })
         socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, x, y })
@@ -767,7 +824,7 @@ function CanvasInner({ projectId }) {
                   ? 'bg-indigo-600 border-indigo-600 text-white'
                   : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'
               }`}
-              title={showCrossRefs ? 'Hide cross-reference arrows' : 'Show all cross-reference arrows'}
+              title={showCrossRefs ? 'Hide cross-reference arrows' : 'Show cross-reference arrows'}
             >
               <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="1" y1="8" x2="12" y2="8" strokeDasharray="3,2.5" />
