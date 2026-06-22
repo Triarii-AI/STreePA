@@ -27,13 +27,15 @@ def _set_sqlite_pragma(dbapi_conn, _connection_record):
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (project_id, user_id)
             )""",
+            # DDL must come before DML — Python 3.12+ no longer auto-commits open
+            # transactions before DDL, so a prior INSERT would block an ALTER TABLE.
+            "ALTER TABLE project_shares ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'",
             # Backfill existing loss scenarios with their parent UCA's hazard links
             """INSERT OR IGNORE INTO ls_hazard_links (ls_id, hazard_id)
                SELECT ls.id, uh.hazard_id
                FROM loss_scenarios ls
                JOIN uca_hazard_links uh ON uh.uca_id = ls.uca_id
                WHERE ls.uca_id IS NOT NULL""",
-            "ALTER TABLE project_shares ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'",
         ]:
             try:
                 cursor.execute(sql)
