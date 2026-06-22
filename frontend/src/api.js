@@ -66,6 +66,25 @@ export async function getProjects() {
   return request('/api/projects')
 }
 
+export async function getSharedProjects() {
+  return request('/api/projects/shared')
+}
+
+export async function getProjectShares(projectId) {
+  return request(`/api/projects/${projectId}/shares`)
+}
+
+export async function addProjectShare(projectId, username) {
+  return request(`/api/projects/${projectId}/shares`, {
+    method: 'POST',
+    body: JSON.stringify({ username }),
+  })
+}
+
+export async function removeProjectShare(projectId, userId) {
+  return request(`/api/projects/${projectId}/shares/${userId}`, { method: 'DELETE' })
+}
+
 export async function createProject(title, purposeStatement) {
   return request('/api/projects', {
     method: 'POST',

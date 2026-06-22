@@ -59,6 +59,7 @@ class Project(db.Model):
     purpose_statement = db.Column(db.Text, nullable=True)
     root_x = db.Column(db.Float, default=500.0)
     root_y = db.Column(db.Float, default=50.0)
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = db.Column(
         db.DateTime,
@@ -67,6 +68,8 @@ class Project(db.Model):
         nullable=False
     )
 
+    owner = db.relationship('User', foreign_keys=[owner_id], lazy=True)
+    shares = db.relationship('ProjectShare', backref='project', cascade='all, delete-orphan', lazy=True)
     losses = db.relationship('Loss', backref='project', cascade='all, delete-orphan', lazy=True)
     hazards = db.relationship('Hazard', backref='project', cascade='all, delete-orphan', lazy=True)
     system_constraints = db.relationship('SystemConstraint', backref='project', cascade='all, delete-orphan', lazy=True)
@@ -82,9 +85,21 @@ class Project(db.Model):
             'purpose_statement': self.purpose_statement,
             'root_x': self.root_x if self.root_x is not None else 500.0,
             'root_y': self.root_y if self.root_y is not None else 50.0,
+            'owner_id': self.owner_id,
+            'owner_username': self.owner.username if self.owner else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+
+class ProjectShare(db.Model):
+    __tablename__ = 'project_shares'
+
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    user = db.relationship('User', foreign_keys=[user_id], lazy=True)
 
 
 class Loss(db.Model):

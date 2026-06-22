@@ -6,6 +6,7 @@ from models import (
     UCA, LossScenario, CanvasEdge,
     hazard_loss_links, uca_hazard_links, ls_hazard_links, sc_hazard_links
 )
+from routes.utils import check_project_access
 
 api_bp = Blueprint('api', __name__)
 
@@ -146,7 +147,7 @@ def _relabel_ca_children(project_id, ca_id):
 @api_bp.route('/projects/<int:project_id>/losses', methods=['POST'])
 @login_required
 def create_loss(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     label = _next_loss_label(project_id)
     idx_x = _index_x(project_id, Loss)
@@ -195,7 +196,7 @@ def delete_loss(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/hazards', methods=['POST'])
 @login_required
 def create_hazard(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     parent_hazard_id = data.get('parent_hazard_id', None)
     label = _next_hazard_label(project_id, parent_hazard_id)
@@ -287,7 +288,7 @@ def delete_hazard(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/system_constraints', methods=['POST'])
 @login_required
 def create_system_constraint(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     linked_hazard_id = data.get('linked_hazard_id', None)
     label = _next_sc_label(project_id, linked_hazard_id)
@@ -346,7 +347,7 @@ def delete_system_constraint(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/control_actions', methods=['POST'])
 @login_required
 def create_control_action(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     label = _next_ca_label(project_id)
     idx_x = _index_x(project_id, ControlAction)
@@ -411,7 +412,7 @@ def delete_control_action(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/ucas', methods=['POST'])
 @login_required
 def create_uca(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     control_action_id = data.get('control_action_id')
     if not control_action_id:
@@ -492,7 +493,7 @@ def delete_uca(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/loss_scenarios', methods=['POST'])
 @login_required
 def create_loss_scenario(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     uca_id = data.get('uca_id')
     if not uca_id:
@@ -555,7 +556,7 @@ def delete_loss_scenario(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/links', methods=['POST'])
 @login_required
 def create_link(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     from_type = data.get('from_type')
     from_id = data.get('from_id')
@@ -611,7 +612,7 @@ def create_link(project_id):
 @api_bp.route('/projects/<int:project_id>/links', methods=['DELETE'])
 @login_required
 def delete_link(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     from_type = data.get('from_type')
     from_id = data.get('from_id')
@@ -663,7 +664,7 @@ def delete_link(project_id):
 @api_bp.route('/projects/<int:project_id>/canvas_edges', methods=['POST'])
 @login_required
 def create_canvas_edge(project_id):
-    Project.query.get_or_404(project_id)
+    check_project_access(project_id)
     data = request.get_json() or {}
     edge = CanvasEdge(
         project_id=project_id,

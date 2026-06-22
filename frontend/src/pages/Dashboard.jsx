@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getProjects, createProject, deleteProject, logout, importProject,
-         listBackups, createBackup, deleteBackupFile, getBackupSettings, saveBackupSettings, updateUser } from '../api.js'
+import { getProjects, getSharedProjects, createProject, deleteProject, logout, importProject,
+         listBackups, createBackup, deleteBackupFile, getBackupSettings, saveBackupSettings, updateUser,
+         getProjectShares, addProjectShare, removeProjectShare } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
 
 function formatDate(dateStr) {
@@ -21,6 +22,17 @@ export default function Dashboard() {
   const setProjects = useCanvasStore(s => s.setProjects)
   const darkMode = useCanvasStore(s => s.darkMode)
   const toggleDarkMode = useCanvasStore(s => s.toggleDarkMode)
+
+  const [activeTab, setActiveTab] = useState('mine')
+  const [sharedProjects, setSharedProjects] = useState([])
+
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareTargetProject, setShareTargetProject] = useState(null)
+  const [shareList, setShareList] = useState([])
+  const [shareUsername, setShareUsername] = useState('')
+  const [shareError, setShareError] = useState('')
+  const [shareLoading, setShareLoading] = useState(false)
+  const [removingShare, setRemovingShare] = useState(null)
 
   const [showNewModal, setShowNewModal] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -70,6 +82,9 @@ export default function Dashboard() {
     getProjects()
       .then(data => setProjects(data || []))
       .catch(() => setProjects([]))
+    getSharedProjects()
+      .then(data => setSharedProjects(data || []))
+      .catch(() => setSharedProjects([]))
   }, [setProjects])
 
   async function handleLogout() {
@@ -198,6 +213,49 @@ export default function Dashboard() {
     { value: 1440, label: 'Every 24 hours' },
   ]
 
+  async function openShareModal(e, project) {
+    e.stopPropagation()
+    setShareTargetProject(project)
+    setShareUsername('')
+    setShareError('')
+    setShareList([])
+    setShowShareModal(true)
+    try {
+      const data = await getProjectShares(project.id)
+      setShareList(data || [])
+    } catch (err) {
+      setShareError(err.message || 'Failed to load shares.')
+    }
+  }
+
+  async function handleAddShare(e) {
+    e.preventDefault()
+    if (!shareUsername.trim()) return
+    setShareLoading(true)
+    setShareError('')
+    try {
+      const entry = await addProjectShare(shareTargetProject.id, shareUsername.trim())
+      setShareList(prev => [...prev, entry])
+      setShareUsername('')
+    } catch (err) {
+      setShareError(err.message || 'Failed to share project.')
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  async function handleRemoveShare(userId) {
+    setRemovingShare(userId)
+    try {
+      await removeProjectShare(shareTargetProject.id, userId)
+      setShareList(prev => prev.filter(s => s.user_id !== userId))
+    } catch (err) {
+      setShareError(err.message || 'Failed to remove share.')
+    } finally {
+      setRemovingShare(null)
+    }
+  }
+
   async function handleUpdateAccount(e) {
     e.preventDefault()
     setAcctError('')
@@ -292,91 +350,184 @@ export default function Dashboard() {
 
       {/* Main */}
       <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* Tabs + actions row */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">My Projects</h1>
-          <div className="flex items-center gap-2">
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".json,.stpa.json"
-              className="hidden"
-              onChange={handleImport}
-            />
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
             <button
-              onClick={() => importInputRef.current?.click()}
-              disabled={importing}
-              className="border border-gray-300 dark:border-gray-600 hover:border-indigo-400 text-gray-700 dark:text-gray-300 hover:text-indigo-700 dark:hover:text-indigo-400 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+              onClick={() => setActiveTab('mine')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'mine'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              {importing ? 'Importing…' : 'Import'}
+              My Projects
+              {projects.length > 0 && (
+                <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{projects.length}</span>
+              )}
             </button>
             <button
-              onClick={() => { setShowNewModal(true); setCreateError('') }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+              onClick={() => setActiveTab('shared')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'shared'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Project
+              Shared with Me
+              {sharedProjects.length > 0 && (
+                <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{sharedProjects.length}</span>
+              )}
             </button>
           </div>
+
+          {activeTab === 'mine' && (
+            <div className="flex items-center gap-2">
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json,.stpa.json"
+                className="hidden"
+                onChange={handleImport}
+              />
+              <button
+                onClick={() => importInputRef.current?.click()}
+                disabled={importing}
+                className="border border-gray-300 dark:border-gray-600 hover:border-indigo-400 text-gray-700 dark:text-gray-300 hover:text-indigo-700 dark:hover:text-indigo-400 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {importing ? 'Importing…' : 'Import'}
+              </button>
+              <button
+                onClick={() => { setShowNewModal(true); setCreateError('') }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New Project
+              </button>
+            </div>
+          )}
         </div>
 
-        {projects.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 mb-4">
-              <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No projects yet</h2>
-            <p className="text-gray-400 dark:text-gray-500 text-sm mb-6">Create your first STPA analysis project to get started.</p>
-            <button
-              onClick={() => setShowNewModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
-            >
-              Create Project
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map(project => (
-              <div
-                key={project.id}
-                onClick={() => navigate(`/projects/${project.id}`)}
-                className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-md transition-all relative"
-              >
-                <button
-                  onClick={e => handleDelete(e, project.id)}
-                  disabled={deletingId === project.id}
-                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-                  title="Delete project"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-
-                <div className="mb-3">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
-                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                    </svg>
-                  </div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1">{project.title}</h3>
-                  {project.purpose_statement && (
-                    <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
-                  )}
-                </div>
-
-                <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                  Created {formatDate(project.created_at)}
-                </div>
+        {/* My Projects tab */}
+        {activeTab === 'mine' && (
+          projects.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 mb-4">
+                <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
               </div>
-            ))}
-          </div>
+              <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No projects yet</h2>
+              <p className="text-gray-400 dark:text-gray-500 text-sm mb-6">Create your first STPA analysis project to get started.</p>
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+              >
+                Create Project
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.map(project => (
+                <div
+                  key={project.id}
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                  className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-md transition-all relative"
+                >
+                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={e => openShareModal(e, project)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
+                      title="Share project"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={e => handleDelete(e, project.id)}
+                      disabled={deletingId === project.id}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                      title="Delete project"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                      </svg>
+                    </div>
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1">{project.title}</h3>
+                    {project.purpose_statement && (
+                      <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                    Created {formatDate(project.created_at)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {/* Shared with Me tab */}
+        {activeTab === 'shared' && (
+          sharedProjects.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 mb-4">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No shared projects</h2>
+              <p className="text-gray-400 dark:text-gray-500 text-sm">Projects shared with you by other users will appear here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sharedProjects.map(project => (
+                <div
+                  key={project.id}
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                  className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500 hover:shadow-md transition-all relative"
+                >
+                  <div className="mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                      </svg>
+                    </div>
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1">{project.title}</h3>
+                    {project.purpose_statement && (
+                      <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <span>Created {formatDate(project.created_at)}</span>
+                    {project.owner_username && (
+                      <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full text-xs">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        {project.owner_username}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </main>
 
@@ -556,6 +707,79 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Project Modal */}
+      {showShareModal && shareTargetProject && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Share Project</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-xs">{shareTargetProject.title}</p>
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {shareError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+                  {shareError}
+                </div>
+              )}
+              <form onSubmit={handleAddShare} className="flex gap-2">
+                <input
+                  type="text"
+                  value={shareUsername}
+                  onChange={e => setShareUsername(e.target.value)}
+                  placeholder="Enter username"
+                  className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                />
+                <button
+                  type="submit"
+                  disabled={shareLoading || !shareUsername.trim()}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex-shrink-0"
+                >
+                  {shareLoading ? '…' : 'Share'}
+                </button>
+              </form>
+
+              {shareList.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Shared with</p>
+                  <ul className="space-y-1">
+                    {shareList.map(s => (
+                      <li key={s.user_id} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-xs font-semibold text-indigo-600">
+                            {s.username[0].toUpperCase()}
+                          </div>
+                          <span className="text-sm text-gray-800 dark:text-gray-200">{s.username}</span>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveShare(s.user_id)}
+                          disabled={removingShare === s.user_id}
+                          className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors disabled:opacity-50"
+                          title="Remove access"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         </div>

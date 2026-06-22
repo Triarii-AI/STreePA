@@ -2,12 +2,13 @@ import io
 import json
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, Response, send_file
-from flask_login import login_required
+from flask_login import login_required, current_user
 from extensions import db
 from models import (
-    Project, Loss, Hazard, SystemConstraint,
+    Project, ProjectShare, User, Loss, Hazard, SystemConstraint,
     ControlAction, UCA, LossScenario, CanvasEdge
 )
+from routes.utils import check_project_access
 
 projects_bp = Blueprint('projects', __name__)
 
@@ -15,7 +16,17 @@ projects_bp = Blueprint('projects', __name__)
 @projects_bp.route('/', methods=['GET'])
 @login_required
 def list_projects():
-    projects = Project.query.order_by(Project.updated_at.desc()).all()
+    projects = Project.query.filter_by(owner_id=current_user.id).order_by(Project.updated_at.desc()).all()
+    return jsonify([p.to_dict() for p in projects])
+
+
+@projects_bp.route('/shared', methods=['GET'])
+@login_required
+def list_shared_projects():
+    shares = ProjectShare.query.filter_by(user_id=current_user.id).all()
+    projects = [Project.query.get(s.project_id) for s in shares]
+    projects = [p for p in projects if p is not None]
+    projects.sort(key=lambda p: p.updated_at or p.created_at, reverse=True)
     return jsonify([p.to_dict() for p in projects])
 
 
@@ -26,16 +37,59 @@ def create_project():
     title = data.get('title', 'Untitled Project')
     purpose_statement = data.get('purpose_statement', '')
 
-    project = Project(title=title, purpose_statement=purpose_statement)
+    project = Project(title=title, purpose_statement=purpose_statement, owner_id=current_user.id)
     db.session.add(project)
     db.session.commit()
     return jsonify({'project': project.to_dict()}), 201
 
 
+@projects_bp.route('/<int:project_id>/shares', methods=['GET'])
+@login_required
+def list_shares(project_id):
+    check_project_access(project_id, owner_only=True)
+    shares = ProjectShare.query.filter_by(project_id=project_id).all()
+    return jsonify([{
+        'user_id': s.user_id,
+        'username': s.user.username,
+    } for s in shares])
+
+
+@projects_bp.route('/<int:project_id>/shares', methods=['POST'])
+@login_required
+def add_share(project_id):
+    check_project_access(project_id, owner_only=True)
+    data = request.get_json() or {}
+    username = data.get('username', '').strip()
+    if not username:
+        return jsonify({'error': 'Username is required'}), 400
+    target = User.query.filter_by(username=username).first()
+    if not target:
+        return jsonify({'error': f'User "{username}" not found'}), 404
+    if target.id == current_user.id:
+        return jsonify({'error': 'You cannot share a project with yourself'}), 400
+    existing = ProjectShare.query.filter_by(project_id=project_id, user_id=target.id).first()
+    if existing:
+        return jsonify({'error': f'Project already shared with {username}'}), 400
+    share = ProjectShare(project_id=project_id, user_id=target.id)
+    db.session.add(share)
+    db.session.commit()
+    return jsonify({'user_id': target.id, 'username': target.username}), 201
+
+
+@projects_bp.route('/<int:project_id>/shares/<int:user_id>', methods=['DELETE'])
+@login_required
+def remove_share(project_id, user_id):
+    check_project_access(project_id, owner_only=True)
+    share = ProjectShare.query.filter_by(project_id=project_id, user_id=user_id).first_or_404()
+    db.session.delete(share)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 @projects_bp.route('/<int:project_id>', methods=['GET'])
 @login_required
 def get_project(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = check_project_access(project_id)
 
     losses = Loss.query.filter_by(project_id=project_id).all()
     hazards = Hazard.query.filter_by(project_id=project_id).all()
@@ -60,7 +114,7 @@ def get_project(project_id):
 @projects_bp.route('/<int:project_id>', methods=['PUT'])
 @login_required
 def update_project(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = check_project_access(project_id)
     data = request.get_json() or {}
 
     if 'title' in data:
@@ -79,7 +133,7 @@ def update_project(project_id):
 @projects_bp.route('/<int:project_id>', methods=['DELETE'])
 @login_required
 def delete_project(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = check_project_access(project_id, owner_only=True)
     db.session.delete(project)
     db.session.commit()
     return jsonify({'success': True})
@@ -92,7 +146,7 @@ def delete_project(project_id):
 @projects_bp.route('/<int:project_id>/export/json', methods=['GET'])
 @login_required
 def export_project_json(project_id):
-    project = Project.query.get_or_404(project_id)
+    project = check_project_access(project_id)
     data = {
         'version': '1.0',
         'project': {'title': project.title, 'purpose_statement': project.purpose_statement or ''},
@@ -124,7 +178,7 @@ def export_project_excel(project_id):
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
 
-    project = Project.query.get_or_404(project_id)
+    project = check_project_access(project_id)
     losses          = Loss.query.filter_by(project_id=project_id).all()
     hazards         = Hazard.query.filter_by(project_id=project_id).all()
     scs             = SystemConstraint.query.filter_by(project_id=project_id).all()
@@ -257,7 +311,8 @@ def import_project():
     proj_data = data['project']
     project = Project(
         title=proj_data.get('title', 'Imported Project'),
-        purpose_statement=proj_data.get('purpose_statement', '')
+        purpose_statement=proj_data.get('purpose_statement', ''),
+        owner_id=current_user.id
     )
     db.session.add(project)
     db.session.flush()
