@@ -147,7 +147,7 @@ def _relabel_ca_children(project_id, ca_id):
 @api_bp.route('/projects/<int:project_id>/losses', methods=['POST'])
 @login_required
 def create_loss(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     label = _next_loss_label(project_id)
     idx_x = _index_x(project_id, Loss)
@@ -166,6 +166,7 @@ def create_loss(project_id):
 @api_bp.route('/projects/<int:project_id>/losses/<int:node_id>', methods=['PUT'])
 @login_required
 def update_loss(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = Loss.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     data = request.get_json() or {}
     if 'description' in data:
@@ -183,6 +184,7 @@ def update_loss(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/losses/<int:node_id>', methods=['DELETE'])
 @login_required
 def delete_loss(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = Loss.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     db.session.delete(node)
     db.session.commit()
@@ -196,7 +198,7 @@ def delete_loss(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/hazards', methods=['POST'])
 @login_required
 def create_hazard(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     parent_hazard_id = data.get('parent_hazard_id', None)
     label = _next_hazard_label(project_id, parent_hazard_id)
@@ -220,6 +222,7 @@ def create_hazard(project_id):
 @api_bp.route('/projects/<int:project_id>/hazards/<int:node_id>', methods=['PUT'])
 @login_required
 def update_hazard(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = Hazard.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     data = request.get_json() or {}
     if 'description' in data:
@@ -255,6 +258,7 @@ def update_hazard(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/hazards/<int:node_id>', methods=['DELETE'])
 @login_required
 def delete_hazard(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = Hazard.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     orphaned = []
     # Orphan child hazards
@@ -288,7 +292,7 @@ def delete_hazard(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/system_constraints', methods=['POST'])
 @login_required
 def create_system_constraint(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     linked_hazard_id = data.get('linked_hazard_id', None)
     label = _next_sc_label(project_id, linked_hazard_id)
@@ -309,6 +313,7 @@ def create_system_constraint(project_id):
 @api_bp.route('/projects/<int:project_id>/system_constraints/<int:node_id>', methods=['PUT'])
 @login_required
 def update_system_constraint(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = SystemConstraint.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     data = request.get_json() or {}
     if 'description' in data:
@@ -334,6 +339,7 @@ def update_system_constraint(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/system_constraints/<int:node_id>', methods=['DELETE'])
 @login_required
 def delete_system_constraint(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = SystemConstraint.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     db.session.delete(node)
     db.session.commit()
@@ -347,7 +353,7 @@ def delete_system_constraint(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/control_actions', methods=['POST'])
 @login_required
 def create_control_action(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     label = _next_ca_label(project_id)
     idx_x = _index_x(project_id, ControlAction)
@@ -366,6 +372,7 @@ def create_control_action(project_id):
 @api_bp.route('/projects/<int:project_id>/control_actions/<int:node_id>', methods=['PUT'])
 @login_required
 def update_control_action(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = ControlAction.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     data = request.get_json() or {}
     if 'name' in data:
@@ -387,6 +394,7 @@ def update_control_action(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/control_actions/<int:node_id>', methods=['DELETE'])
 @login_required
 def delete_control_action(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = ControlAction.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     orphaned = []
     children = UCA.query.filter_by(project_id=project_id, control_action_id=node_id).all()
@@ -412,7 +420,7 @@ def delete_control_action(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/ucas', methods=['POST'])
 @login_required
 def create_uca(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     control_action_id = data.get('control_action_id')
     if not control_action_id:
@@ -439,6 +447,7 @@ def create_uca(project_id):
 @api_bp.route('/projects/<int:project_id>/ucas/<int:node_id>', methods=['PUT'])
 @login_required
 def update_uca(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = UCA.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     data = request.get_json() or {}
     if 'description' in data:
@@ -472,6 +481,7 @@ def update_uca(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/ucas/<int:node_id>', methods=['DELETE'])
 @login_required
 def delete_uca(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = UCA.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     orphaned = []
     children = LossScenario.query.filter_by(project_id=project_id, uca_id=node_id).all()
@@ -493,7 +503,7 @@ def delete_uca(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/loss_scenarios', methods=['POST'])
 @login_required
 def create_loss_scenario(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     uca_id = data.get('uca_id')
     if not uca_id:
@@ -523,6 +533,7 @@ def create_loss_scenario(project_id):
 @api_bp.route('/projects/<int:project_id>/loss_scenarios/<int:node_id>', methods=['PUT'])
 @login_required
 def update_loss_scenario(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = LossScenario.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     data = request.get_json() or {}
     if 'description' in data:
@@ -556,6 +567,7 @@ def update_loss_scenario(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/loss_scenarios/<int:node_id>', methods=['DELETE'])
 @login_required
 def delete_loss_scenario(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
     node = LossScenario.query.filter_by(id=node_id, project_id=project_id).first_or_404()
     db.session.delete(node)
     db.session.commit()
@@ -569,7 +581,7 @@ def delete_loss_scenario(project_id, node_id):
 @api_bp.route('/projects/<int:project_id>/links', methods=['POST'])
 @login_required
 def create_link(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     from_type = data.get('from_type')
     from_id = data.get('from_id')
@@ -638,7 +650,7 @@ def create_link(project_id):
 @api_bp.route('/projects/<int:project_id>/links', methods=['DELETE'])
 @login_required
 def delete_link(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     from_type = data.get('from_type')
     from_id = data.get('from_id')
@@ -706,7 +718,7 @@ def delete_link(project_id):
 @api_bp.route('/projects/<int:project_id>/canvas_edges', methods=['POST'])
 @login_required
 def create_canvas_edge(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     edge = CanvasEdge(
         project_id=project_id,
@@ -724,6 +736,7 @@ def create_canvas_edge(project_id):
 @api_bp.route('/projects/<int:project_id>/canvas_edges/<int:edge_id>', methods=['DELETE'])
 @login_required
 def delete_canvas_edge(project_id, edge_id):
+    check_project_access(project_id, require_editor=True)
     edge = CanvasEdge.query.filter_by(id=edge_id, project_id=project_id).first_or_404()
     db.session.delete(edge)
     db.session.commit()

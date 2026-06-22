@@ -74,10 +74,17 @@ export async function getProjectShares(projectId) {
   return request(`/api/projects/${projectId}/shares`)
 }
 
-export async function addProjectShare(projectId, username) {
+export async function addProjectShare(projectId, username, role = 'editor') {
   return request(`/api/projects/${projectId}/shares`, {
     method: 'POST',
-    body: JSON.stringify({ username }),
+    body: JSON.stringify({ username, role }),
+  })
+}
+
+export async function updateProjectShare(projectId, userId, role) {
+  return request(`/api/projects/${projectId}/shares/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
   })
 }
 

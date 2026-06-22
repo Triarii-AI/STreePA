@@ -33,6 +33,7 @@ def _set_sqlite_pragma(dbapi_conn, _connection_record):
                FROM loss_scenarios ls
                JOIN uca_hazard_links uh ON uh.uca_id = ls.uca_id
                WHERE ls.uca_id IS NOT NULL""",
+            "ALTER TABLE project_shares ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'",
         ]:
             try:
                 cursor.execute(sql)

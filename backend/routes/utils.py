@@ -3,10 +3,9 @@ from flask_login import current_user
 from models import Project, ProjectShare
 
 
-def check_project_access(project_id, owner_only=False):
+def check_project_access(project_id, owner_only=False, require_editor=False):
     """Return the project if current_user may access it, else 403/404."""
     project = Project.query.get_or_404(project_id)
-    # Legacy project with no owner — accessible to all authenticated users
     if project.owner_id is None:
         return project
     if project.owner_id == current_user.id:
@@ -16,5 +15,20 @@ def check_project_access(project_id, owner_only=False):
             project_id=project_id, user_id=current_user.id
         ).first()
         if share:
+            if require_editor and share.role == 'viewer':
+                abort(403)
             return project
     abort(403)
+
+
+def get_user_role(project_id):
+    """Return 'owner', 'editor', or 'viewer' for the current user on this project."""
+    project = Project.query.get(project_id)
+    if not project:
+        return None
+    if project.owner_id is None or project.owner_id == current_user.id:
+        return 'owner'
+    share = ProjectShare.query.filter_by(
+        project_id=project_id, user_id=current_user.id
+    ).first()
+    return share.role if share else None

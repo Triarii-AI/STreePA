@@ -8,7 +8,7 @@ from models import (
     Project, ProjectShare, User, Loss, Hazard, SystemConstraint,
     ControlAction, UCA, LossScenario, CanvasEdge
 )
-from routes.utils import check_project_access
+from routes.utils import check_project_access, get_user_role
 
 projects_bp = Blueprint('projects', __name__)
 
@@ -26,10 +26,16 @@ def list_projects():
 @login_required
 def list_shared_projects():
     shares = ProjectShare.query.filter_by(user_id=current_user.id).all()
+    share_roles = {s.project_id: s.role for s in shares}
     projects = [Project.query.get(s.project_id) for s in shares]
     projects = [p for p in projects if p is not None]
     projects.sort(key=lambda p: p.updated_at or p.created_at, reverse=True)
-    return jsonify([p.to_dict() for p in projects])
+    result = []
+    for p in projects:
+        d = p.to_dict()
+        d['user_role'] = share_roles.get(p.id, 'editor')
+        result.append(d)
+    return jsonify(result)
 
 
 @projects_bp.route('/', methods=['POST'])
@@ -53,13 +59,14 @@ def list_shares(project_id):
     return jsonify([{
         'user_id': s.user_id,
         'username': s.user.username,
+        'role': s.role,
     } for s in shares])
 
 
 @projects_bp.route('/<int:project_id>/shares', methods=['POST'])
 @login_required
 def add_share(project_id):
-    check_project_access(project_id)
+    check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
     username = data.get('username', '').strip()
     if not username:
@@ -72,10 +79,31 @@ def add_share(project_id):
     existing = ProjectShare.query.filter_by(project_id=project_id, user_id=target.id).first()
     if existing:
         return jsonify({'error': f'Project already shared with {username}'}), 400
-    share = ProjectShare(project_id=project_id, user_id=target.id)
+    # Owners can set any role; editors can only invite as editor
+    requested_role = data.get('role', 'editor')
+    project = Project.query.get(project_id)
+    if project.owner_id != current_user.id:
+        requested_role = 'editor'
+    if requested_role not in ('editor', 'viewer'):
+        requested_role = 'editor'
+    share = ProjectShare(project_id=project_id, user_id=target.id, role=requested_role)
     db.session.add(share)
     db.session.commit()
-    return jsonify({'user_id': target.id, 'username': target.username}), 201
+    return jsonify({'user_id': target.id, 'username': target.username, 'role': share.role}), 201
+
+
+@projects_bp.route('/<int:project_id>/shares/<int:user_id>', methods=['PATCH'])
+@login_required
+def update_share(project_id, user_id):
+    check_project_access(project_id, owner_only=True)
+    share = ProjectShare.query.filter_by(project_id=project_id, user_id=user_id).first_or_404()
+    data = request.get_json() or {}
+    role = data.get('role')
+    if role not in ('editor', 'viewer'):
+        return jsonify({'error': 'role must be "editor" or "viewer"'}), 400
+    share.role = role
+    db.session.commit()
+    return jsonify({'user_id': user_id, 'username': share.user.username, 'role': share.role})
 
 
 @projects_bp.route('/<int:project_id>/shares/<int:user_id>', methods=['DELETE'])
@@ -103,6 +131,7 @@ def get_project(project_id):
 
     return jsonify({
         'project': project.to_dict(),
+        'user_role': get_user_role(project_id),
         'losses': [l.to_dict() for l in losses],
         'hazards': [h.to_dict() for h in hazards],
         'system_constraints': [sc.to_dict() for sc in scs],
@@ -116,7 +145,7 @@ def get_project(project_id):
 @projects_bp.route('/<int:project_id>', methods=['PUT'])
 @login_required
 def update_project(project_id):
-    project = check_project_access(project_id)
+    project = check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
 
     if 'title' in data:

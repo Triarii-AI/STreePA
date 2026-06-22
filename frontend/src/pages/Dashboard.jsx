@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getProjects, getSharedProjects, createProject, deleteProject, duplicateProject, logout,
          importProject, listBackups, createBackup, deleteBackupFile, getBackupSettings, saveBackupSettings,
-         updateUser, updateProject, getProjectShares, addProjectShare, removeProjectShare,
+         updateUser, updateProject, getProjectShares, addProjectShare, removeProjectShare, updateProjectShare,
          downloadProjectJson, downloadProjectExcel } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
 
@@ -50,9 +50,11 @@ export default function Dashboard() {
   const [shareTargetProject, setShareTargetProject] = useState(null)
   const [shareList, setShareList] = useState([])
   const [shareUsername, setShareUsername] = useState('')
+  const [shareRole, setShareRole] = useState('editor')
   const [shareError, setShareError] = useState('')
   const [shareLoading, setShareLoading] = useState(false)
   const [removingShare, setRemovingShare] = useState(null)
+  const [updatingShareRole, setUpdatingShareRole] = useState(null)
 
   const [cardMenu, setCardMenu] = useState(null) // { project, anchorEl }
   const [renamingProject, setRenamingProject] = useState(null)
@@ -306,6 +308,7 @@ export default function Dashboard() {
     e.stopPropagation()
     setShareTargetProject(project)
     setShareUsername('')
+    setShareRole('editor')
     setShareError('')
     setShareList([])
     setShowShareModal(true)
@@ -323,7 +326,8 @@ export default function Dashboard() {
     setShareLoading(true)
     setShareError('')
     try {
-      const entry = await addProjectShare(shareTargetProject.id, shareUsername.trim())
+      const isOwner = shareTargetProject.owner_id === user?.id
+      const entry = await addProjectShare(shareTargetProject.id, shareUsername.trim(), isOwner ? shareRole : 'editor')
       setShareList(prev => [...prev, entry])
       setShareUsername('')
     } catch (err) {
@@ -342,6 +346,20 @@ export default function Dashboard() {
       setShareError(err.message || 'Failed to remove share.')
     } finally {
       setRemovingShare(null)
+    }
+  }
+
+  async function handleUpdateShareRole(userId, newRole) {
+    setUpdatingShareRole(userId)
+    const prev = shareList.find(s => s.user_id === userId)?.role
+    setShareList(list => list.map(s => s.user_id === userId ? { ...s, role: newRole } : s))
+    try {
+      await updateProjectShare(shareTargetProject.id, userId, newRole)
+    } catch (err) {
+      setShareList(list => list.map(s => s.user_id === userId ? { ...s, role: prev } : s))
+      setShareError(err.message || 'Failed to update role.')
+    } finally {
+      setUpdatingShareRole(null)
     }
   }
 
@@ -709,7 +727,14 @@ export default function Dashboard() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
                       </button>
-                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1 pr-8">{project.title}</h3>
+                      <div className="flex items-start justify-between gap-2 pr-8">
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1">{project.title}</h3>
+                        {project.user_role === 'viewer' && (
+                          <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                            Viewer
+                          </span>
+                        )}
+                      </div>
                       {project.purpose_statement && (
                         <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
                       )}
@@ -948,50 +973,84 @@ export default function Dashboard() {
                   {shareError}
                 </div>
               )}
-              <form onSubmit={handleAddShare} className="flex gap-2">
-                <input
-                  type="text"
-                  value={shareUsername}
-                  onChange={e => setShareUsername(e.target.value)}
-                  placeholder="Enter username"
-                  className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                />
-                <button
-                  type="submit"
-                  disabled={shareLoading || !shareUsername.trim()}
-                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex-shrink-0"
-                >
-                  {shareLoading ? '…' : 'Share'}
-                </button>
-              </form>
-
-              {shareList.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Shared with</p>
-                  <ul className="space-y-1">
-                    {shareList.map(s => (
-                      <li key={s.user_id} className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-xs font-semibold text-indigo-600">
-                            {s.username[0].toUpperCase()}
-                          </div>
-                          <span className="text-sm text-gray-800 dark:text-gray-200">{s.username}</span>
-                        </div>
+              {(() => {
+                const isOwner = shareTargetProject?.owner_id === user?.id
+                return (
+                  <>
+                    <form onSubmit={handleAddShare} className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={shareUsername}
+                          onChange={e => setShareUsername(e.target.value)}
+                          placeholder="Enter username"
+                          className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                        />
+                        {isOwner && (
+                          <select
+                            value={shareRole}
+                            onChange={e => setShareRole(e.target.value)}
+                            className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none flex-shrink-0"
+                          >
+                            <option value="editor">Editor</option>
+                            <option value="viewer">Viewer</option>
+                          </select>
+                        )}
                         <button
-                          onClick={() => handleRemoveShare(s.user_id)}
-                          disabled={removingShare === s.user_id}
-                          className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors disabled:opacity-50"
-                          title="Remove access"
+                          type="submit"
+                          disabled={shareLoading || !shareUsername.trim()}
+                          className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex-shrink-0"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          {shareLoading ? '…' : 'Share'}
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                      </div>
+                    </form>
+
+                    {shareList.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Shared with</p>
+                        <ul className="space-y-1">
+                          {shareList.map(s => (
+                            <li key={s.user_id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                              <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-xs font-semibold text-indigo-600 flex-shrink-0">
+                                {s.username[0].toUpperCase()}
+                              </div>
+                              <span className="text-sm text-gray-800 dark:text-gray-200 flex-1 truncate">{s.username}</span>
+                              {isOwner ? (
+                                <select
+                                  value={s.role}
+                                  onChange={e => handleUpdateShareRole(s.user_id, e.target.value)}
+                                  disabled={updatingShareRole === s.user_id}
+                                  className="text-xs border border-gray-200 dark:border-gray-600 rounded px-1.5 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none disabled:opacity-50"
+                                >
+                                  <option value="editor">Editor</option>
+                                  <option value="viewer">Viewer</option>
+                                </select>
+                              ) : (
+                                <span className={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${s.role === 'viewer' ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
+                                  {s.role === 'viewer' ? 'Viewer' : 'Editor'}
+                                </span>
+                              )}
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleRemoveShare(s.user_id)}
+                                  disabled={removingShare === s.user_id}
+                                  className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors disabled:opacity-50 flex-shrink-0"
+                                  title="Remove access"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </div>
         </div>

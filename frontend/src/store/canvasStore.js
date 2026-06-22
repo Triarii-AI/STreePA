@@ -222,7 +222,15 @@ const useCanvasStore = create((set, get) => ({
 
   loadProject(projectData) {
     const { nodes, edges } = buildNodesAndEdges(projectData)
-    set({ currentProject: projectData.project, nodes, edges, selectedNode: null, collapsedNodes: new Set() })
+    const userRole = projectData.user_role || 'owner'
+    set({
+      currentProject: { ...projectData.project, user_role: userRole },
+      nodes,
+      edges,
+      selectedNode: null,
+      collapsedNodes: new Set(),
+      viewOnly: userRole === 'viewer',
+    })
   },
 
   patchCurrentProject(fields) {
