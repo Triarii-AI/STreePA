@@ -226,6 +226,7 @@ function CanvasInner({ projectId }) {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [selectionCount, setSelectionCount] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
+  const [showCrossRefs, setShowCrossRefs] = useState(false)
   const dragStartPos = useRef({})
   const containerRef = useRef(null)
 
@@ -253,15 +254,22 @@ function CanvasInner({ projectId }) {
   const visibleNodes = useMemo(() => nodes.filter(n => !n.data?.hidden), [nodes])
   const visibleEdges = useMemo(() => edges.filter(e => !e.hidden), [edges])
 
-  // Only elevate connected edges' z-index — visual dimming/highlighting is handled
-  // inside FloatingEdge via a targeted Zustand selector so memo can bail out per edge.
+  // Cross-reference edges (dashed) are hidden by default to reduce rendered edge count.
+  // When a node is selected, its own cross-refs are always shown.
+  // showCrossRefs toggle reveals all of them.
   const displayEdges = useMemo(() => {
-    if (!selectedNode) return visibleEdges
-    const nodeId = selectedNode.id
-    return visibleEdges.map(e =>
+    const nodeId = selectedNode?.id
+    const filtered = showCrossRefs
+      ? visibleEdges
+      : visibleEdges.filter(e => {
+          if (!e.style?.strokeDasharray) return true
+          return nodeId && (e.source === nodeId || e.target === nodeId)
+        })
+    if (!nodeId) return filtered
+    return filtered.map(e =>
       (e.source === nodeId || e.target === nodeId) ? { ...e, zIndex: 10 } : e
     )
-  }, [visibleEdges, selectedNode])
+  }, [visibleEdges, selectedNode, showCrossRefs])
 
   // Empty dep arrays: read current state via getState() so these callbacks are created
   // once and never recreated. Stable references prevent React Flow from re-reconciling
@@ -615,6 +623,7 @@ function CanvasInner({ projectId }) {
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'floating' }}
         deleteKeyCode={null}
+        onlyRenderVisibleElements
         selectionOnDrag
         panOnDrag={[1, 2]}
         multiSelectionKeyCode="Shift"
@@ -710,6 +719,22 @@ function CanvasInner({ projectId }) {
                   <path d="M5.5 4L6.5 2h3l1 2" />
                 </svg>
               )}
+            </button>
+
+            {/* Cross-reference edges toggle */}
+            <button
+              onClick={() => setShowCrossRefs(s => !s)}
+              className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
+                showCrossRefs
+                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+              title={showCrossRefs ? 'Hide cross-reference arrows' : 'Show all cross-reference arrows'}
+            >
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="1" y1="8" x2="12" y2="8" strokeDasharray="3,2.5" />
+                <polyline points="9,5 13,8 9,11" />
+              </svg>
             </button>
 
             {/* Keyboard shortcuts toggle */}
