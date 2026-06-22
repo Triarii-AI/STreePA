@@ -72,6 +72,85 @@ const RF_PREFIX_TO_TYPE = {
   ls: 'loss_scenario', loss: 'loss', hazard: 'hazard', root: 'root',
 }
 
+function AlignLeftIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15">
+      <line x1="2" y1="1.5" x2="2" y2="14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="3.5" y="3" width="5" height="3.5" rx="0.5" fill="currentColor"/>
+      <rect x="3.5" y="9.5" width="9" height="3.5" rx="0.5" fill="currentColor"/>
+    </svg>
+  )
+}
+function AlignCenterHIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15">
+      <line x1="8" y1="1.5" x2="8" y2="14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="4.5" y="3" width="7" height="3.5" rx="0.5" fill="currentColor"/>
+      <rect x="3" y="9.5" width="10" height="3.5" rx="0.5" fill="currentColor"/>
+    </svg>
+  )
+}
+function AlignRightIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15">
+      <line x1="14" y1="1.5" x2="14" y2="14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="8.5" y="3" width="5" height="3.5" rx="0.5" fill="currentColor"/>
+      <rect x="3.5" y="9.5" width="9" height="3.5" rx="0.5" fill="currentColor"/>
+    </svg>
+  )
+}
+function AlignTopIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15">
+      <line x1="1.5" y1="2" x2="14.5" y2="2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="3" y="3.5" width="3.5" height="8" rx="0.5" fill="currentColor"/>
+      <rect x="9.5" y="3.5" width="3.5" height="5" rx="0.5" fill="currentColor"/>
+    </svg>
+  )
+}
+function AlignMiddleVIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15">
+      <line x1="1.5" y1="8" x2="14.5" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="3" y="4.5" width="3.5" height="7" rx="0.5" fill="currentColor"/>
+      <rect x="9.5" y="5.5" width="3.5" height="5" rx="0.5" fill="currentColor"/>
+    </svg>
+  )
+}
+function AlignBottomIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15">
+      <line x1="1.5" y1="14" x2="14.5" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="3" y="4.5" width="3.5" height="9" rx="0.5" fill="currentColor"/>
+      <rect x="9.5" y="8.5" width="3.5" height="5" rx="0.5" fill="currentColor"/>
+    </svg>
+  )
+}
+function DistributeHIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15">
+      <rect x="1" y="5.5" width="3" height="5" rx="0.5" fill="currentColor"/>
+      <rect x="6.5" y="5.5" width="3" height="5" rx="0.5" fill="currentColor"/>
+      <rect x="12" y="5.5" width="3" height="5" rx="0.5" fill="currentColor"/>
+      <line x1="2.5" y1="3.5" x2="2.5" y2="4.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      <line x1="8" y1="3.5" x2="8" y2="4.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      <line x1="13.5" y1="3.5" x2="13.5" y2="4.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  )
+}
+function DistributeVIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15">
+      <rect x="5.5" y="1" width="5" height="3" rx="0.5" fill="currentColor"/>
+      <rect x="5.5" y="6.5" width="5" height="3" rx="0.5" fill="currentColor"/>
+      <rect x="5.5" y="12" width="5" height="3" rx="0.5" fill="currentColor"/>
+      <line x1="3.5" y1="2.5" x2="4.5" y2="2.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      <line x1="3.5" y1="8" x2="4.5" y2="8" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      <line x1="3.5" y1="13.5" x2="4.5" y2="13.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
 async function recreateNode(entry) {
   const { snapshot, projectId } = entry
   const { nodeData, position, rfNodeType } = snapshot
@@ -144,6 +223,7 @@ function CanvasInner({ projectId }) {
   const [viewportCenter, setViewportCenter] = useState(null)
   const [fitDone, setFitDone] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [selectionCount, setSelectionCount] = useState(0)
   const dragStartPos = useRef({})
   const containerRef = useRef(null)
 
@@ -205,6 +285,10 @@ function CanvasInner({ projectId }) {
   const onPaneClick = useCallback(() => {
     setSelectedNode(null)
   }, [setSelectedNode])
+
+  const onSelectionChange = useCallback(({ nodes }) => {
+    setSelectionCount(nodes.filter(n => !n.data?.hidden).length)
+  }, [])
 
   const onNodeDragStart = useCallback((e, node, draggedNodes) => {
     const all = draggedNodes?.length > 1 ? draggedNodes : [node]
@@ -407,6 +491,59 @@ function CanvasInner({ projectId }) {
     setAddFormType(nodeType)
   }
 
+  async function applyAlignPositions(updates) {
+    const store = useCanvasStore.getState()
+    for (const { rfId, x, y } of updates) {
+      const parts = rfId.split('-')
+      const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
+      const nodeId = parseInt(parts[parts.length - 1])
+      if (!nodeType || nodeType === 'root') continue
+      store.moveRFNode(rfId, x, y)
+      try {
+        await updateNode(projectId, nodeType, nodeId, { x, y })
+        socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, x, y })
+      } catch (err) {
+        console.error('Align failed:', err)
+      }
+    }
+  }
+
+  async function alignNodes(type) {
+    const selected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
+    if (selected.length < 2) return
+    const xs = selected.map(n => n.position.x)
+    const ys = selected.map(n => n.position.y)
+    const minX = Math.min(...xs), maxX = Math.max(...xs)
+    const minY = Math.min(...ys), maxY = Math.max(...ys)
+    let updates
+    if (type === 'left')    updates = selected.map(n => ({ rfId: n.id, x: minX,               y: n.position.y }))
+    else if (type === 'centerH') updates = selected.map(n => ({ rfId: n.id, x: (minX + maxX) / 2, y: n.position.y }))
+    else if (type === 'right')   updates = selected.map(n => ({ rfId: n.id, x: maxX,               y: n.position.y }))
+    else if (type === 'top')     updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: minY               }))
+    else if (type === 'centerV') updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: (minY + maxY) / 2 }))
+    else if (type === 'bottom')  updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: maxY               }))
+    else return
+    await applyAlignPositions(updates)
+  }
+
+  async function distributeNodes(axis) {
+    const selected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
+    if (selected.length < 3) return
+    let updates
+    if (axis === 'h') {
+      const sorted = [...selected].sort((a, b) => a.position.x - b.position.x)
+      const minX = sorted[0].position.x, maxX = sorted[sorted.length - 1].position.x
+      const step = (maxX - minX) / (sorted.length - 1)
+      updates = sorted.map((n, i) => ({ rfId: n.id, x: Math.round(minX + i * step), y: n.position.y }))
+    } else {
+      const sorted = [...selected].sort((a, b) => a.position.y - b.position.y)
+      const minY = sorted[0].position.y, maxY = sorted[sorted.length - 1].position.y
+      const step = (maxY - minY) / (sorted.length - 1)
+      updates = sorted.map((n, i) => ({ rfId: n.id, x: n.position.x, y: Math.round(minY + i * step) }))
+    }
+    await applyAlignPositions(updates)
+  }
+
   function handleNodeCreated(newNode) {
     setAddFormType(null)
   }
@@ -422,6 +559,7 @@ function CanvasInner({ projectId }) {
         onPaneClick={onPaneClick}
         onNodeDragStart={viewOnly ? undefined : onNodeDragStart}
         onNodeDragStop={viewOnly ? undefined : onNodeDragStop}
+        onSelectionChange={onSelectionChange}
         nodesDraggable={!viewOnly}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -456,6 +594,44 @@ function CanvasInner({ projectId }) {
                 {btn.label}
               </button>
             ))}
+          </Panel>
+        )}
+
+        {/* Align + Distribute toolbar — visible when 2+ nodes selected and not in view-only */}
+        {!viewOnly && selectionCount >= 2 && (
+          <Panel position="top-center" style={{ top: 12, pointerEvents: 'auto' }}>
+            <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl shadow-md px-2 py-1.5">
+              <span className="text-[10px] font-medium text-gray-400 pr-1.5 select-none border-r border-gray-200 mr-1">
+                {selectionCount} selected
+              </span>
+              {[
+                { type: 'left',    title: 'Align Left',              Icon: AlignLeftIcon },
+                { type: 'centerH', title: 'Align Center (horiz.)',   Icon: AlignCenterHIcon },
+                { type: 'right',   title: 'Align Right',             Icon: AlignRightIcon },
+                { type: 'top',     title: 'Align Top',               Icon: AlignTopIcon },
+                { type: 'centerV', title: 'Align Middle (vert.)',    Icon: AlignMiddleVIcon },
+                { type: 'bottom',  title: 'Align Bottom',            Icon: AlignBottomIcon },
+              ].map(({ type, title, Icon }) => (
+                <button key={type} onClick={() => alignNodes(type)} title={title}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                  <Icon />
+                </button>
+              ))}
+              {selectionCount >= 3 && (
+                <>
+                  <div className="w-px h-5 bg-gray-200 mx-1" />
+                  {[
+                    { axis: 'h', title: 'Distribute Horizontally', Icon: DistributeHIcon },
+                    { axis: 'v', title: 'Distribute Vertically',   Icon: DistributeVIcon },
+                  ].map(({ axis, title, Icon }) => (
+                    <button key={axis} onClick={() => distributeNodes(axis)} title={title}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                      <Icon />
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
           </Panel>
         )}
 
