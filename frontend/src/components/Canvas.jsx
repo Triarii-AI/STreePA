@@ -136,6 +136,8 @@ function CanvasInner({ projectId }) {
   const nodes = useCanvasStore(s => s.nodes)
   const edges = useCanvasStore(s => s.edges)
   const setSelectedNode = useCanvasStore(s => s.setSelectedNode)
+  const selectedNode = useCanvasStore(s => s.selectedNode)
+  const viewOnly = useCanvasStore(s => s.viewOnly)
   const focusNodeId = useCanvasStore(s => s.focusNodeId)
   const clearFocusNode = useCanvasStore(s => s.clearFocusNode)
   const [addFormType, setAddFormType] = useState(null)
@@ -167,6 +169,23 @@ function CanvasInner({ projectId }) {
   const visibleNodes = useMemo(() => nodes.filter(n => !n.data?.hidden), [nodes])
   const visibleEdges = useMemo(() => edges.filter(e => !e.hidden), [edges])
 
+  const displayEdges = useMemo(() => {
+    if (!selectedNode) return visibleEdges
+    const nodeId = selectedNode.id
+    return visibleEdges.map(e => {
+      const connected = e.source === nodeId || e.target === nodeId
+      if (connected) {
+        const isDashed = !!e.style?.strokeDasharray
+        return {
+          ...e,
+          style: { ...e.style, stroke: isDashed ? '#f97316' : '#6366f1', strokeWidth: isDashed ? 2.5 : 3, opacity: 1 },
+          zIndex: 10,
+        }
+      }
+      return { ...e, style: { ...e.style, opacity: 0.15 } }
+    })
+  }, [visibleEdges, selectedNode])
+
   const onNodesChange = useCallback((changes) => {
     const newNodes = applyNodeChanges(changes, nodes)
     useCanvasStore.setState({ nodes: newNodes })
@@ -179,6 +198,10 @@ function CanvasInner({ projectId }) {
 
   const onNodeClick = useCallback((e, node) => {
     setSelectedNode(node)
+  }, [setSelectedNode])
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null)
   }, [setSelectedNode])
 
   const onNodeDragStart = useCallback((e, node, draggedNodes) => {
@@ -218,6 +241,7 @@ function CanvasInner({ projectId }) {
     async function onKeyDown(e) {
       const tag = e.target.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (useCanvasStore.getState().viewOnly) return
 
       const ctrl = e.ctrlKey || e.metaKey
       const store = useCanvasStore.getState()
@@ -376,12 +400,14 @@ function CanvasInner({ projectId }) {
     <div className="flex-1 relative overflow-hidden">
       <ReactFlow
         nodes={visibleNodes}
-        edges={visibleEdges}
+        edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDragStop={onNodeDragStop}
+        onPaneClick={onPaneClick}
+        onNodeDragStart={viewOnly ? undefined : onNodeDragStart}
+        onNodeDragStop={viewOnly ? undefined : onNodeDragStop}
+        nodesDraggable={!viewOnly}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'floating' }}
@@ -403,18 +429,20 @@ function CanvasInner({ projectId }) {
         />
         <Controls position="top-right" />
 
-        {/* Add node buttons */}
-        <Panel position="top-left" style={{ top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {LAYER_BUTTONS.map(btn => (
-            <button
-              key={btn.nodeType}
-              onClick={() => setAddFormType(btn.nodeType)}
-              className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap ${btn.colorClass}`}
-            >
-              {btn.label}
-            </button>
-          ))}
-        </Panel>
+        {/* Add node buttons — hidden in view-only mode */}
+        {!viewOnly && (
+          <Panel position="top-left" style={{ top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {LAYER_BUTTONS.map(btn => (
+              <button
+                key={btn.nodeType}
+                onClick={() => setAddFormType(btn.nodeType)}
+                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap ${btn.colorClass}`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </Panel>
+        )}
 
         {/* Legend + Shortcuts */}
         <Panel position="bottom-right" style={{ bottom: 24, right: 12 }}>

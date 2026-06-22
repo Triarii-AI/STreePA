@@ -74,6 +74,7 @@ export default function ProjectCanvas() {
   const removeRFEdge = useCanvasStore(s => s.removeRFEdge)
   const setActiveUsers = useCanvasStore(s => s.setActiveUsers)
   const selectedNode = useCanvasStore(s => s.selectedNode)
+  const viewOnly = useCanvasStore(s => s.viewOnly)
 
   const handleNodeAdded = useCallback((data) => {
     addRFNode(convertToRFNode(data))
@@ -171,7 +172,7 @@ export default function ProjectCanvas() {
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
           <Canvas projectId={id} />
-          {selectedNode && <NodePanel projectId={id} />}
+          {selectedNode && !viewOnly && <NodePanel projectId={id} />}
         </div>
       </ReactFlowProvider>
     </div>

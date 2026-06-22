@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { createNode, createLink } from '../../api.js'
 import socket from '../../socket.js'
 import useCanvasStore from '../../store/canvasStore.js'
@@ -50,6 +50,84 @@ function convertAPINodeToRF(nodeType, nodeData, position) {
   }
 }
 
+function SearchableSelect({ value, onChange, options, placeholder, focusRingClass, isMainFn, required }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef(null)
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase()
+    return q ? options.filter(o => o.label.toLowerCase().includes(q) || (o.description || '').toLowerCase().includes(q)) : options
+  }, [options, query])
+
+  const selectedOption = options.find(o => String(o.id) === String(value))
+
+  useEffect(() => {
+    function onMouseDown(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 ${focusRingClass} ${!selectedOption ? 'text-gray-400' : 'text-gray-800'}`}
+      >
+        <span className={selectedOption && isMainFn && isMainFn(selectedOption) ? 'font-bold' : ''}>
+          {selectedOption ? `${selectedOption.label}${selectedOption.description ? ` — ${selectedOption.description.slice(0, 40)}` : ''}` : placeholder}
+        </span>
+        <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search..."
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-40 overflow-y-auto">
+            {!required && (
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50"
+                onClick={() => { onChange(''); setOpen(false); setQuery('') }}
+              >
+                {placeholder}
+              </button>
+            )}
+            {filtered.length === 0 && (
+              <div className="px-3 py-2 text-xs text-gray-400">No results</div>
+            )}
+            {filtered.map(o => (
+              <button
+                key={o.id}
+                type="button"
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-1 ${String(o.id) === String(value) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700'}`}
+                onClick={() => { onChange(String(o.id)); setOpen(false); setQuery('') }}
+              >
+                <span className={isMainFn && isMainFn(o) ? 'font-bold' : ''}>{o.label}</span>
+                {o.description && <span className="text-xs text-gray-400 truncate">{o.description.slice(0, 50)}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AddNodeForm({ nodeType, projectId, onClose, onCreated }) {
   const addRFNode = useCanvasStore(s => s.addRFNode)
   const addRFEdge = useCanvasStore(s => s.addRFEdge)
@@ -72,10 +150,23 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
   const allUCAs = useMemo(() => getNodesByType('uca'), [nodes])
 
   function getDefaultPosition() {
-    const sameTypeNodes = nodes.filter(n => n.data?.nodeType === nodeType)
-    const x = sameTypeNodes.length * NODE_HORIZONTAL_SPACING + 100
-    const y = LAYER_Y_POSITIONS[nodeType] || 400
-    return { x, y }
+    const layerY = LAYER_Y_POSITIONS[nodeType] || 400
+    const SLOT = NODE_HORIZONTAL_SPACING
+    const START_X = 100
+    const layerXs = nodes
+      .filter(n => !n.data?.hidden && Math.abs((n.position?.y || 0) - layerY) < 150)
+      .map(n => n.position?.x || 0)
+      .sort((a, b) => a - b)
+    let x = START_X
+    for (const nx of layerXs) {
+      if (nx >= x + SLOT) break
+      if (nx + SLOT > x) x = nx + SLOT
+    }
+    return { x, y: layerY }
+  }
+
+  function isMainHazard(h) {
+    return h.label && !h.label.includes('.')
   }
 
   function handleChange(field, value) {
@@ -254,16 +345,14 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Parent Hazard (optional)</label>
-              <select
+              <SearchableSelect
                 value={formData.parent_hazard_id || ''}
-                onChange={e => handleChange('parent_hazard_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-              >
-                <option value="">None (top-level)</option>
-                {allHazards.map(h => (
-                  <option key={h.id} value={h.id}>{h.label}</option>
-                ))}
-              </select>
+                onChange={v => handleChange('parent_hazard_id', v)}
+                options={allHazards}
+                placeholder="None (top-level)"
+                focusRingClass="focus:ring-orange-400"
+                isMainFn={isMainHazard}
+              />
             </div>
             {allLosses.length > 0 && (
               <div>
@@ -279,7 +368,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                         )}
                         className="accent-orange-500"
                       />
-                      <span className="text-xs font-medium text-gray-700">{l.label}</span>
+                      <span className="text-xs text-gray-700 font-medium">{l.label}</span>
                       {l.description && <span className="text-xs text-gray-400 truncate">{l.description}</span>}
                     </label>
                   ))}
@@ -305,17 +394,15 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Parent Hazard <span className="text-red-500">*</span></label>
-              <select
+              <SearchableSelect
                 value={formData.linked_hazard_id || ''}
-                onChange={e => handleChange('linked_hazard_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                onChange={v => handleChange('linked_hazard_id', v)}
+                options={allHazards}
+                placeholder="Select hazard..."
+                focusRingClass="focus:ring-yellow-400"
+                isMainFn={isMainHazard}
                 required
-              >
-                <option value="">Select hazard...</option>
-                {allHazards.map(h => (
-                  <option key={h.id} value={h.id}>{h.label}{h.description ? ` — ${h.description.slice(0, 40)}` : ''}</option>
-                ))}
-              </select>
+              />
             </div>
             {allHazards.length > 0 && (
               <div>
@@ -331,7 +418,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                         )}
                         className="accent-yellow-500"
                       />
-                      <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                      <span className={`text-xs text-gray-700 ${isMainHazard(h) ? 'font-bold' : 'font-medium'}`}>{h.label}</span>
                       {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
                     </label>
                   ))}
@@ -371,17 +458,14 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Control Action <span className="text-red-500">*</span></label>
-              <select
+              <SearchableSelect
                 value={formData.control_action_id || ''}
-                onChange={e => handleChange('control_action_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                onChange={v => handleChange('control_action_id', v)}
+                options={allCAs.map(ca => ({ ...ca, label: ca.label || ca.name }))}
+                placeholder="Select control action..."
+                focusRingClass="focus:ring-blue-400"
                 required
-              >
-                <option value="">Select control action...</option>
-                {allCAs.map(ca => (
-                  <option key={ca.id} value={ca.id}>{ca.label || ca.name}</option>
-                ))}
-              </select>
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">UCA Type <span className="text-red-500">*</span></label>
@@ -411,7 +495,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                         )}
                         className="accent-blue-500"
                       />
-                      <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                      <span className={`text-xs text-gray-700 ${isMainHazard(h) ? 'font-bold' : 'font-medium'}`}>{h.label}</span>
                       {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
                     </label>
                   ))}
@@ -436,17 +520,14 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">UCA <span className="text-red-500">*</span></label>
-              <select
+              <SearchableSelect
                 value={formData.uca_id || ''}
-                onChange={e => handleChange('uca_id', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                onChange={v => handleChange('uca_id', v)}
+                options={allUCAs}
+                placeholder="Select UCA..."
+                focusRingClass="focus:ring-purple-400"
                 required
-              >
-                <option value="">Select UCA...</option>
-                {allUCAs.map(u => (
-                  <option key={u.id} value={u.id}>{u.label}</option>
-                ))}
-              </select>
+              />
             </div>
             {allHazards.length > 0 && (
               <div>
@@ -462,7 +543,7 @@ export default function AddNodeForm({ nodeType, projectId, onClose, onCreated })
                         )}
                         className="accent-purple-500"
                       />
-                      <span className="text-xs font-medium text-gray-700">{h.label}</span>
+                      <span className={`text-xs text-gray-700 ${isMainHazard(h) ? 'font-bold' : 'font-medium'}`}>{h.label}</span>
                       {h.description && <span className="text-xs text-gray-400 truncate">{h.description}</span>}
                     </label>
                   ))}
