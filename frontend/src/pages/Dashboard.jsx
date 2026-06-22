@@ -326,8 +326,7 @@ export default function Dashboard() {
     setShareLoading(true)
     setShareError('')
     try {
-      const isOwner = shareTargetProject.owner_id === user?.id
-      const entry = await addProjectShare(shareTargetProject.id, shareUsername.trim(), isOwner ? shareRole : 'editor')
+      const entry = await addProjectShare(shareTargetProject.id, shareUsername.trim(), shareRole)
       setShareList(prev => [...prev, entry])
       setShareUsername('')
     } catch (err) {
@@ -975,6 +974,7 @@ export default function Dashboard() {
               )}
               {(() => {
                 const isOwner = shareTargetProject?.owner_id === user?.id
+                const canManageRoles = isOwner || shareTargetProject?.user_role === 'editor'
                 return (
                   <>
                     <form onSubmit={handleAddShare} className="space-y-2">
@@ -986,16 +986,14 @@ export default function Dashboard() {
                           placeholder="Enter username"
                           className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                         />
-                        {isOwner && (
-                          <select
-                            value={shareRole}
-                            onChange={e => setShareRole(e.target.value)}
-                            className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none flex-shrink-0"
-                          >
-                            <option value="editor">Editor</option>
-                            <option value="viewer">Viewer</option>
-                          </select>
-                        )}
+                        <select
+                          value={shareRole}
+                          onChange={e => setShareRole(e.target.value)}
+                          className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none flex-shrink-0"
+                        >
+                          <option value="editor">Editor</option>
+                          <option value="viewer">Viewer</option>
+                        </select>
                         <button
                           type="submit"
                           disabled={shareLoading || !shareUsername.trim()}
@@ -1016,7 +1014,7 @@ export default function Dashboard() {
                                 {s.username[0].toUpperCase()}
                               </div>
                               <span className="text-sm text-gray-800 dark:text-gray-200 flex-1 truncate">{s.username}</span>
-                              {isOwner ? (
+                              {canManageRoles ? (
                                 <select
                                   value={s.role}
                                   onChange={e => handleUpdateShareRole(s.user_id, e.target.value)}

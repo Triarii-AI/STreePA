@@ -79,11 +79,7 @@ def add_share(project_id):
     existing = ProjectShare.query.filter_by(project_id=project_id, user_id=target.id).first()
     if existing:
         return jsonify({'error': f'Project already shared with {username}'}), 400
-    # Owners can set any role; editors can only invite as editor
     requested_role = data.get('role', 'editor')
-    project = Project.query.get(project_id)
-    if project.owner_id != current_user.id:
-        requested_role = 'editor'
     if requested_role not in ('editor', 'viewer'):
         requested_role = 'editor'
     share = ProjectShare(project_id=project_id, user_id=target.id, role=requested_role)
@@ -95,7 +91,7 @@ def add_share(project_id):
 @projects_bp.route('/<int:project_id>/shares/<int:user_id>', methods=['PATCH'])
 @login_required
 def update_share(project_id, user_id):
-    check_project_access(project_id, owner_only=True)
+    check_project_access(project_id, require_editor=True)
     share = ProjectShare.query.filter_by(project_id=project_id, user_id=user_id).first_or_404()
     data = request.get_json() or {}
     role = data.get('role')

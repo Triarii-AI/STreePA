@@ -116,7 +116,7 @@ export default function Toolbar({ project }) {
     setShareStatus(null)
     try {
       const userRole = (project || currentProject)?.user_role
-      const role = userRole === 'owner' ? shareRole : 'editor'
+      const role = shareRole
       const entry = await addProjectShare(projId, shareInput.trim(), role)
       setSharesList(prev => [...prev, entry])
       setShareStatus({ type: 'success', text: `Shared with ${shareInput.trim()}` })
@@ -415,7 +415,7 @@ export default function Toolbar({ project }) {
                           {(s.username || '?')[0].toUpperCase()}
                         </div>
                         <span className="text-xs text-gray-800 dark:text-gray-200 truncate flex-1">{s.username}</span>
-                        {isOwner ? (
+                        {!isViewer ? (
                           <select
                             value={s.role}
                             onChange={e => handleRoleChange(s.user_id, e.target.value)}
@@ -464,16 +464,14 @@ export default function Toolbar({ project }) {
                       className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     />
                     <div className="flex gap-1.5">
-                      {isOwner && (
-                        <select
-                          value={shareRole}
-                          onChange={e => setShareRole(e.target.value)}
-                          className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none flex-shrink-0"
-                        >
-                          <option value="editor">Editor</option>
-                          <option value="viewer">Viewer</option>
-                        </select>
-                      )}
+                      <select
+                        value={shareRole}
+                        onChange={e => setShareRole(e.target.value)}
+                        className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none flex-shrink-0"
+                      >
+                        <option value="editor">Editor</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
                       <button
                         type="submit"
                         disabled={shareLoading || !shareInput.trim()}
