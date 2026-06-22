@@ -311,7 +311,7 @@ const useCanvasStore = create((set, get) => ({
       _writeDarkCookie(next)
       document.documentElement.classList.toggle('dark', next)
       if (state.isAuthenticated) {
-        fetch('/api/auth/preferences', {
+        fetch('/auth/preferences', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
