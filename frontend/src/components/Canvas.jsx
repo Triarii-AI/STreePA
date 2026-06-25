@@ -32,7 +32,7 @@ import UCANode from './nodes/UCANode.jsx'
 import LSNode from './nodes/LSNode.jsx'
 import AddNodeForm from './forms/AddNodeForm.jsx'
 import FloatingEdge from './edges/FloatingEdge.jsx'
-import { toPng, toSvg } from 'html-to-image'
+import { toPng } from 'html-to-image'
 
 const nodeTypes = {
   rootNode: RootNode,
@@ -216,6 +216,14 @@ async function recreateNode(entry) {
   if (nodeType === 'system_constraint' && payload.linked_hazard_id) {
     store.addRFEdge(makeRFEdge(newRfId, `hazard-${payload.linked_hazard_id}`, true))
   }
+
+  // newNodeData from the server has empty reference arrays (links didn't exist yet when it
+  // was created), so the spread in addRFNode wiped out the snapshot's hazard_ids/loss_ids.
+  // Patch them back now that all createLink calls are done.
+  const restoredRefs = {}
+  if (nodeData.loss_ids?.length) restoredRefs.loss_ids = nodeData.loss_ids
+  if (nodeType !== 'loss_scenario' && hazardIdsForLinks.length) restoredRefs.hazard_ids = hazardIdsForLinks
+  if (Object.keys(restoredRefs).length) store.updateRFNode(newRfId, restoredRefs)
 
   return { newRfId, newNodeId, newNodeData }
 }
@@ -724,9 +732,17 @@ function CanvasInner({ projectId }) {
 
     const bounds = getNodesBounds(rfNodes)
     const PADDING = 0.08
-    const imageWidth  = Math.max(400, Math.round(bounds.width  * (1 + PADDING * 2)))
-    const imageHeight = Math.max(300, Math.round(bounds.height * (1 + PADDING * 2)))
-    const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, 0.1, 10, PADDING)
+    // Target 2 output pixels per flow unit for constant PPI regardless of diagram size.
+    // Cap at 8192px to stay within browser canvas limits (avoids silent downscaling).
+    const TARGET_PPU = 2
+    const MAX_DIM = 8192
+    const rawW = bounds.width  * (1 + 2 * PADDING) * TARGET_PPU
+    const rawH = bounds.height * (1 + 2 * PADDING) * TARGET_PPU
+    const clamp = Math.min(1, MAX_DIM / Math.max(rawW, rawH, 1))
+    const imageWidth  = Math.max(400, Math.round(rawW * clamp))
+    const imageHeight = Math.max(300, Math.round(rawH * clamp))
+    // Allow zoom up to TARGET_PPU so getViewportForBounds can use our full scale.
+    const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, 0.01, 100, PADDING)
     const viewportEl = containerRef.current?.querySelector('.react-flow__viewport')
     const bg = useCanvasStore.getState().darkMode ? '#0f172a' : '#f8fafc'
     const slug = (currentProject?.name || 'stpa-diagram').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
@@ -743,12 +759,11 @@ function CanvasInner({ projectId }) {
       if (!ctx) return
       const { savedViewport, viewportEl, imageWidth, imageHeight, viewport, bg, slug, date } = ctx
 
-      // pixelRatio: 3 renders at 3× pixel density for crisp text and edges.
       const dataUrl = await toPng(viewportEl, {
         backgroundColor: bg,
         width: imageWidth,
         height: imageHeight,
-        pixelRatio: 3,
+        pixelRatio: 1,
         style: {
           width:     `${imageWidth}px`,
           height:    `${imageHeight}px`,
@@ -776,10 +791,14 @@ function CanvasInner({ projectId }) {
       if (!ctx) return
       const { savedViewport, viewportEl, imageWidth, imageHeight, viewport, bg, slug, date } = ctx
 
-      const dataUrl = await toSvg(viewportEl, {
+      // html-to-image's toSvg wraps HTML in foreignObject, which misses external
+      // stylesheets (Tailwind) and renders blank. Render to PNG first, then embed
+      // it inside a proper SVG <image> element — works everywhere.
+      const pngDataUrl = await toPng(viewportEl, {
         backgroundColor: bg,
         width: imageWidth,
         height: imageHeight,
+        pixelRatio: 1,
         style: {
           width:     `${imageWidth}px`,
           height:    `${imageHeight}px`,
@@ -788,10 +807,21 @@ function CanvasInner({ projectId }) {
       })
 
       reactFlow.setViewport(savedViewport, { duration: 300 })
+
+      const svgSrc = [
+        `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
+        ` width="${imageWidth}" height="${imageHeight}"`,
+        ` viewBox="0 0 ${imageWidth} ${imageHeight}">`,
+        `<image width="${imageWidth}" height="${imageHeight}" href="${pngDataUrl}"/>`,
+        `</svg>`,
+      ].join('')
+      const blob = new Blob([svgSrc], { type: 'image/svg+xml' })
+      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.download = `${slug}-${date}.svg`
-      a.href = dataUrl
+      a.href = url
       a.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error('SVG export failed:', err)
     } finally {
