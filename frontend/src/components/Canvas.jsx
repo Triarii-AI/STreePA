@@ -14,7 +14,6 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   getNodesBounds,
-  getViewportForBounds,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -748,74 +747,108 @@ function CanvasInner({ projectId }) {
     await applyAlignPositions(updates)
   }
 
-  async function _prepareExport() {
-    const { currentProject } = useCanvasStore.getState()
-    const savedViewport = reactFlow.getViewport()
-
-    // Wait until all nodes are rendered and measured (up to ~1s).
+  // Render all visible nodes into a single high-res canvas using tile-and-stitch.
+  // Each tile is captured at TILE_PX × TILE_PX CSS pixels at the effective PPU zoom,
+  // then drawn onto an output canvas — no single capture ever exceeds browser limits.
+  async function _renderExportCanvas() {
     for (let i = 0; i < 60; i++) {
       await new Promise(r => requestAnimationFrame(r))
       const rfNodes = reactFlow.getNodes().filter(n => !n.hidden && !n.data?.hidden)
       if (rfNodes.length > 0 && rfNodes.every(n => n.measured?.width && n.measured?.height)) break
     }
-
     const rfNodes = reactFlow.getNodes().filter(n => !n.hidden && !n.data?.hidden)
     if (!rfNodes.length) return null
 
     const bounds = getNodesBounds(rfNodes)
-    const PADDING = 0.08
-    // 3 logical CSS px per flow unit; pixelRatio:2 doubles physical pixels → 6 physical px/unit
-    // for small/medium diagrams and 2× the old budget for large ones.
-    const TARGET_PPU = 3
-    const PIXEL_RATIO = 2
-    const MAX_LOGICAL = 8192  // logical CSS px per dimension; physical = MAX_LOGICAL * PIXEL_RATIO
-    const rawW = bounds.width  * (1 + 2 * PADDING) * TARGET_PPU
-    const rawH = bounds.height * (1 + 2 * PADDING) * TARGET_PPU
-    const clamp = Math.min(1, MAX_LOGICAL / Math.max(rawW, rawH, 1))
-    let imageWidth  = Math.max(400, Math.round(rawW * clamp))
-    let imageHeight = Math.max(300, Math.round(rawH * clamp))
-    // Clamp physical area to stay well below Chrome's 268M-pixel canvas limit.
-    const MAX_PHYSICAL_AREA = 200_000_000
-    const physArea = imageWidth * imageHeight * PIXEL_RATIO * PIXEL_RATIO
-    if (physArea > MAX_PHYSICAL_AREA) {
-      const s = Math.sqrt(MAX_PHYSICAL_AREA / physArea)
-      imageWidth  = Math.max(400, Math.round(imageWidth  * s))
-      imageHeight = Math.max(300, Math.round(imageHeight * s))
-    }
-    const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, 0.01, 100, PADDING)
-    const viewportEl = containerRef.current?.querySelector('.react-flow__viewport')
-    const bg = useCanvasStore.getState().darkMode ? '#0f172a' : '#f8fafc'
-    const slug = (currentProject?.name || 'stpa-diagram').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    const date = new Date().toISOString().slice(0, 10)
+    const PADDING  = 0.08
+    const padW     = bounds.width  * PADDING
+    const padH     = bounds.height * PADDING
+    const originX  = bounds.x - padW
+    const originY  = bounds.y - padH
+    const totalFlowW = bounds.width  + 2 * padW
+    const totalFlowH = bounds.height + 2 * padH
 
-    return { savedViewport, viewportEl, imageWidth, imageHeight, pixelRatio: PIXEL_RATIO, viewport, bg, slug, date }
+    // Target 4 physical px per flow unit; back off if it would exceed 150 M output pixels.
+    const TARGET_PPU = 4
+    const MAX_AREA   = 150_000_000
+    const ppu  = Math.min(TARGET_PPU, Math.sqrt(MAX_AREA / Math.max(totalFlowW * totalFlowH, 1)))
+    const outW = Math.max(400, Math.round(totalFlowW * ppu))
+    const outH = Math.max(300, Math.round(totalFlowH * ppu))
+
+    const canvas = document.createElement('canvas')
+    canvas.width  = outW
+    canvas.height = outH
+    const ctx = canvas.getContext('2d')
+    const bg = useCanvasStore.getState().darkMode ? '#0f172a' : '#f8fafc'
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, outW, outH)
+
+    const viewportEl = containerRef.current?.querySelector('.react-flow__viewport')
+    // TILE_PX: each html-to-image capture is this many CSS pixels square.
+    // 2048 keeps individual captures well within browser limits.
+    const TILE_PX   = 2048
+    const tileFlowW = TILE_PX / ppu
+    const tileFlowH = TILE_PX / ppu
+    const tilesX    = Math.ceil(outW / TILE_PX)
+    const tilesY    = Math.ceil(outH / TILE_PX)
+
+    for (let ty = 0; ty < tilesY; ty++) {
+      for (let tx = 0; tx < tilesX; tx++) {
+        const tileFlowX = originX + tx * tileFlowW
+        const tileFlowY = originY + ty * tileFlowH
+        // Viewport transform: map flow origin of this tile to CSS (0, 0) at scale=ppu.
+        // React Flow's .react-flow__viewport already has transform-origin:0 0 set,
+        // which we preserve here so translate+scale behaves as a pure affine map.
+        const vpX = -tileFlowX * ppu
+        const vpY = -tileFlowY * ppu
+
+        const dataUrl = await toPng(viewportEl, {
+          backgroundColor: bg,
+          width:  TILE_PX,
+          height: TILE_PX,
+          pixelRatio: 1,
+          style: {
+            width:           `${TILE_PX}px`,
+            height:          `${TILE_PX}px`,
+            transformOrigin: '0px 0px',
+            transform:       `translate(${vpX}px, ${vpY}px) scale(${ppu})`,
+          },
+        })
+
+        const dstX = tx * TILE_PX
+        const dstY = ty * TILE_PX
+        // For the last tile in each axis, only copy the pixels that belong to the output.
+        const dstW = Math.min(TILE_PX, outW - dstX)
+        const dstH = Math.min(TILE_PX, outH - dstY)
+
+        await new Promise((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => { ctx.drawImage(img, 0, 0, dstW, dstH, dstX, dstY, dstW, dstH); resolve() }
+          img.onerror = reject
+          img.src = dataUrl
+        })
+      }
+    }
+    return canvas
   }
 
   async function exportScreenshot() {
     if (isExporting) return
     setIsExporting(true)
     try {
-      const ctx = await _prepareExport()
-      if (!ctx) return
-      const { savedViewport, viewportEl, imageWidth, imageHeight, pixelRatio, viewport, bg, slug, date } = ctx
-
-      const dataUrl = await toPng(viewportEl, {
-        backgroundColor: bg,
-        width: imageWidth,
-        height: imageHeight,
-        pixelRatio,
-        style: {
-          width:     `${imageWidth}px`,
-          height:    `${imageHeight}px`,
-          transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-        },
-      })
-
-      reactFlow.setViewport(savedViewport, { duration: 300 })
-      const a = document.createElement('a')
-      a.download = `${slug}-${date}.png`
-      a.href = dataUrl
-      a.click()
+      const canvas = await _renderExportCanvas()
+      if (!canvas) return
+      const { currentProject } = useCanvasStore.getState()
+      const slug = (currentProject?.name || 'stpa-diagram').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      const date = new Date().toISOString().slice(0, 10)
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.download = `${slug}-${date}.png`
+        a.href = url
+        a.click()
+        URL.revokeObjectURL(url)
+      }, 'image/png')
     } catch (err) {
       console.error('PNG export failed:', err)
     } finally {
@@ -827,39 +860,22 @@ function CanvasInner({ projectId }) {
     if (isExporting) return
     setIsExporting(true)
     try {
-      const ctx = await _prepareExport()
-      if (!ctx) return
-      const { savedViewport, viewportEl, imageWidth, imageHeight, pixelRatio, viewport, bg, slug, date } = ctx
-
-      // html-to-image's toSvg wraps HTML in foreignObject, which misses external
-      // stylesheets (Tailwind) and renders blank. Render to PNG first, then embed
-      // it inside a proper SVG <image> element — works everywhere.
-      const pngDataUrl = await toPng(viewportEl, {
-        backgroundColor: bg,
-        width: imageWidth,
-        height: imageHeight,
-        pixelRatio,
-        style: {
-          width:     `${imageWidth}px`,
-          height:    `${imageHeight}px`,
-          transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-        },
-      })
-
-      reactFlow.setViewport(savedViewport, { duration: 300 })
-
-      // SVG dimensions must match the physical PNG pixel count so the image
-      // renders 1:1 and viewers can zoom in without upscaling artifacts.
-      const physW = imageWidth * pixelRatio
-      const physH = imageHeight * pixelRatio
+      const canvas = await _renderExportCanvas()
+      if (!canvas) return
+      const { currentProject } = useCanvasStore.getState()
+      const slug = (currentProject?.name || 'stpa-diagram').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      const date = new Date().toISOString().slice(0, 10)
+      // canvas.toDataURL gives a self-contained PNG; embed it in SVG at 1:1 pixel mapping.
+      // Both href (SVG 2) and xlink:href (SVG 1.1) are included for maximum viewer compat.
+      const pngDataUrl = canvas.toDataURL('image/png')
+      const W = canvas.width, H = canvas.height
       const svgSrc = [
         `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
-        ` width="${physW}" height="${physH}"`,
-        ` viewBox="0 0 ${physW} ${physH}">`,
-        `<image width="${physW}" height="${physH}" href="${pngDataUrl}"/>`,
+        ` width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
+        `<image width="${W}" height="${H}" xlink:href="${pngDataUrl}" href="${pngDataUrl}"/>`,
         `</svg>`,
       ].join('')
-      const blob = new Blob([svgSrc], { type: 'image/svg+xml' })
+      const blob = new Blob([svgSrc], { type: 'image/svg+xml;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.download = `${slug}-${date}.svg`
