@@ -159,7 +159,7 @@ async function recreateNode(entry) {
   const { nodeData, position, rfNodeType } = snapshot
   const nodeType = nodeData.nodeType
 
-  const payload = {}
+  const payload = { x: position.x, y: position.y }
   if (nodeData.description) payload.description = nodeData.description
   if (nodeData.name) payload.name = nodeData.name
   if (nodeData.uca_type) payload.uca_type = nodeData.uca_type
