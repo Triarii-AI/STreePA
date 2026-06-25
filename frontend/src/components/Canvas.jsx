@@ -797,10 +797,12 @@ function CanvasInner({ projectId }) {
       // Base64 data URI is more reliably rendered than a blob URL in all browsers.
       const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)))
 
+      // Cap canvas dimensions: Safari/iOS fails silently when a canvas exceeds ~4096px.
+      const MAX_DIM = 8192
+      const SCALE = Math.min(2, MAX_DIM / Math.max(W, H, 1))
       const canvas = document.createElement('canvas')
-      const SCALE = 2
-      canvas.width  = W * SCALE
-      canvas.height = H * SCALE
+      canvas.width  = Math.round(W * SCALE)
+      canvas.height = Math.round(H * SCALE)
       const ctx = canvas.getContext('2d')
       ctx.scale(SCALE, SCALE)
 
@@ -811,18 +813,22 @@ function CanvasInner({ projectId }) {
         img.src = svgDataUrl
       })
 
-      // Promisify toBlob so errors surface in the catch block.
+      // Promisify toBlob — null means the canvas is too large or tainted.
       const pngBlob = await new Promise((resolve, reject) =>
-        canvas.toBlob(b => b ? resolve(b) : reject(new Error('canvas.toBlob returned null')), 'image/png')
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('PNG canvas export failed (canvas may be too large)')), 'image/png')
       )
       const url = URL.createObjectURL(pngBlob)
       const a = document.createElement('a')
       a.download = pngFilename
       a.href = url
+      document.body.appendChild(a)
       a.click()
+      document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (err) {
       console.error('PNG export failed:', err)
+      // eslint-disable-next-line no-alert
+      window.alert(`PNG export failed: ${err.message}`)
     } finally {
       setIsExporting(false)
     }

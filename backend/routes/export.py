@@ -132,15 +132,26 @@ def _badge_w(text, font=BADGE_F, hpad=6):
     return max(18, int(len(str(text)) * font * 0.68 + 2 * hpad))
 
 
+def _node_width(label, ntype, is_sub=False):
+    """Estimate node width: matches browser's min-w-[180px] max-w-[240px]."""
+    bw = _badge_w(BADGE_LABEL.get(ntype, ''))
+    if is_sub and ntype == 'hazard':
+        bw += _badge_w('sub') + 4
+    one_line = int(len(str(label or '')) * LBL_F * 0.65)
+    return max(180, min(240, 2 * PAD + one_line + bw + 4))
+
+
 # ── Node height estimation ────────────────────────────────────────────────────
 
-def _std_height(label, desc, ntype, is_sub=False, uca_type=None):
+def _std_height(label, desc, ntype, nw=None, is_sub=False, uca_type=None):
+    if nw is None:
+        nw = _node_width(label, ntype, is_sub)
     bl = BADGE_LABEL.get(ntype, '')
     bw = _badge_w(bl)
     if is_sub:
         bw += _badge_w('sub') + 4
-    lbl_lines = max(1, len(_wrap(label, NODE_W - 2 * PAD - bw - 4, LBL_F)))
-    dsc_lines = len(_wrap(desc, NODE_W - 2 * PAD, DESC_F, max_lines=4)) if desc else 0
+    lbl_lines = max(1, len(_wrap(label, nw - 2 * PAD - bw - 4, LBL_F)))
+    dsc_lines = len(_wrap(desc, nw - 2 * PAD, DESC_F, max_lines=4)) if desc else 0
     h = PAD + lbl_lines * LBL_LH
     if dsc_lines:
         h += 4 + dsc_lines * DESC_LH
@@ -183,12 +194,28 @@ def _tlines(out, lines, x, y0, lh, font, weight, fill, opacity=None):
 
 
 def _border_pt(cx, cy, w, h, tx, ty):
+    """Returns (bx, by, side) — exact algorithm from FloatingEdge.borderPoint."""
     dx, dy = tx - cx, ty - cy
     if dx == 0 and dy == 0:
-        return cx, cy + h / 2
+        return cx, cy + h / 2, 'bottom'
     hw, hh = w / 2.0, h / 2.0
-    t = min(abs(hw / dx) if dx else 1e9, abs(hh / dy) if dy else 1e9)
-    return cx + dx * t, cy + dy * t
+    on_side = abs(dx) / hw > abs(dy) / hh
+    if on_side:
+        t = hw / abs(dx)
+        pos = 'right' if dx > 0 else 'left'
+    else:
+        t = hh / abs(dy)
+        pos = 'bottom' if dy > 0 else 'top'
+    return cx + dx * t, cy + dy * t, pos
+
+
+def _bezier_ctrl(pos, x1, y1, x2, y2, c=0.25):
+    """React Flow's getControlWithCurvature: push outward from pos by c * |delta|."""
+    if pos == 'left':   return x1 - abs(x2 - x1) * c, y1
+    if pos == 'right':  return x1 + abs(x2 - x1) * c, y1
+    if pos == 'top':    return x1, y1 - abs(y2 - y1) * c
+    # bottom
+    return x1, y1 + abs(y2 - y1) * c
 
 
 # ── Node renderers ────────────────────────────────────────────────────────────
@@ -288,18 +315,11 @@ def _draw_edge(e, nodes, out):
     sn, tn = nodes[e['src']], nodes[e['tgt']]
     scx = sn['x'] + sn['w'] / 2;  scy = sn['y'] + sn['h'] / 2
     tcx = tn['x'] + tn['w'] / 2;  tcy = tn['y'] + tn['h'] / 2
-    sx, sy = _border_pt(scx, scy, sn['w'], sn['h'], tcx, tcy)
-    tx, ty = _border_pt(tcx, tcy, tn['w'], tn['h'], scx, scy)
+    sx, sy, src_pos = _border_pt(scx, scy, sn['w'], sn['h'], tcx, tcy)
+    tx, ty, tgt_pos = _border_pt(tcx, tcy, tn['w'], tn['h'], scx, scy)
 
-    dx, dy = tx - sx, ty - sy
-    length = (dx * dx + dy * dy) ** 0.5
-    cp = min(80.0, length * 0.35) if length > 0 else 0
-    if abs(dy) >= abs(dx):              # mostly vertical
-        c1x, c1y = sx, sy + cp * (1 if dy >= 0 else -1)
-        c2x, c2y = tx, ty - cp * (1 if dy >= 0 else -1)
-    else:                               # mostly horizontal
-        c1x, c1y = sx + cp * (1 if dx >= 0 else -1), sy
-        c2x, c2y = tx - cp * (1 if dx >= 0 else -1), ty
+    c1x, c1y = _bezier_ctrl(src_pos, sx, sy, tx, ty)
+    c2x, c2y = _bezier_ctrl(tgt_pos, tx, ty, sx, sy)
 
     dashed = e['dashed']
     stroke = DASHED_STROKE if dashed else SOLID_STROKE
@@ -328,11 +348,12 @@ def _generate_svg(project, losses, hazards, scs, cas, ucas, lss, c_edges,
         if nid in hidden_set:
             return
         if ntype == 'root':
-            w, h = ROOT_W, _root_height(label, desc)
+            nw, nh = ROOT_W, _root_height(label, desc)
         else:
-            w, h = NODE_W, _std_height(label, desc, ntype, is_sub=is_sub, uca_type=uca_type)
+            nw = _node_width(label, ntype, is_sub)
+            nh = _std_height(label, desc, ntype, nw=nw, is_sub=is_sub, uca_type=uca_type)
         nodes[nid] = {
-            'x': float(x or 0), 'y': float(y or 0), 'w': w, 'h': h,
+            'x': float(x or 0), 'y': float(y or 0), 'w': nw, 'h': nh,
             'type': ntype, 'label': label or '', 'desc': desc,
             'uca_type': uca_type, 'is_sub': is_sub,
         }
