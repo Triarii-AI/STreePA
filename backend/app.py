@@ -33,11 +33,13 @@ def create_app():
     from routes.projects import projects_bp
     from routes.api import api_bp
     from routes.backups import backups_bp
+    from routes.export import export_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(projects_bp, url_prefix='/api/projects')
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(backups_bp, url_prefix='/api/backups')
+    app.register_blueprint(export_bp, url_prefix='/api')
 
     from events import register_events
     register_events(socketio)

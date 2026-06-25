@@ -13,7 +13,6 @@ import {
   useViewport,
   applyNodeChanges,
   applyEdgeChanges,
-  getNodesBounds,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -31,7 +30,6 @@ import UCANode from './nodes/UCANode.jsx'
 import LSNode from './nodes/LSNode.jsx'
 import AddNodeForm from './forms/AddNodeForm.jsx'
 import FloatingEdge from './edges/FloatingEdge.jsx'
-import { toPng } from 'html-to-image'
 
 const nodeTypes = {
   rootNode: RootNode,
@@ -747,143 +745,77 @@ function CanvasInner({ projectId }) {
     await applyAlignPositions(updates)
   }
 
-  // Render all visible nodes into a single high-res canvas using tile-and-stitch.
-  // Each tile is captured at TILE_PX × TILE_PX CSS pixels at the effective PPU zoom,
-  // then drawn onto an output canvas — no single capture ever exceeds browser limits.
-  async function _renderExportCanvas() {
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => requestAnimationFrame(r))
-      const rfNodes = reactFlow.getNodes().filter(n => !n.hidden && !n.data?.hidden)
-      if (rfNodes.length > 0 && rfNodes.every(n => n.measured?.width && n.measured?.height)) break
+  async function exportSvg() {
+    if (isExporting) return
+    setIsExporting(true)
+    try {
+      const { darkMode } = useCanvasStore.getState()
+      const theme = darkMode ? 'dark' : 'light'
+      const res = await fetch(`/api/projects/${projectId}/export?format=svg&theme=${theme}`)
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const slug = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'export.svg'
+      a.download = slug
+      a.href = url
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('SVG export failed:', err)
+    } finally {
+      setIsExporting(false)
     }
-    const rfNodes = reactFlow.getNodes().filter(n => !n.hidden && !n.data?.hidden)
-    if (!rfNodes.length) return null
-
-    const bounds = getNodesBounds(rfNodes)
-    const PADDING  = 0.08
-    const padW     = bounds.width  * PADDING
-    const padH     = bounds.height * PADDING
-    const originX  = bounds.x - padW
-    const originY  = bounds.y - padH
-    const totalFlowW = bounds.width  + 2 * padW
-    const totalFlowH = bounds.height + 2 * padH
-
-    // Target 4 physical px per flow unit; back off if it would exceed 150 M output pixels.
-    const TARGET_PPU = 4
-    const MAX_AREA   = 150_000_000
-    const ppu  = Math.min(TARGET_PPU, Math.sqrt(MAX_AREA / Math.max(totalFlowW * totalFlowH, 1)))
-    const outW = Math.max(400, Math.round(totalFlowW * ppu))
-    const outH = Math.max(300, Math.round(totalFlowH * ppu))
-
-    const canvas = document.createElement('canvas')
-    canvas.width  = outW
-    canvas.height = outH
-    const ctx = canvas.getContext('2d')
-    const bg = useCanvasStore.getState().darkMode ? '#0f172a' : '#f8fafc'
-    ctx.fillStyle = bg
-    ctx.fillRect(0, 0, outW, outH)
-
-    const viewportEl = containerRef.current?.querySelector('.react-flow__viewport')
-    // TILE_PX: each html-to-image capture is this many CSS pixels square.
-    // 2048 keeps individual captures well within browser limits.
-    const TILE_PX   = 2048
-    const tileFlowW = TILE_PX / ppu
-    const tileFlowH = TILE_PX / ppu
-    const tilesX    = Math.ceil(outW / TILE_PX)
-    const tilesY    = Math.ceil(outH / TILE_PX)
-
-    for (let ty = 0; ty < tilesY; ty++) {
-      for (let tx = 0; tx < tilesX; tx++) {
-        const tileFlowX = originX + tx * tileFlowW
-        const tileFlowY = originY + ty * tileFlowH
-        // Viewport transform: map flow origin of this tile to CSS (0, 0) at scale=ppu.
-        // React Flow's .react-flow__viewport already has transform-origin:0 0 set,
-        // which we preserve here so translate+scale behaves as a pure affine map.
-        const vpX = -tileFlowX * ppu
-        const vpY = -tileFlowY * ppu
-
-        const dataUrl = await toPng(viewportEl, {
-          backgroundColor: bg,
-          width:  TILE_PX,
-          height: TILE_PX,
-          pixelRatio: 1,
-          style: {
-            width:           `${TILE_PX}px`,
-            height:          `${TILE_PX}px`,
-            transformOrigin: '0px 0px',
-            transform:       `translate(${vpX}px, ${vpY}px) scale(${ppu})`,
-          },
-        })
-
-        const dstX = tx * TILE_PX
-        const dstY = ty * TILE_PX
-        // For the last tile in each axis, only copy the pixels that belong to the output.
-        const dstW = Math.min(TILE_PX, outW - dstX)
-        const dstH = Math.min(TILE_PX, outH - dstY)
-
-        await new Promise((resolve, reject) => {
-          const img = new Image()
-          img.onload = () => { ctx.drawImage(img, 0, 0, dstW, dstH, dstX, dstY, dstW, dstH); resolve() }
-          img.onerror = reject
-          img.src = dataUrl
-        })
-      }
-    }
-    return canvas
   }
 
   async function exportScreenshot() {
     if (isExporting) return
     setIsExporting(true)
     try {
-      const canvas = await _renderExportCanvas()
-      if (!canvas) return
-      const { currentProject } = useCanvasStore.getState()
-      const slug = (currentProject?.name || 'stpa-diagram').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-      const date = new Date().toISOString().slice(0, 10)
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob)
+      const { darkMode } = useCanvasStore.getState()
+      const theme = darkMode ? 'dark' : 'light'
+      const res = await fetch(`/api/projects/${projectId}/export?format=svg&theme=${theme}`)
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+      const svgText = await res.text()
+
+      // Render the server SVG to a canvas for PNG download.
+      const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
+      const svgUrl = URL.createObjectURL(blob)
+
+      // Parse dimensions from the SVG to size the canvas correctly.
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(svgText, 'image/svg+xml')
+      const svgEl = doc.documentElement
+      const W = parseFloat(svgEl.getAttribute('width') || '1600')
+      const H = parseFloat(svgEl.getAttribute('height') || '900')
+
+      const canvas = document.createElement('canvas')
+      const SCALE = 2   // 2× for retina-quality PNG
+      canvas.width  = W * SCALE
+      canvas.height = H * SCALE
+      const ctx = canvas.getContext('2d')
+      ctx.scale(SCALE, SCALE)
+
+      await new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => { ctx.drawImage(img, 0, 0); resolve() }
+        img.onerror = reject
+        img.src = svgUrl
+      })
+      URL.revokeObjectURL(svgUrl)
+
+      const dispFilename = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'export.svg'
+      const pngFilename = dispFilename.replace(/\.svg$/i, '.png')
+      canvas.toBlob(pngBlob => {
+        const url = URL.createObjectURL(pngBlob)
         const a = document.createElement('a')
-        a.download = `${slug}-${date}.png`
+        a.download = pngFilename
         a.href = url
         a.click()
         URL.revokeObjectURL(url)
       }, 'image/png')
     } catch (err) {
       console.error('PNG export failed:', err)
-    } finally {
-      setIsExporting(false)
-    }
-  }
-
-  async function exportSvg() {
-    if (isExporting) return
-    setIsExporting(true)
-    try {
-      const canvas = await _renderExportCanvas()
-      if (!canvas) return
-      const { currentProject } = useCanvasStore.getState()
-      const slug = (currentProject?.name || 'stpa-diagram').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-      const date = new Date().toISOString().slice(0, 10)
-      // canvas.toDataURL gives a self-contained PNG; embed it in SVG at 1:1 pixel mapping.
-      // Both href (SVG 2) and xlink:href (SVG 1.1) are included for maximum viewer compat.
-      const pngDataUrl = canvas.toDataURL('image/png')
-      const W = canvas.width, H = canvas.height
-      const svgSrc = [
-        `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
-        ` width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
-        `<image width="${W}" height="${H}" xlink:href="${pngDataUrl}" href="${pngDataUrl}"/>`,
-        `</svg>`,
-      ].join('')
-      const blob = new Blob([svgSrc], { type: 'image/svg+xml;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.download = `${slug}-${date}.svg`
-      a.href = url
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('SVG export failed:', err)
     } finally {
       setIsExporting(false)
     }
