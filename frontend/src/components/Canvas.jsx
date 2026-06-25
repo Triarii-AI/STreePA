@@ -760,23 +760,31 @@ function CanvasInner({ projectId }) {
 
     const bounds = getNodesBounds(rfNodes)
     const PADDING = 0.08
-    // Target 2 output pixels per flow unit for constant PPI regardless of diagram size.
-    // Cap at 8192px to stay within browser canvas limits (avoids silent downscaling).
-    const TARGET_PPU = 2
-    const MAX_DIM = 8192
+    // 3 logical CSS px per flow unit; pixelRatio:2 doubles physical pixels → 6 physical px/unit
+    // for small/medium diagrams and 2× the old budget for large ones.
+    const TARGET_PPU = 3
+    const PIXEL_RATIO = 2
+    const MAX_LOGICAL = 8192  // logical CSS px per dimension; physical = MAX_LOGICAL * PIXEL_RATIO
     const rawW = bounds.width  * (1 + 2 * PADDING) * TARGET_PPU
     const rawH = bounds.height * (1 + 2 * PADDING) * TARGET_PPU
-    const clamp = Math.min(1, MAX_DIM / Math.max(rawW, rawH, 1))
-    const imageWidth  = Math.max(400, Math.round(rawW * clamp))
-    const imageHeight = Math.max(300, Math.round(rawH * clamp))
-    // Allow zoom up to TARGET_PPU so getViewportForBounds can use our full scale.
+    const clamp = Math.min(1, MAX_LOGICAL / Math.max(rawW, rawH, 1))
+    let imageWidth  = Math.max(400, Math.round(rawW * clamp))
+    let imageHeight = Math.max(300, Math.round(rawH * clamp))
+    // Clamp physical area to stay well below Chrome's 268M-pixel canvas limit.
+    const MAX_PHYSICAL_AREA = 200_000_000
+    const physArea = imageWidth * imageHeight * PIXEL_RATIO * PIXEL_RATIO
+    if (physArea > MAX_PHYSICAL_AREA) {
+      const s = Math.sqrt(MAX_PHYSICAL_AREA / physArea)
+      imageWidth  = Math.max(400, Math.round(imageWidth  * s))
+      imageHeight = Math.max(300, Math.round(imageHeight * s))
+    }
     const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, 0.01, 100, PADDING)
     const viewportEl = containerRef.current?.querySelector('.react-flow__viewport')
     const bg = useCanvasStore.getState().darkMode ? '#0f172a' : '#f8fafc'
     const slug = (currentProject?.name || 'stpa-diagram').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
     const date = new Date().toISOString().slice(0, 10)
 
-    return { savedViewport, viewportEl, imageWidth, imageHeight, viewport, bg, slug, date }
+    return { savedViewport, viewportEl, imageWidth, imageHeight, pixelRatio: PIXEL_RATIO, viewport, bg, slug, date }
   }
 
   async function exportScreenshot() {
@@ -785,13 +793,13 @@ function CanvasInner({ projectId }) {
     try {
       const ctx = await _prepareExport()
       if (!ctx) return
-      const { savedViewport, viewportEl, imageWidth, imageHeight, viewport, bg, slug, date } = ctx
+      const { savedViewport, viewportEl, imageWidth, imageHeight, pixelRatio, viewport, bg, slug, date } = ctx
 
       const dataUrl = await toPng(viewportEl, {
         backgroundColor: bg,
         width: imageWidth,
         height: imageHeight,
-        pixelRatio: 1,
+        pixelRatio,
         style: {
           width:     `${imageWidth}px`,
           height:    `${imageHeight}px`,
@@ -817,7 +825,7 @@ function CanvasInner({ projectId }) {
     try {
       const ctx = await _prepareExport()
       if (!ctx) return
-      const { savedViewport, viewportEl, imageWidth, imageHeight, viewport, bg, slug, date } = ctx
+      const { savedViewport, viewportEl, imageWidth, imageHeight, pixelRatio, viewport, bg, slug, date } = ctx
 
       // html-to-image's toSvg wraps HTML in foreignObject, which misses external
       // stylesheets (Tailwind) and renders blank. Render to PNG first, then embed
@@ -826,7 +834,7 @@ function CanvasInner({ projectId }) {
         backgroundColor: bg,
         width: imageWidth,
         height: imageHeight,
-        pixelRatio: 1,
+        pixelRatio,
         style: {
           width:     `${imageWidth}px`,
           height:    `${imageHeight}px`,
@@ -836,11 +844,15 @@ function CanvasInner({ projectId }) {
 
       reactFlow.setViewport(savedViewport, { duration: 300 })
 
+      // SVG dimensions must match the physical PNG pixel count so the image
+      // renders 1:1 and viewers can zoom in without upscaling artifacts.
+      const physW = imageWidth * pixelRatio
+      const physH = imageHeight * pixelRatio
       const svgSrc = [
         `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
-        ` width="${imageWidth}" height="${imageHeight}"`,
-        ` viewBox="0 0 ${imageWidth} ${imageHeight}">`,
-        `<image width="${imageWidth}" height="${imageHeight}" href="${pngDataUrl}"/>`,
+        ` width="${physW}" height="${physH}"`,
+        ` viewBox="0 0 ${physW} ${physH}">`,
+        `<image width="${physW}" height="${physH}" href="${pngDataUrl}"/>`,
         `</svg>`,
       ].join('')
       const blob = new Blob([svgSrc], { type: 'image/svg+xml' })
