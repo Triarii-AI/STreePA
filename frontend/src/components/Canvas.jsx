@@ -694,17 +694,21 @@ function CanvasInner({ projectId }) {
   async function alignNodes(type) {
     const selected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
     if (selected.length < 2) return
-    const xs = selected.map(n => n.position.x)
-    const ys = selected.map(n => n.position.y)
-    const minX = Math.min(...xs), maxX = Math.max(...xs)
-    const minY = Math.min(...ys), maxY = Math.max(...ys)
+    const nodeW = n => n.measured?.width  ?? 180
+    const nodeH = n => n.measured?.height ?? 40
+    const minLeft   = Math.min(...selected.map(n => n.position.x))
+    const maxRight  = Math.max(...selected.map(n => n.position.x + nodeW(n)))
+    const minTop    = Math.min(...selected.map(n => n.position.y))
+    const maxBottom = Math.max(...selected.map(n => n.position.y + nodeH(n)))
+    const bbCX = (minLeft + maxRight)  / 2
+    const bbCY = (minTop  + maxBottom) / 2
     let updates
-    if (type === 'left')    updates = selected.map(n => ({ rfId: n.id, x: minX,               y: n.position.y }))
-    else if (type === 'centerH') updates = selected.map(n => ({ rfId: n.id, x: (minX + maxX) / 2, y: n.position.y }))
-    else if (type === 'right')   updates = selected.map(n => ({ rfId: n.id, x: maxX,               y: n.position.y }))
-    else if (type === 'top')     updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: minY               }))
-    else if (type === 'centerV') updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: (minY + maxY) / 2 }))
-    else if (type === 'bottom')  updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: maxY               }))
+    if      (type === 'left')    updates = selected.map(n => ({ rfId: n.id, x: minLeft,              y: n.position.y }))
+    else if (type === 'right')   updates = selected.map(n => ({ rfId: n.id, x: maxRight - nodeW(n),  y: n.position.y }))
+    else if (type === 'centerH') updates = selected.map(n => ({ rfId: n.id, x: bbCX - nodeW(n) / 2, y: n.position.y }))
+    else if (type === 'top')     updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: minTop               }))
+    else if (type === 'bottom')  updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: maxBottom - nodeH(n) }))
+    else if (type === 'centerV') updates = selected.map(n => ({ rfId: n.id, x: n.position.x, y: bbCY - nodeH(n) / 2 }))
     else return
     await applyAlignPositions(updates)
   }
