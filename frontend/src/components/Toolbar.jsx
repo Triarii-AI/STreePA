@@ -29,10 +29,10 @@ function userInitials(user) {
 }
 
 function UserAvatar({ user, index }) {
-  const colorClass = AVATAR_COLORS[index % AVATAR_COLORS.length]
+  const bg = user.avatar_color || AVATAR_COLORS[index % AVATAR_COLORS.length]
   return (
     <div className="relative group">
-      <div className={`w-7 h-7 rounded-full ${colorClass} flex items-center justify-center text-white text-xs font-medium ring-2 ring-white dark:ring-gray-800`}>
+      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium ring-2 ring-white dark:ring-gray-800" style={{ backgroundColor: bg }}>
         {userInitials(user)}
       </div>
       <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
@@ -389,7 +389,7 @@ export default function Toolbar({ project }) {
                   <ul className="mb-1">
                     {activeUsers.map((u, i) => (
                       <li key={u.id || u.username || i} className="flex items-center gap-2.5 px-3 py-1.5">
-                        <div className={`w-6 h-6 rounded-full ${AVATAR_COLORS[i % AVATAR_COLORS.length]} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0" style={{ backgroundColor: u.avatar_color || AVATAR_COLORS[i % AVATAR_COLORS.length] }}>
                           {userInitials(u)}
                         </div>
                         <span className="text-sm text-gray-800 dark:text-gray-200 truncate">
