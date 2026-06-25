@@ -154,6 +154,20 @@ function DistributeVIcon() {
   )
 }
 
+const ORPHAN_NULL_FIELD = {
+  hazard: 'parent_hazard_id',
+  system_constraint: 'linked_hazard_id',
+  uca: 'control_action_id',
+  loss_scenario: 'uca_id',
+}
+// Maps each FK field to the node type it references (used to skip cascaded relabels)
+const FK_PARENT_TYPE = {
+  parent_hazard_id: 'hazard',
+  linked_hazard_id: 'hazard',
+  control_action_id: 'control_action',
+  uca_id: 'uca',
+}
+
 async function recreateNode(entry) {
   const { snapshot, projectId } = entry
   const { nodeData, position, rfNodeType } = snapshot
@@ -224,6 +238,25 @@ async function recreateNode(entry) {
   if (nodeData.loss_ids?.length) restoredRefs.loss_ids = nodeData.loss_ids
   if (nodeType !== 'loss_scenario' && hazardIdsForLinks.length) restoredRefs.hazard_ids = hazardIdsForLinks
   if (Object.keys(restoredRefs).length) store.updateRFNode(newRfId, restoredRefs)
+
+  // Restore parent→child connections for nodes that were orphaned when this node was deleted.
+  // Only process direct orphans (FK_PARENT_TYPE[fkField] === nodeType); skip cascaded
+  // relabeled descendants whose FK was never nulled.
+  for (const { nodeType: childType, id: childId } of (snapshot.orphaned || [])) {
+    const fkField = ORPHAN_NULL_FIELD[childType]
+    if (!fkField || FK_PARENT_TYPE[fkField] !== nodeType) continue
+    const childRfId = `${nodeTypeToPrefix(childType)}-${childId}`
+    try {
+      const res = await updateNode(projectId, childType, childId, { [fkField]: newNodeId })
+      const updatedChild = res[childType] || res.node || res
+      store.updateRFNode(childRfId, { [fkField]: newNodeId, ...(updatedChild.label ? { label: updatedChild.label } : {}) })
+      store.addRFEdge(makeRFEdge(newRfId, childRfId, false))
+      // Propagate any label cascade to descendants
+      ;(updatedChild.relabeled || []).forEach(({ nodeType: rnt, id: rid, label: rlabel }) => {
+        store.updateRFNode(`${nodeTypeToPrefix(rnt)}-${rid}`, { label: rlabel })
+      })
+    } catch (_) {}
+  }
 
   return { newRfId, newNodeId, newNodeData }
 }
@@ -433,12 +466,6 @@ function CanvasInner({ projectId }) {
         e.preventDefault()
         const confirmMsg = selectedNodes.length === 1 ? 'Delete this node?' : `Delete ${selectedNodes.length} nodes?`
         if (!window.confirm(confirmMsg)) return
-        const ORPHAN_NULL_FIELD = {
-          hazard: 'parent_hazard_id',
-          system_constraint: 'linked_hazard_id',
-          uca: 'control_action_id',
-          loss_scenario: 'uca_id',
-        }
         for (const node of selectedNodes) {
           const { nodeType, id: nodeId } = node.data
           const snapshot = {
@@ -448,6 +475,7 @@ function CanvasInner({ projectId }) {
           }
           try {
             const result = await deleteNode(projectId, nodeType, nodeId)
+            snapshot.orphaned = result?.orphaned || []
             socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
             store.removeRFNode(node.id)
             store.pushHistory({ action: 'delete', rfId: node.id, nodeType, nodeId, projectId, snapshot })
