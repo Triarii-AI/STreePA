@@ -351,7 +351,7 @@ export default function NodePanel({ projectId }) {
                 value={formData.purpose_statement || ''}
                 onChange={e => handleFieldChange('purpose_statement', e.target.value)}
                 rows={4}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
           </>
@@ -364,7 +364,7 @@ export default function NodePanel({ projectId }) {
               value={formData.description || ''}
               onChange={e => handleFieldChange('description', e.target.value)}
               rows={3}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
           </div>
         )}
@@ -377,7 +377,7 @@ export default function NodePanel({ projectId }) {
                 value={formData.description || ''}
                 onChange={e => handleFieldChange('description', e.target.value)}
                 rows={3}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
             <div>
@@ -402,7 +402,7 @@ export default function NodePanel({ projectId }) {
                 value={formData.description || ''}
                 onChange={e => handleFieldChange('description', e.target.value)}
                 rows={3}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
             <div>
@@ -441,7 +441,7 @@ export default function NodePanel({ projectId }) {
                 value={formData.description || ''}
                 onChange={e => handleFieldChange('description', e.target.value)}
                 rows={3}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
             <div>
@@ -478,7 +478,7 @@ export default function NodePanel({ projectId }) {
                 value={formData.description || ''}
                 onChange={e => handleFieldChange('description', e.target.value)}
                 rows={3}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
             <div>
