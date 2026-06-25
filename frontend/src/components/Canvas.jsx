@@ -745,13 +745,23 @@ function CanvasInner({ projectId }) {
     await applyAlignPositions(updates)
   }
 
+  function _exportUrl(format) {
+    const { darkMode, nodes: storeNodes } = useCanvasStore.getState()
+    const theme = darkMode ? 'dark' : 'light'
+    const hiddenIds = storeNodes
+      .filter(n => n.data?.hidden)
+      .map(n => n.id)
+      .join(',')
+    const params = new URLSearchParams({ format, theme, cross_refs: showCrossRefs ? '1' : '0' })
+    if (hiddenIds) params.set('hidden', hiddenIds)
+    return `/api/projects/${projectId}/export?${params}`
+  }
+
   async function exportSvg() {
     if (isExporting) return
     setIsExporting(true)
     try {
-      const { darkMode } = useCanvasStore.getState()
-      const theme = darkMode ? 'dark' : 'light'
-      const res = await fetch(`/api/projects/${projectId}/export?format=svg&theme=${theme}`)
+      const res = await fetch(_exportUrl('svg'))
       if (!res.ok) throw new Error(`Export failed: ${res.status}`)
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -772,9 +782,7 @@ function CanvasInner({ projectId }) {
     if (isExporting) return
     setIsExporting(true)
     try {
-      const { darkMode } = useCanvasStore.getState()
-      const theme = darkMode ? 'dark' : 'light'
-      const res = await fetch(`/api/projects/${projectId}/export?format=svg&theme=${theme}`)
+      const res = await fetch(_exportUrl('svg'))
       if (!res.ok) throw new Error(`Export failed: ${res.status}`)
       const svgText = await res.text()
 

@@ -112,15 +112,18 @@ def _border_point(cx, cy, w, h, tx, ty):
 # ── Core SVG renderer ─────────────────────────────────────────────────────────
 
 def _generate_svg(project, losses, hazards, scs, cas, ucas, lss, c_edges,
-                  dark=False):
-    palette = COLORS_DARK if dark else COLORS
-    bg      = BG_DARK if dark else BG_LIGHT
+                  dark=False, show_cross_refs=True, hidden_ids=None):
+    palette    = COLORS_DARK if dark else COLORS
+    bg         = BG_DARK if dark else BG_LIGHT
+    hidden_set = set(hidden_ids or [])
 
     # ── Build node table ────────────────────────────────────────────────────
     # Each entry: {x, y, w, h, type, label, description, uca_type}
     nodes = {}
 
     def add(nid, x, y, ntype, label, desc=None, uca_type=None):
+        if nid in hidden_set:
+            return
         w = ROOT_W if ntype == 'root' else NODE_W
         h = _node_height(label, desc)
         nodes[nid] = {
@@ -163,6 +166,10 @@ def _generate_svg(project, losses, hazards, scs, cas, ucas, lss, c_edges,
     edges = []  # list of {src, tgt, dashed}
 
     def edge(src, tgt, dashed):
+        # Skip dashed (cross-reference) edges when the toggle is off.
+        if dashed and not show_cross_refs:
+            return
+        # Skip edges where either endpoint is hidden or not in the node table.
         if src in nodes and tgt in nodes:
             edges.append({'src': src, 'tgt': tgt, 'dashed': dashed})
 
@@ -319,9 +326,12 @@ def _generate_svg(project, losses, hazards, scs, cas, ucas, lss, c_edges,
 def export_project(project_id):
     check_project_access(project_id)
 
-    fmt   = request.args.get('format', 'svg').lower()
-    dark  = request.args.get('theme', 'light').lower() == 'dark'
-    slug  = request.args.get('filename', None)
+    fmt            = request.args.get('format', 'svg').lower()
+    dark           = request.args.get('theme', 'light').lower() == 'dark'
+    show_cross_refs= request.args.get('cross_refs', '1') == '1'
+    hidden_raw     = request.args.get('hidden', '')
+    hidden_ids     = [h.strip() for h in hidden_raw.split(',') if h.strip()]
+    slug           = request.args.get('filename', None)
 
     project = Project.query.get_or_404(project_id)
     losses  = Loss.query.filter_by(project_id=project_id).all()
@@ -332,7 +342,10 @@ def export_project(project_id):
     lss     = LossScenario.query.filter_by(project_id=project_id).all()
     cedges  = CanvasEdge.query.filter_by(project_id=project_id).all()
 
-    svg = _generate_svg(project, losses, hazards, scs, cas, ucas, lss, cedges, dark=dark)
+    svg = _generate_svg(
+        project, losses, hazards, scs, cas, ucas, lss, cedges,
+        dark=dark, show_cross_refs=show_cross_refs, hidden_ids=hidden_ids,
+    )
 
     filename = slug or (project.title or 'export').replace(' ', '-').replace('/', '-')
 
