@@ -217,7 +217,7 @@ async function recreateNode(entry) {
     store.addRFEdge(makeRFEdge(newRfId, `hazard-${payload.linked_hazard_id}`, true))
   }
 
-  return { newRfId, newNodeId }
+  return { newRfId, newNodeId, newNodeData }
 }
 
 function CanvasInner({ projectId }) {
@@ -464,18 +464,22 @@ function CanvasInner({ projectId }) {
           if (entry.action === 'move') {
             await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.oldPos.x, y: entry.oldPos.y })
             store.moveRFNode(entry.rfId, entry.oldPos.x, entry.oldPos.y)
+            socket.emit('node:moved', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, x: entry.oldPos.x, y: entry.oldPos.y })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           } else if (entry.action === 'batchMove') {
             store.moveMultipleRFNodes(entry.moves.map(m => ({ rfId: m.rfId, x: m.oldPos.x, y: m.oldPos.y })))
             await Promise.all(entry.moves.map(m => updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.oldPos.x, y: m.oldPos.y })))
+            entry.moves.forEach(m => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.oldPos.x, y: m.oldPos.y }))
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           } else if (entry.action === 'create') {
             await deleteNode(entry.projectId, entry.nodeType, entry.nodeId)
             store.removeRFNode(entry.rfId)
+            socket.emit('node:deleted', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           } else if (entry.action === 'delete') {
-            const { newRfId, newNodeId } = await recreateNode(entry)
+            const { newRfId, newNodeId, newNodeData } = await recreateNode(entry)
             store.updateHistoryEntry(moveHistoryIndex, { rfId: newRfId, nodeId: newNodeId })
+            socket.emit('node:added', { project_id: entry.projectId, node_type: entry.snapshot.nodeData.nodeType, node_data: newNodeData, position: entry.snapshot.position })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           }
         } catch (err) { console.error('Undo failed:', err) }
@@ -492,18 +496,22 @@ function CanvasInner({ projectId }) {
           if (entry.action === 'move') {
             await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.newPos.x, y: entry.newPos.y })
             store.moveRFNode(entry.rfId, entry.newPos.x, entry.newPos.y)
+            socket.emit('node:moved', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, x: entry.newPos.x, y: entry.newPos.y })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           } else if (entry.action === 'batchMove') {
             store.moveMultipleRFNodes(entry.moves.map(m => ({ rfId: m.rfId, x: m.newPos.x, y: m.newPos.y })))
             await Promise.all(entry.moves.map(m => updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.newPos.x, y: m.newPos.y })))
+            entry.moves.forEach(m => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.newPos.x, y: m.newPos.y }))
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           } else if (entry.action === 'create') {
-            const { newRfId, newNodeId } = await recreateNode(entry)
+            const { newRfId, newNodeId, newNodeData } = await recreateNode(entry)
             store.updateHistoryEntry(moveHistoryIndex + 1, { rfId: newRfId, nodeId: newNodeId })
+            socket.emit('node:added', { project_id: entry.projectId, node_type: entry.snapshot.nodeData.nodeType, node_data: newNodeData, position: entry.snapshot.position })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           } else if (entry.action === 'delete') {
             await deleteNode(entry.projectId, entry.nodeType, entry.nodeId)
             store.removeRFNode(entry.rfId)
+            socket.emit('node:deleted', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           }
         } catch (err) { console.error('Redo failed:', err) }
