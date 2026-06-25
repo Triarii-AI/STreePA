@@ -785,20 +785,20 @@ function CanvasInner({ projectId }) {
       const res = await fetch(_exportUrl('svg'))
       if (!res.ok) throw new Error(`Export failed: ${res.status}`)
       const svgText = await res.text()
+      const dispFilename = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'export.svg'
+      const pngFilename = dispFilename.replace(/\.svg$/i, '.png')
 
-      // Render the server SVG to a canvas for PNG download.
-      const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
-      const svgUrl = URL.createObjectURL(blob)
-
-      // Parse dimensions from the SVG to size the canvas correctly.
+      // Parse SVG dimensions so the canvas is exactly the right size.
       const parser = new DOMParser()
-      const doc = parser.parseFromString(svgText, 'image/svg+xml')
-      const svgEl = doc.documentElement
+      const svgEl = parser.parseFromString(svgText, 'image/svg+xml').documentElement
       const W = parseFloat(svgEl.getAttribute('width') || '1600')
       const H = parseFloat(svgEl.getAttribute('height') || '900')
 
+      // Base64 data URI is more reliably rendered than a blob URL in all browsers.
+      const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)))
+
       const canvas = document.createElement('canvas')
-      const SCALE = 2   // 2× for retina-quality PNG
+      const SCALE = 2
       canvas.width  = W * SCALE
       canvas.height = H * SCALE
       const ctx = canvas.getContext('2d')
@@ -806,22 +806,21 @@ function CanvasInner({ projectId }) {
 
       await new Promise((resolve, reject) => {
         const img = new Image()
-        img.onload = () => { ctx.drawImage(img, 0, 0); resolve() }
-        img.onerror = reject
-        img.src = svgUrl
+        img.onload = () => { ctx.drawImage(img, 0, 0, W, H); resolve() }
+        img.onerror = () => reject(new Error('SVG image failed to load for PNG conversion'))
+        img.src = svgDataUrl
       })
-      URL.revokeObjectURL(svgUrl)
 
-      const dispFilename = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'export.svg'
-      const pngFilename = dispFilename.replace(/\.svg$/i, '.png')
-      canvas.toBlob(pngBlob => {
-        const url = URL.createObjectURL(pngBlob)
-        const a = document.createElement('a')
-        a.download = pngFilename
-        a.href = url
-        a.click()
-        URL.revokeObjectURL(url)
-      }, 'image/png')
+      // Promisify toBlob so errors surface in the catch block.
+      const pngBlob = await new Promise((resolve, reject) =>
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('canvas.toBlob returned null')), 'image/png')
+      )
+      const url = URL.createObjectURL(pngBlob)
+      const a = document.createElement('a')
+      a.download = pngFilename
+      a.href = url
+      a.click()
+      URL.revokeObjectURL(url)
     } catch (err) {
       console.error('PNG export failed:', err)
     } finally {
