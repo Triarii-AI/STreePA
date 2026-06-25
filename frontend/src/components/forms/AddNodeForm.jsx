@@ -80,7 +80,15 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
     })
   }, [nodes])
   const allCAs = useMemo(() => getNodesByType('control_action'), [nodes])
-  const allUCAs = useMemo(() => getNodesByType('uca'), [nodes])
+  const allUCAs = useMemo(() => getNodesByType('uca').sort((a, b) => {
+    const nums = s => (s || '').replace(/[^\d.]/g, '').split('.').map(n => parseInt(n) || 0)
+    const pa = nums(a.label), pb = nums(b.label)
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0)
+      if (d !== 0) return d
+    }
+    return 0
+  }), [nodes])
 
   function getDefaultPosition() {
     const center = preferredCenter || { x: 400, y: LAYER_Y_POSITIONS[nodeType] || 400 }
