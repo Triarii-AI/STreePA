@@ -288,7 +288,6 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   const [selectionCount, setSelectionCount] = useState(0)
   const [singleGroupSelected, setSingleGroupSelected] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
-  const [showExportMenu, setShowExportMenu] = useState(false)
   const [showCrossRefs, setShowCrossRefs] = useState(initialCrossRefs)
   // { [userId]: { rfNodeId, username, avatarColor } }
   const [remoteSelections, setRemoteSelections] = useState({})
@@ -940,27 +939,6 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     return `/api/projects/${projectId}/export?${params}`
   }
 
-  async function exportSvg() {
-    if (isExporting) return
-    setIsExporting(true)
-    try {
-      const res = await fetch(_exportUrl('svg'))
-      if (!res.ok) throw new Error(`Export failed: ${res.status}`)
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      const slug = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'export.svg'
-      a.download = slug
-      a.href = url
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('SVG export failed:', err)
-    } finally {
-      setIsExporting(false)
-    }
-  }
-
   async function exportScreenshot() {
     if (isExporting) return
     setIsExporting(true)
@@ -1125,63 +1103,29 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         {/* Legend + Shortcuts */}
         <Panel position="bottom-right" style={{ bottom: 24, right: 12 }}>
           <div className="flex flex-col items-end gap-2">
-            {/* Export menu */}
-            <div className="relative">
-              {showExportMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
-                  <div className="absolute bottom-full right-0 mb-2 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg overflow-hidden w-28">
-                    <button
-                      onClick={() => { exportScreenshot(); setShowExportMenu(false) }}
-                      disabled={isExporting}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
-                    >
-                      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="1" y="4" width="14" height="10" rx="1.5" />
-                        <circle cx="8" cy="9" r="2.5" />
-                        <path d="M5.5 4L6.5 2h3l1 2" />
-                      </svg>
-                      Export PNG
-                    </button>
-                    <button
-                      onClick={() => { exportSvg(); setShowExportMenu(false) }}
-                      disabled={isExporting}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors border-t border-gray-100 dark:border-gray-700"
-                    >
-                      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="1" y="2" width="14" height="12" rx="1.5" />
-                        <path d="M4 6h2.5M4 10h8M4 8h8" />
-                      </svg>
-                      Export SVG
-                    </button>
-                  </div>
-                </>
+            {/* Export PNG — single-click, no menu */}
+            <button
+              onClick={exportScreenshot}
+              disabled={isExporting}
+              className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
+                isExporting
+                  ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-300 cursor-wait'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+              title="Export PNG"
+            >
+              {isExporting ? (
+                <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="15 50" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="14" height="10" rx="1.5" />
+                  <circle cx="8" cy="9" r="2.5" />
+                  <path d="M5.5 4L6.5 2h3l1 2" />
+                </svg>
               )}
-              <button
-                onClick={() => setShowExportMenu(s => !s)}
-                disabled={isExporting}
-                className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
-                  isExporting
-                    ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-300 cursor-wait'
-                    : showExportMenu
-                      ? 'bg-indigo-600 border-indigo-600 text-white'
-                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'
-                }`}
-                title="Export diagram"
-              >
-                {isExporting ? (
-                  <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray="15 50" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="1" y="4" width="14" height="10" rx="1.5" />
-                    <circle cx="8" cy="9" r="2.5" />
-                    <path d="M5.5 4L6.5 2h3l1 2" />
-                  </svg>
-                )}
-              </button>
-            </div>
+            </button>
 
             {/* Cross-reference edges toggle */}
             <button

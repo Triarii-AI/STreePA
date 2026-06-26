@@ -46,9 +46,9 @@ def _chromium_png(project_id, base_url, cookie_value, *, dark, cross_refs, hidde
             '--out', tmp,
             '--base-url', base_url,
             '--node-zoom', '1.0',
-            '--max-dim', '10000',
-            '--max-output', '20000',
-            '--scale', '2',
+            '--max-css', '12000',  # cap total CSS dim → controls zoom for huge graphs
+            '--tile-size', '3000', # CSS px per tile; physical = 3000*2 = 6000px (safe for GPU)
+            '--scale', '2',        # Retina quality — 2 physical px per CSS px
         ]
         if cookie_value:
             cmd += ['--cookie-name', 'session', '--cookie-value', cookie_value]
@@ -573,10 +573,10 @@ def export_project(project_id):
 
     filename = slug or (project.title or 'export').replace(' ', '-').replace('/', '-')
 
-    if fmt in ('png', 'svg'):
+    if fmt == 'png':
         engine = request.args.get('engine', 'chromium').lower()
 
-        # Headless-Chromium path: screenshot the real React Flow canvas for pixel accuracy.
+        # Headless-Chromium: screenshot the real React Flow canvas for pixel accuracy.
         # Use 127.0.0.1 so the worker fetches from the local Flask process directly,
         # bypassing any reverse proxy / CDN that sits in front of the external hostname.
         if engine == 'chromium':
@@ -588,49 +588,29 @@ def export_project(project_id):
                 dark=dark, cross_refs=show_cross_refs, hidden_ids=hidden_ids,
             )
             if png is not None:
-                if fmt == 'svg':
-                    import base64, struct
-                    w_px, h_px = struct.unpack('>II', png[16:24])
-                    b64 = base64.b64encode(png).decode('ascii')
-                    svg_out = (
-                        f'<svg xmlns="http://www.w3.org/2000/svg"'
-                        f' xmlns:xlink="http://www.w3.org/1999/xlink"'
-                        f' width="{w_px}" height="{h_px}">'
-                        f'<image width="{w_px}" height="{h_px}"'
-                        f' href="data:image/png;base64,{b64}"/>'
-                        f'</svg>'
-                    )
-                    return Response(
-                        svg_out,
-                        mimetype='image/svg+xml; charset=utf-8',
-                        headers={'Content-Disposition': f'attachment; filename="{filename}.svg"'},
-                    )
                 return Response(
                     png,
                     mimetype='image/png',
                     headers={'Content-Disposition': f'attachment; filename="{filename}.png"'},
                 )
-            print(f'[export] chromium {fmt} failed, falling back: {err}', file=sys.stderr)
+            print(f'[export] chromium PNG failed, falling back to cairosvg: {err}', file=sys.stderr)
 
-        if fmt == 'png':
-            try:
-                import cairosvg
-                svg_fallback = _generate_svg(
-                    project, losses, hazards, scs, cas, ucas, lss, cedges,
-                    dark=dark, show_cross_refs=show_cross_refs, hidden_ids=hidden_ids,
-                )
-                png = cairosvg.svg2png(bytestring=svg_fallback.encode('utf-8'))
-                return Response(
-                    png,
-                    mimetype='image/png',
-                    headers={'Content-Disposition': f'attachment; filename="{filename}.png"'},
-                )
-            except ImportError:
-                return {'error': 'cairosvg not installed and chromium render failed; use format=svg'}, 501
+        try:
+            import cairosvg
+            svg_fallback = _generate_svg(
+                project, losses, hazards, scs, cas, ucas, lss, cedges,
+                dark=dark, show_cross_refs=show_cross_refs, hidden_ids=hidden_ids,
+            )
+            png = cairosvg.svg2png(bytestring=svg_fallback.encode('utf-8'))
+            return Response(
+                png,
+                mimetype='image/png',
+                headers={'Content-Disposition': f'attachment; filename="{filename}.png"'},
+            )
+        except ImportError:
+            return {'error': 'cairosvg not installed and chromium render failed; use format=svg'}, 501
 
-        # SVG chromium failed — fall back to the Python generator
-        print('[export] chromium SVG failed, returning python-generated SVG', file=sys.stderr)
-
+    # SVG: true vector output from the Python generator — scalable, editable, small file.
     svg = _generate_svg(
         project, losses, hazards, scs, cas, ucas, lss, cedges,
         dark=dark, show_cross_refs=show_cross_refs, hidden_ids=hidden_ids,
