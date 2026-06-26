@@ -69,12 +69,12 @@ function getNodeColor(type) {
   return colorMap[type] || '#94a3b8'
 }
 
-// Stable reference so MiniMap doesn't see a new prop each render.
+// Stable reference so MiniMap's memoized node list doesn't break on every render.
+// React Flow's MiniMapNodes is memo'd and only re-renders when the set of node IDs
+// changes; an inline `n => getNodeColor(n.type)` arrow would create a new prop each
+// render and force all node rects to repaint. Keeping this module-level is what lets
+// the minimap stay cheap even at 1k+ nodes.
 const minimapNodeColor = (n) => getNodeColor(n.type)
-
-// Above this node count the MiniMap is hidden: it repaints a rect per node on every
-// pan/zoom frame (a real perf sink at scale) and nodes are too small to be useful anyway.
-const MINIMAP_NODE_LIMIT = 500
 
 const RF_PREFIX_TO_TYPE = {
   sc: 'system_constraint', ca: 'control_action', uca: 'uca',
@@ -358,6 +358,15 @@ function CanvasInner({ projectId }) {
       socket.off('project:updated', onProjectUpdated)
     }
   }, [])
+
+  // Stable unless darkMode flips, so the MiniMap doesn't re-render on unrelated
+  // CanvasInner renders (and never on pan, since CanvasInner no longer tracks viewport).
+  const minimapStyle = useMemo(() => ({
+    background: darkMode ? '#1e293b' : '#f8fafc',
+    border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`,
+    borderRadius: 8,
+    overflow: 'hidden',
+  }), [darkMode])
 
   const visibleNodes = useMemo(() => nodes.filter(n => !n.data?.hidden), [nodes])
   const visibleEdges = useMemo(() => edges.filter(e => !e.hidden), [edges])
@@ -1001,15 +1010,13 @@ function CanvasInner({ projectId }) {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant="dots" gap={20} size={1} color={darkMode ? '#334155' : '#e2e8f0'} />
-        {visibleNodes.length <= MINIMAP_NODE_LIMIT && (
-          <MiniMap
-            position="bottom-left"
-            nodeColor={minimapNodeColor}
-            style={{ background: darkMode ? '#1e293b' : '#f8fafc', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, borderRadius: 8, overflow: 'hidden' }}
-            zoomable
-            pannable
-          />
-        )}
+        <MiniMap
+          position="bottom-left"
+          nodeColor={minimapNodeColor}
+          style={minimapStyle}
+          zoomable
+          pannable
+        />
         <Panel position="top-right" style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: 12 }}>
           <button
             onClick={() => reactFlow.zoomIn({ duration: 200 })}
