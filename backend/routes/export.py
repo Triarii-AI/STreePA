@@ -3,6 +3,11 @@ Server-side SVG export for a project.
 
 GET /api/projects/<id>/export?format=svg&theme=light|dark&cross_refs=0|1&hidden=rfId,...
 """
+import os
+import sys
+import subprocess
+import tempfile
+
 from flask import Blueprint, request, Response
 from flask_login import login_required
 from models import (
@@ -12,6 +17,61 @@ from models import (
 from routes.utils import check_project_access
 
 export_bp = Blueprint('export', __name__)
+
+_WORKER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'screenshot_worker.py')
+
+
+def _chromium_png(project_id, base_url, cookie_value, *, dark, cross_refs, hidden_ids):
+    """Render the project's canvas with headless Chromium and return PNG bytes.
+
+    Loads /projects/<id>?render=1 (the bare render-mode canvas), which the worker
+    captures at the graph's natural size — pixel-accurate to the live GUI.
+    Returns (png_bytes, None) on success or (None, error_message).
+    """
+    from urllib.parse import urlencode
+    qs = urlencode({
+        'render': '1',
+        'theme': 'dark' if dark else 'light',
+        'cross_refs': '1' if cross_refs else '0',
+        'hidden': ','.join(hidden_ids),
+    })
+    url = f'{base_url}/projects/{project_id}?{qs}'
+
+    fd, tmp = tempfile.mkstemp(suffix='.png')
+    os.close(fd)
+    try:
+        cmd = [
+            sys.executable, _WORKER,
+            '--url', url,
+            '--out', tmp,
+            '--base-url', base_url,
+            '--node-zoom', '1.0',
+            '--max-dim', '10000',
+            '--max-output', '20000',
+            '--scale', '2',
+        ]
+        if cookie_value:
+            cmd += ['--cookie-name', 'session', '--cookie-value', cookie_value]
+        # CRITICAL: the worker drives a browser that fetches the render page + API back
+        # from THIS server. Under eventlet's single greenlet, a blocking subprocess.run
+        # would freeze the server and deadlock. Run it in eventlet's native thread pool
+        # so the hub keeps serving the browser's requests.
+        try:
+            from eventlet import tpool
+            proc = tpool.execute(subprocess.run, cmd, capture_output=True, timeout=90)
+        except ImportError:
+            proc = subprocess.run(cmd, capture_output=True, timeout=90)
+        if proc.returncode != 0:
+            return None, (proc.stderr.decode('utf-8', 'replace')[-500:] or 'worker failed')
+        with open(tmp, 'rb') as f:
+            return f.read(), None
+    except subprocess.TimeoutExpired:
+        return None, 'screenshot timed out'
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 # ── Colors (exact Tailwind values used by node components) ────────────────────
 
@@ -511,25 +571,70 @@ def export_project(project_id):
     lss     = LossScenario.query.filter_by(project_id=project_id).all()
     cedges  = CanvasEdge.query.filter_by(project_id=project_id).all()
 
+    filename = slug or (project.title or 'export').replace(' ', '-').replace('/', '-')
+
+    if fmt in ('png', 'svg'):
+        engine = request.args.get('engine', 'chromium').lower()
+
+        # Headless-Chromium path: screenshot the real React Flow canvas for pixel accuracy.
+        # Use 127.0.0.1 so the worker fetches from the local Flask process directly,
+        # bypassing any reverse proxy / CDN that sits in front of the external hostname.
+        if engine == 'chromium':
+            server_port = request.environ.get('SERVER_PORT', '5000')
+            local_base = f'http://127.0.0.1:{server_port}'
+            cookie_value = request.cookies.get('session')
+            png, err = _chromium_png(
+                project_id, local_base, cookie_value,
+                dark=dark, cross_refs=show_cross_refs, hidden_ids=hidden_ids,
+            )
+            if png is not None:
+                if fmt == 'svg':
+                    import base64, struct
+                    w_px, h_px = struct.unpack('>II', png[16:24])
+                    b64 = base64.b64encode(png).decode('ascii')
+                    svg_out = (
+                        f'<svg xmlns="http://www.w3.org/2000/svg"'
+                        f' xmlns:xlink="http://www.w3.org/1999/xlink"'
+                        f' width="{w_px}" height="{h_px}">'
+                        f'<image width="{w_px}" height="{h_px}"'
+                        f' href="data:image/png;base64,{b64}"/>'
+                        f'</svg>'
+                    )
+                    return Response(
+                        svg_out,
+                        mimetype='image/svg+xml; charset=utf-8',
+                        headers={'Content-Disposition': f'attachment; filename="{filename}.svg"'},
+                    )
+                return Response(
+                    png,
+                    mimetype='image/png',
+                    headers={'Content-Disposition': f'attachment; filename="{filename}.png"'},
+                )
+            print(f'[export] chromium {fmt} failed, falling back: {err}', file=sys.stderr)
+
+        if fmt == 'png':
+            try:
+                import cairosvg
+                svg_fallback = _generate_svg(
+                    project, losses, hazards, scs, cas, ucas, lss, cedges,
+                    dark=dark, show_cross_refs=show_cross_refs, hidden_ids=hidden_ids,
+                )
+                png = cairosvg.svg2png(bytestring=svg_fallback.encode('utf-8'))
+                return Response(
+                    png,
+                    mimetype='image/png',
+                    headers={'Content-Disposition': f'attachment; filename="{filename}.png"'},
+                )
+            except ImportError:
+                return {'error': 'cairosvg not installed and chromium render failed; use format=svg'}, 501
+
+        # SVG chromium failed — fall back to the Python generator
+        print('[export] chromium SVG failed, returning python-generated SVG', file=sys.stderr)
+
     svg = _generate_svg(
         project, losses, hazards, scs, cas, ucas, lss, cedges,
         dark=dark, show_cross_refs=show_cross_refs, hidden_ids=hidden_ids,
     )
-
-    filename = slug or (project.title or 'export').replace(' ', '-').replace('/', '-')
-
-    if fmt == 'png':
-        try:
-            import cairosvg
-            png = cairosvg.svg2png(bytestring=svg.encode('utf-8'))
-            return Response(
-                png,
-                mimetype='image/png',
-                headers={'Content-Disposition': f'attachment; filename="{filename}.png"'},
-            )
-        except ImportError:
-            return {'error': 'cairosvg not installed; use format=svg'}, 501
-
     return Response(
         svg,
         mimetype='image/svg+xml; charset=utf-8',

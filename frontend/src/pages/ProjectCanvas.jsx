@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
+import React, { useEffect, useCallback, useMemo } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { getProject } from '../api.js'
 import useCanvasStore from '../store/canvasStore.js'
 import socket from '../socket.js'
@@ -62,8 +62,59 @@ function convertToRFEdge(data) {
   }
 }
 
+// Render mode: a bare, full-screen canvas used by the headless-Chromium screenshot
+// worker. No toolbar/sidebar/sockets — just the real React Flow rendering, themed and
+// fit to view, which the worker captures for pixel-accurate PNG export.
+// URL: /projects/:id?render=1&theme=dark&cross_refs=1&hidden=loss-3,hazard-7
+function RenderModeCanvas({ id, themeDark, crossRefs, hiddenIds }) {
+  const loadProject = useCanvasStore(s => s.loadProject)
+
+  // Apply theme before/while loading so the first paint is already correct.
+  useEffect(() => {
+    useCanvasStore.setState({ darkMode: themeDark, viewOnly: true })
+    document.documentElement.classList.toggle('dark', themeDark)
+  }, [themeDark])
+
+  useEffect(() => {
+    if (!id) return
+    getProject(id)
+      .then(data => {
+        loadProject(data)
+        if (hiddenIds.length > 0) {
+          const hide = new Set(hiddenIds)
+          useCanvasStore.setState(state => ({
+            nodes: state.nodes.map(n => hide.has(n.id) ? { ...n, data: { ...n.data, hidden: true } } : n),
+            edges: state.edges.map(e =>
+              hide.has(e.source) || hide.has(e.target) ? { ...e, hidden: true } : e
+            ),
+          }))
+        }
+      })
+      .catch(err => console.error('Render-mode load failed:', err))
+  }, [id, loadProject, hiddenIds])
+
+  // NOTE: flex flex-col is required — Canvas's root uses `flex-1` for its height, which
+  // collapses to 0 (clipping the whole graph) unless the parent is a flex container.
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-gray-900" data-export-canvas>
+      <ReactFlowProvider>
+        <Canvas projectId={id} renderMode initialCrossRefs={crossRefs} />
+      </ReactFlowProvider>
+    </div>
+  )
+}
+
 export default function ProjectCanvas() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
+  const renderMode = searchParams.get('render') === '1'
+  const themeDark = searchParams.get('theme') === 'dark'
+  const crossRefs = searchParams.get('cross_refs') === '1'
+  const hiddenIds = useMemo(() => {
+    const raw = searchParams.get('hidden') || ''
+    return raw.split(',').map(s => s.trim()).filter(Boolean)
+  }, [searchParams])
+
   const currentProject = useCanvasStore(s => s.currentProject)
   const loadProject = useCanvasStore(s => s.loadProject)
   const addRFNode = useCanvasStore(s => s.addRFNode)
@@ -130,7 +181,7 @@ export default function ProjectCanvas() {
   }, [setActiveUsers])
 
   useEffect(() => {
-    if (!id) return
+    if (!id || renderMode) return
 
     getProject(id)
       .then(data => loadProject(data))
@@ -173,7 +224,11 @@ export default function ProjectCanvas() {
       socket.off('share:role_changed', onRoleChanged)
       socket.disconnect()
     }
-  }, [id])
+  }, [id, renderMode])
+
+  if (renderMode) {
+    return <RenderModeCanvas id={id} themeDark={themeDark} crossRefs={crossRefs} hiddenIds={hiddenIds} />
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-gray-900">

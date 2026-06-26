@@ -10,6 +10,8 @@ import {
   MiniMap,
   Panel,
   useReactFlow,
+  useNodesInitialized,
+  getNodesBounds,
   applyNodeChanges,
   applyEdgeChanges,
 } from '@xyflow/react'
@@ -268,8 +270,9 @@ async function recreateNode(entry) {
   return { newRfId, newNodeId, newNodeData }
 }
 
-function CanvasInner({ projectId }) {
+function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }) {
   const reactFlow = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
   const nodes = useCanvasStore(s => s.nodes)
   const edges = useCanvasStore(s => s.edges)
   const setSelectedNode = useCanvasStore(s => s.setSelectedNode)
@@ -286,7 +289,7 @@ function CanvasInner({ projectId }) {
   const [singleGroupSelected, setSingleGroupSelected] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [showCrossRefs, setShowCrossRefs] = useState(false)
+  const [showCrossRefs, setShowCrossRefs] = useState(initialCrossRefs)
   // { [userId]: { rfNodeId, username, avatarColor } }
   const [remoteSelections, setRemoteSelections] = useState({})
   // { [userId]: { x, y, username, avatarColor } }
@@ -397,6 +400,43 @@ function CanvasInner({ projectId }) {
       }
     })
   }, [visibleEdges, selectedNode, showCrossRefs])
+
+  // ── Render mode (headless-Chromium screenshot target) ─────────────────────────
+  // Hide all on-canvas chrome via CSS (panels, minimap, controls), fit the graph once
+  // node dimensions are known, then flip window.__EXPORT_READY__ so the worker knows
+  // it's safe to capture. Kept as one isolated effect so the interactive path is untouched.
+  useEffect(() => {
+    if (!renderMode) return
+    const styleId = 'rf-render-mode'
+    if (!document.getElementById(styleId)) {
+      const el = document.createElement('style')
+      el.id = styleId
+      el.textContent = `
+        .react-flow__panel, .react-flow__minimap, .react-flow__controls,
+        .react-flow__background { pointer-events: none; }
+        .react-flow__panel, .react-flow__minimap, .react-flow__controls { display: none !important; }
+      `
+      document.head.appendChild(el)
+    }
+  }, [renderMode])
+
+  useEffect(() => {
+    if (!renderMode) return
+    if (!nodesInitialized || visibleNodes.length === 0) return
+    // Publish the graph's model-space bounding box and a direct viewport setter so the
+    // screenshot worker can size the output canvas to the content and place it exactly,
+    // instead of relying on fitView (whose result depends on container-size timing).
+    const bounds = getNodesBounds(reactFlow.getNodes().filter(n => !n.data?.hidden))
+    window.__EXPORT_BOUNDS__ = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
+    window.__rfSetViewport = (vp) => reactFlow.setViewport(vp, { duration: 0 })
+    // Default fit so the page isn't empty even if the worker never resizes.
+    reactFlow.fitView({ padding: 0.1, duration: 0 })
+    let raf2
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => { window.__EXPORT_READY__ = true })
+    })
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
+  }, [renderMode, nodesInitialized, visibleNodes.length, showCrossRefs, reactFlow])
 
   // Empty dep arrays: read current state via getState() so these callbacks are created
   // once and never recreated. Stable references prevent React Flow from re-reconciling
@@ -925,44 +965,13 @@ function CanvasInner({ projectId }) {
     if (isExporting) return
     setIsExporting(true)
     try {
-      const res = await fetch(_exportUrl('svg'))
+      const res = await fetch(_exportUrl('png'))
       if (!res.ok) throw new Error(`Export failed: ${res.status}`)
-      const svgText = await res.text()
-      const dispFilename = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'export.svg'
-      const pngFilename = dispFilename.replace(/\.svg$/i, '.png')
-
-      // Parse SVG dimensions so the canvas is exactly the right size.
-      const parser = new DOMParser()
-      const svgEl = parser.parseFromString(svgText, 'image/svg+xml').documentElement
-      const W = parseFloat(svgEl.getAttribute('width') || '1600')
-      const H = parseFloat(svgEl.getAttribute('height') || '900')
-
-      // Base64 data URI is more reliably rendered than a blob URL in all browsers.
-      const svgDataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)))
-
-      // Cap canvas dimensions: Safari/iOS fails silently when a canvas exceeds ~4096px.
-      const MAX_DIM = 8192
-      const SCALE = Math.min(2, MAX_DIM / Math.max(W, H, 1))
-      const canvas = document.createElement('canvas')
-      canvas.width  = Math.round(W * SCALE)
-      canvas.height = Math.round(H * SCALE)
-      const ctx = canvas.getContext('2d')
-      ctx.scale(SCALE, SCALE)
-
-      await new Promise((resolve, reject) => {
-        const img = new Image()
-        img.onload = () => { ctx.drawImage(img, 0, 0, W, H); resolve() }
-        img.onerror = () => reject(new Error('SVG image failed to load for PNG conversion'))
-        img.src = svgDataUrl
-      })
-
-      // Promisify toBlob — null means the canvas is too large or tainted.
-      const pngBlob = await new Promise((resolve, reject) =>
-        canvas.toBlob(b => b ? resolve(b) : reject(new Error('PNG canvas export failed (canvas may be too large)')), 'image/png')
-      )
-      const url = URL.createObjectURL(pngBlob)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.download = pngFilename
+      const slug = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'export.png'
+      a.download = slug
       a.href = url
       document.body.appendChild(a)
       a.click()
@@ -1000,8 +1009,8 @@ function CanvasInner({ projectId }) {
         edgeTypes={edgeTypes}
         defaultEdgeOptions={{ type: 'floating' }}
         deleteKeyCode={null}
-        minZoom={0.05}
-        onlyRenderVisibleElements={!isExporting}
+        minZoom={renderMode ? 0.001 : 0.05}
+        onlyRenderVisibleElements={!isExporting && !renderMode}
         selectionOnDrag
         panOnDrag={[1, 2]}
         multiSelectionKeyCode="Shift"
@@ -1265,6 +1274,6 @@ function CanvasInner({ projectId }) {
   )
 }
 
-export default function Canvas({ projectId }) {
-  return <CanvasInner projectId={projectId} />
+export default function Canvas({ projectId, renderMode = false, initialCrossRefs = false }) {
+  return <CanvasInner projectId={projectId} renderMode={renderMode} initialCrossRefs={initialCrossRefs} />
 }
