@@ -26,10 +26,30 @@ function nodeTypeToPrefix(nodeType) {
 }
 
 function buildNodesAndEdges(data) {
-  const { project, losses = [], hazards = [], system_constraints = [], control_actions = [], ucas = [], loss_scenarios = [], canvas_edges = [] } = data
+  const { project, losses = [], hazards = [], system_constraints = [], control_actions = [], ucas = [], loss_scenarios = [], canvas_edges = [], groups = [] } = data
 
   const nodes = []
   const edges = []
+
+  // Group nodes — must come BEFORE their children so React Flow resolves parentId correctly.
+  // Sort: top-level groups first, then nested groups.
+  const sortedGroups = [...groups].sort((a, b) => {
+    if (!a.parent_group_id && b.parent_group_id) return -1
+    if (a.parent_group_id && !b.parent_group_id) return 1
+    return 0
+  })
+  sortedGroups.forEach(g => {
+    const rfGroup = {
+      id: `group-${g.id}`,
+      type: 'groupNode',
+      position: { x: g.x ?? 0, y: g.y ?? 0 },
+      style: { width: g.width ?? 200, height: g.height ?? 200 },
+      data: { label: g.label || '', nodeType: 'group', groupId: g.id },
+      zIndex: -1,
+    }
+    if (g.parent_group_id) rfGroup.parentId = `group-${g.parent_group_id}`
+    nodes.push(rfGroup)
+  })
 
   // Root node
   nodes.push({
@@ -41,12 +61,14 @@ function buildNodesAndEdges(data) {
 
   // Loss nodes
   losses.forEach((l, idx) => {
-    nodes.push({
+    const rfNode = {
       id: `loss-${l.id}`,
       type: 'lossNode',
       position: { x: (l.x && l.x !== 0) ? l.x : idx * NODE_HORIZONTAL_SPACING + 100, y: (l.y && l.y !== 0) ? l.y : LAYER_Y_POSITIONS.loss },
       data: { ...l, nodeType: 'loss' },
-    })
+    }
+    if (l.group_id) rfNode.parentId = `group-${l.group_id}`
+    nodes.push(rfNode)
     edges.push(makeEdge(`root-${project.id}`, `loss-${l.id}`, false))
   })
 
@@ -55,24 +77,28 @@ function buildNodesAndEdges(data) {
   const subHazards = hazards.filter(h => h.parent_hazard_id)
 
   topHazards.forEach((h, idx) => {
-    nodes.push({
+    const rfNode = {
       id: `hazard-${h.id}`,
       type: 'hazardNode',
       position: { x: (h.x && h.x !== 0) ? h.x : idx * NODE_HORIZONTAL_SPACING + 100, y: (h.y && h.y !== 0) ? h.y : LAYER_Y_POSITIONS.hazard },
       data: { ...h, nodeType: 'hazard' },
-    })
+    }
+    if (h.group_id) rfNode.parentId = `group-${h.group_id}`
+    nodes.push(rfNode)
   })
 
   subHazards.forEach((h, idx) => {
     const parentNode = nodes.find(n => n.id === `hazard-${h.parent_hazard_id}`)
     const parentX = parentNode ? parentNode.position.x : 100
     const parentY = parentNode ? parentNode.position.y : LAYER_Y_POSITIONS.hazard
-    nodes.push({
+    const rfNode = {
       id: `hazard-${h.id}`,
       type: 'hazardNode',
       position: { x: (h.x && h.x !== 0) ? h.x : parentX + (idx % 2 === 0 ? 0 : 100), y: (h.y && h.y !== 0) ? h.y : parentY + 100 },
       data: { ...h, nodeType: 'hazard' },
-    })
+    }
+    if (h.group_id) rfNode.parentId = `group-${h.group_id}`
+    nodes.push(rfNode)
     edges.push(makeEdge(`hazard-${h.parent_hazard_id}`, `hazard-${h.id}`, false))
   })
 
@@ -87,12 +113,14 @@ function buildNodesAndEdges(data) {
 
   // System constraint nodes
   system_constraints.forEach((sc, idx) => {
-    nodes.push({
+    const rfNode = {
       id: `sc-${sc.id}`,
       type: 'scNode',
       position: { x: (sc.x && sc.x !== 0) ? sc.x : idx * NODE_HORIZONTAL_SPACING + 100, y: (sc.y && sc.y !== 0) ? sc.y : LAYER_Y_POSITIONS.system_constraint },
       data: { ...sc, nodeType: 'system_constraint' },
-    })
+    }
+    if (sc.group_id) rfNode.parentId = `group-${sc.group_id}`
+    nodes.push(rfNode)
     if (sc.linked_hazard_id) {
       edges.push(makeEdge(`hazard-${sc.linked_hazard_id}`, `sc-${sc.id}`, false))
     }
@@ -104,22 +132,26 @@ function buildNodesAndEdges(data) {
 
   // Control action nodes
   control_actions.forEach((ca, idx) => {
-    nodes.push({
+    const rfNode = {
       id: `ca-${ca.id}`,
       type: 'caNode',
       position: { x: (ca.x && ca.x !== 0) ? ca.x : idx * NODE_HORIZONTAL_SPACING + 100, y: (ca.y && ca.y !== 0) ? ca.y : LAYER_Y_POSITIONS.control_action },
       data: { ...ca, nodeType: 'control_action' },
-    })
+    }
+    if (ca.group_id) rfNode.parentId = `group-${ca.group_id}`
+    nodes.push(rfNode)
   })
 
   // UCA nodes
   ucas.forEach((u, idx) => {
-    nodes.push({
+    const rfNode = {
       id: `uca-${u.id}`,
       type: 'ucaNode',
       position: { x: (u.x && u.x !== 0) ? u.x : idx * NODE_HORIZONTAL_SPACING + 100, y: (u.y && u.y !== 0) ? u.y : LAYER_Y_POSITIONS.uca },
       data: { ...u, nodeType: 'uca' },
-    })
+    }
+    if (u.group_id) rfNode.parentId = `group-${u.group_id}`
+    nodes.push(rfNode)
     if (u.control_action_id) {
       edges.push(makeEdge(`ca-${u.control_action_id}`, `uca-${u.id}`, false))
     }
@@ -132,12 +164,14 @@ function buildNodesAndEdges(data) {
 
   // Loss scenario nodes
   loss_scenarios.forEach((ls, idx) => {
-    nodes.push({
+    const rfNode = {
       id: `ls-${ls.id}`,
       type: 'lsNode',
       position: { x: (ls.x && ls.x !== 0) ? ls.x : idx * NODE_HORIZONTAL_SPACING + 100, y: (ls.y && ls.y !== 0) ? ls.y : LAYER_Y_POSITIONS.loss_scenario },
       data: { ...ls, nodeType: 'loss_scenario' },
-    })
+    }
+    if (ls.group_id) rfNode.parentId = `group-${ls.group_id}`
+    nodes.push(rfNode)
     if (ls.uca_id) {
       edges.push(makeEdge(`uca-${ls.uca_id}`, `ls-${ls.id}`, false))
     }
@@ -278,6 +312,21 @@ const useCanvasStore = create((set, get) => ({
       nodes: state.nodes.filter(n => n.id !== rfNodeId),
       edges: state.edges.filter(e => e.source !== rfNodeId && e.target !== rfNodeId),
       selectedNode: state.selectedNode?.id === rfNodeId ? null : state.selectedNode,
+    }))
+  },
+
+  setRFNodeParentAndPos(rfNodeId, parentId, position) {
+    set(state => ({
+      nodes: state.nodes.map(n => {
+        if (n.id !== rfNodeId) return n
+        const updated = { ...n, position: position || n.position }
+        if (parentId) {
+          updated.parentId = parentId
+        } else {
+          delete updated.parentId
+        }
+        return updated
+      }),
     }))
   },
 

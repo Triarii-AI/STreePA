@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 from extensions import db, socketio
 from models import (
     Project, ProjectShare, User, Loss, Hazard, SystemConstraint,
-    ControlAction, UCA, LossScenario, CanvasEdge
+    ControlAction, UCA, LossScenario, CanvasEdge, NodeGroup
 )
 from routes.utils import check_project_access, get_user_role
 
@@ -129,6 +129,7 @@ def get_project(project_id):
     ucas = UCA.query.filter_by(project_id=project_id).all()
     lss = LossScenario.query.filter_by(project_id=project_id).all()
     edges = CanvasEdge.query.filter_by(project_id=project_id).all()
+    groups = NodeGroup.query.filter_by(project_id=project_id).all()
 
     return jsonify({
         'project': project.to_dict(),
@@ -139,7 +140,8 @@ def get_project(project_id):
         'control_actions': [ca.to_dict() for ca in cas],
         'ucas': [u.to_dict() for u in ucas],
         'loss_scenarios': [ls.to_dict() for ls in lss],
-        'canvas_edges': [e.to_dict() for e in edges]
+        'canvas_edges': [e.to_dict() for e in edges],
+        'groups': [g.to_dict() for g in groups],
     })
 
 

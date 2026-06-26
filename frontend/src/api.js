@@ -194,6 +194,26 @@ export async function saveBackupSettings(settings) {
   })
 }
 
+export async function createGroup(projectId, data) {
+  return request(`/api/projects/${projectId}/groups`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateGroup(projectId, groupId, data) {
+  return request(`/api/projects/${projectId}/groups/${groupId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteGroup(projectId, groupId) {
+  return request(`/api/projects/${projectId}/groups/${groupId}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function createCanvasEdge(projectId, data) {
   return request(`/api/projects/${projectId}/canvas_edges`, {
     method: 'POST',

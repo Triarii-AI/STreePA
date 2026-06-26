@@ -80,6 +80,7 @@ class Project(db.Model):
     ucas = db.relationship('UCA', backref='project', cascade='all, delete-orphan', lazy=True)
     loss_scenarios = db.relationship('LossScenario', backref='project', cascade='all, delete-orphan', lazy=True)
     canvas_edges = db.relationship('CanvasEdge', backref='project', cascade='all, delete-orphan', lazy=True)
+    groups = db.relationship('NodeGroup', backref='project', cascade='all, delete-orphan', lazy=True)
 
     def to_dict(self):
         return {
@@ -116,6 +117,7 @@ class Loss(db.Model):
     description = db.Column(db.Text, nullable=True)
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
+    group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
 
     def to_dict(self):
         return {
@@ -124,7 +126,8 @@ class Loss(db.Model):
             'label': self.label,
             'description': self.description,
             'x': self.x,
-            'y': self.y
+            'y': self.y,
+            'group_id': self.group_id,
         }
 
 
@@ -138,6 +141,7 @@ class Hazard(db.Model):
     parent_hazard_id = db.Column(db.Integer, db.ForeignKey('hazards.id', ondelete='CASCADE'), nullable=True)
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
+    group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
 
     sub_hazards = db.relationship('Hazard', backref=db.backref('parent', remote_side='Hazard.id'), lazy=True)
     linked_losses = db.relationship('Loss', secondary=hazard_loss_links, lazy=True)
@@ -154,7 +158,8 @@ class Hazard(db.Model):
             'parent_hazard_id': self.parent_hazard_id,
             'x': self.x,
             'y': self.y,
-            'loss_ids': loss_ids
+            'loss_ids': loss_ids,
+            'group_id': self.group_id,
         }
 
 
@@ -168,6 +173,7 @@ class SystemConstraint(db.Model):
     linked_hazard_id = db.Column(db.Integer, db.ForeignKey('hazards.id', ondelete='SET NULL'), nullable=True)
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
+    group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
 
     linked_hazards = db.relationship('Hazard', secondary=sc_hazard_links, lazy=True)
 
@@ -185,7 +191,8 @@ class SystemConstraint(db.Model):
             'linked_hazard_id': self.linked_hazard_id,
             'hazard_ids': hazard_ids,
             'x': self.x,
-            'y': self.y
+            'y': self.y,
+            'group_id': self.group_id,
         }
 
 
@@ -198,6 +205,7 @@ class ControlAction(db.Model):
     name = db.Column(db.String(255), nullable=True)
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
+    group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
 
     ucas = db.relationship('UCA', backref='control_action', cascade='save-update, merge', lazy=True)
 
@@ -208,7 +216,8 @@ class ControlAction(db.Model):
             'label': self.label,
             'name': self.name,
             'x': self.x,
-            'y': self.y
+            'y': self.y,
+            'group_id': self.group_id,
         }
 
 
@@ -226,6 +235,7 @@ class UCA(db.Model):
     )
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
+    group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
 
     linked_hazards = db.relationship('Hazard', secondary=uca_hazard_links, lazy=True)
     loss_scenarios = db.relationship('LossScenario', backref='uca', cascade='save-update, merge', lazy=True)
@@ -243,7 +253,8 @@ class UCA(db.Model):
             'uca_type': self.uca_type,
             'x': self.x,
             'y': self.y,
-            'hazard_ids': hazard_ids
+            'hazard_ids': hazard_ids,
+            'group_id': self.group_id,
         }
 
 
@@ -257,6 +268,7 @@ class LossScenario(db.Model):
     uca_id = db.Column(db.Integer, db.ForeignKey('ucas.id', ondelete='SET NULL'), nullable=True)
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
+    group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
 
     linked_hazards = db.relationship('Hazard', secondary=ls_hazard_links, lazy=True)
 
@@ -272,7 +284,33 @@ class LossScenario(db.Model):
             'uca_id': self.uca_id,
             'x': self.x,
             'y': self.y,
-            'hazard_ids': hazard_ids
+            'hazard_ids': hazard_ids,
+            'group_id': self.group_id,
+        }
+
+
+class NodeGroup(db.Model):
+    __tablename__ = 'node_groups'
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
+    label = db.Column(db.String(200), nullable=True)
+    x = db.Column(db.Float, default=0.0)
+    y = db.Column(db.Float, default=0.0)
+    width = db.Column(db.Float, default=200.0)
+    height = db.Column(db.Float, default=200.0)
+    parent_group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'project_id': self.project_id,
+            'label': self.label or '',
+            'x': self.x,
+            'y': self.y,
+            'width': self.width,
+            'height': self.height,
+            'parent_group_id': self.parent_group_id,
         }
 
 

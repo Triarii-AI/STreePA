@@ -18,7 +18,7 @@ import '@xyflow/react/dist/style.css'
 
 import useCanvasStore from '../store/canvasStore.js'
 import socket from '../socket.js'
-import { updateNode, updateProject, deleteNode, createNode, createLink } from '../api.js'
+import { updateNode, updateProject, deleteNode, createNode, createLink, createGroup, updateGroup, deleteGroup } from '../api.js'
 import { makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 
 import RootNode from './nodes/RootNode.jsx'
@@ -28,6 +28,7 @@ import SCNode from './nodes/SCNode.jsx'
 import CANode from './nodes/CANode.jsx'
 import UCANode from './nodes/UCANode.jsx'
 import LSNode from './nodes/LSNode.jsx'
+import GroupNode from './nodes/GroupNode.jsx'
 import AddNodeForm from './forms/AddNodeForm.jsx'
 import FloatingEdge from './edges/FloatingEdge.jsx'
 
@@ -39,6 +40,7 @@ const nodeTypes = {
   caNode: CANode,
   ucaNode: UCANode,
   lsNode: LSNode,
+  groupNode: GroupNode,
 }
 
 const edgeTypes = {
@@ -70,6 +72,7 @@ function getNodeColor(type) {
 const RF_PREFIX_TO_TYPE = {
   sc: 'system_constraint', ca: 'control_action', uca: 'uca',
   ls: 'loss_scenario', loss: 'loss', hazard: 'hazard', root: 'root',
+  group: 'group',
 }
 
 function AlignLeftIcon() {
@@ -273,6 +276,7 @@ function CanvasInner({ projectId }) {
   const [fitDone, setFitDone] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [selectionCount, setSelectionCount] = useState(0)
+  const [singleGroupSelected, setSingleGroupSelected] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showCrossRefs, setShowCrossRefs] = useState(false)
@@ -401,7 +405,9 @@ function CanvasInner({ projectId }) {
   }, [projectId, reactFlow])
 
   const onSelectionChange = useCallback(({ nodes }) => {
-    setSelectionCount(nodes.filter(n => !n.data?.hidden).length)
+    const visible = nodes.filter(n => !n.data?.hidden)
+    setSelectionCount(visible.length)
+    setSingleGroupSelected(visible.length === 1 && visible[0].type === 'groupNode')
   }, [])
 
   const onNodeDragStart = useCallback((e, node, draggedNodes) => {
@@ -423,6 +429,11 @@ function CanvasInner({ projectId }) {
       try {
         if (nodeType === 'root') {
           await updateProject(projectId, { root_x: newPos.x, root_y: newPos.y })
+        } else if (nodeType === 'group') {
+          await updateGroup(projectId, nodeId, newPos)
+          if (oldPos && (oldPos.x !== newPos.x || oldPos.y !== newPos.y)) {
+            historyMoves.push({ rfId: n.id, nodeType, nodeId, projectId, oldPos, newPos })
+          }
         } else {
           await updateNode(projectId, nodeType, nodeId, newPos)
           socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, ...newPos })
@@ -458,30 +469,48 @@ function CanvasInner({ projectId }) {
 
       // ── Delete selected node(s) ───────────────────────────────────────
       if ((e.key === 'Delete' || e.key === 'Backspace') && !ctrl) {
-        const selectedNodes = reactFlow.getNodes().filter(n => n.selected && n.data.nodeType !== 'root')
-        if (selectedNodes.length === 0) return
+        const allSelected = reactFlow.getNodes().filter(n => n.selected && n.data.nodeType !== 'root')
+        const selectedGroups = allSelected.filter(n => n.type === 'groupNode')
+        const selectedNodes = allSelected.filter(n => n.type !== 'groupNode')
+        if (allSelected.length === 0) return
         e.preventDefault()
-        const confirmMsg = selectedNodes.length === 1 ? 'Delete this node?' : `Delete ${selectedNodes.length} nodes?`
-        if (!window.confirm(confirmMsg)) return
-        for (const node of selectedNodes) {
-          const { nodeType, id: nodeId } = node.data
-          const snapshot = {
-            nodeData: { ...node.data },
-            position: { ...node.position },
-            rfNodeType: node.type,
-          }
+        // Groups: ungroup (non-destructive — releases members, removes frame only)
+        for (const groupNode of selectedGroups) {
           try {
-            const result = await deleteNode(projectId, nodeType, nodeId)
-            snapshot.orphaned = result?.orphaned || []
-            socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
-            store.removeRFNode(node.id)
-            store.pushHistory({ action: 'delete', rfId: node.id, nodeType, nodeId, projectId, snapshot })
-            ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
-              const nullField = ORPHAN_NULL_FIELD[nt]
-              const prefix = nodeTypeToPrefix(nt)
-              store.updateRFNode(`${prefix}-${id}`, { label, ...(nullField ? { [nullField]: null } : {}) })
+            const result = await deleteGroup(projectId, groupNode.data.groupId)
+            result.released_members.forEach(({ node_type, node_id, abs_x, abs_y }) => {
+              const rfId = node_type === 'group'
+                ? `group-${node_id}`
+                : `${nodeTypeToPrefix(node_type)}-${node_id}`
+              store.setRFNodeParentAndPos(rfId, null, { x: abs_x, y: abs_y })
             })
-          } catch (err) { console.error('Delete failed:', err) }
+            store.removeRFNode(`group-${groupNode.data.groupId}`)
+          } catch (err) { console.error('Ungroup failed:', err) }
+        }
+        // Regular nodes: confirm then delete
+        if (selectedNodes.length > 0) {
+          const confirmMsg = selectedNodes.length === 1 ? 'Delete this node?' : `Delete ${selectedNodes.length} nodes?`
+          if (!window.confirm(confirmMsg)) { store.setSelectedNode(null); return }
+          for (const node of selectedNodes) {
+            const { nodeType, id: nodeId } = node.data
+            const snapshot = {
+              nodeData: { ...node.data },
+              position: { ...node.position },
+              rfNodeType: node.type,
+            }
+            try {
+              const result = await deleteNode(projectId, nodeType, nodeId)
+              snapshot.orphaned = result?.orphaned || []
+              socket.emit('node:deleted', { project_id: projectId, node_type: nodeType, node_id: nodeId })
+              store.removeRFNode(node.id)
+              store.pushHistory({ action: 'delete', rfId: node.id, nodeType, nodeId, projectId, snapshot })
+              ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
+                const nullField = ORPHAN_NULL_FIELD[nt]
+                const prefix = nodeTypeToPrefix(nt)
+                store.updateRFNode(`${prefix}-${id}`, { label, ...(nullField ? { [nullField]: null } : {}) })
+              })
+            } catch (err) { console.error('Delete failed:', err) }
+          }
         }
         store.setSelectedNode(null)
         return
@@ -495,14 +524,23 @@ function CanvasInner({ projectId }) {
         const entry = moveHistory[moveHistoryIndex]
         try {
           if (entry.action === 'move') {
-            await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.oldPos.x, y: entry.oldPos.y })
+            if (entry.nodeType === 'group') {
+              await updateGroup(entry.projectId, entry.nodeId, { x: entry.oldPos.x, y: entry.oldPos.y })
+            } else {
+              await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.oldPos.x, y: entry.oldPos.y })
+              socket.emit('node:moved', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, x: entry.oldPos.x, y: entry.oldPos.y })
+            }
             store.moveRFNode(entry.rfId, entry.oldPos.x, entry.oldPos.y)
-            socket.emit('node:moved', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, x: entry.oldPos.x, y: entry.oldPos.y })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           } else if (entry.action === 'batchMove') {
             store.moveMultipleRFNodes(entry.moves.map(m => ({ rfId: m.rfId, x: m.oldPos.x, y: m.oldPos.y })))
-            await Promise.all(entry.moves.map(m => updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.oldPos.x, y: m.oldPos.y })))
-            entry.moves.forEach(m => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.oldPos.x, y: m.oldPos.y }))
+            await Promise.all(entry.moves.map(m =>
+              (m.nodeType === 'group'
+                ? updateGroup(m.projectId, m.nodeId, { x: m.oldPos.x, y: m.oldPos.y })
+                : updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.oldPos.x, y: m.oldPos.y })
+                    .then(() => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.oldPos.x, y: m.oldPos.y }))
+              ).catch(() => {})
+            ))
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           } else if (entry.action === 'create') {
             await deleteNode(entry.projectId, entry.nodeType, entry.nodeId)
@@ -527,14 +565,23 @@ function CanvasInner({ projectId }) {
         const entry = moveHistory[moveHistoryIndex + 1]
         try {
           if (entry.action === 'move') {
-            await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.newPos.x, y: entry.newPos.y })
+            if (entry.nodeType === 'group') {
+              await updateGroup(entry.projectId, entry.nodeId, { x: entry.newPos.x, y: entry.newPos.y })
+            } else {
+              await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { x: entry.newPos.x, y: entry.newPos.y })
+              socket.emit('node:moved', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, x: entry.newPos.x, y: entry.newPos.y })
+            }
             store.moveRFNode(entry.rfId, entry.newPos.x, entry.newPos.y)
-            socket.emit('node:moved', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, x: entry.newPos.x, y: entry.newPos.y })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           } else if (entry.action === 'batchMove') {
             store.moveMultipleRFNodes(entry.moves.map(m => ({ rfId: m.rfId, x: m.newPos.x, y: m.newPos.y })))
-            await Promise.all(entry.moves.map(m => updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.newPos.x, y: m.newPos.y })))
-            entry.moves.forEach(m => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.newPos.x, y: m.newPos.y }))
+            await Promise.all(entry.moves.map(m =>
+              (m.nodeType === 'group'
+                ? updateGroup(m.projectId, m.nodeId, { x: m.newPos.x, y: m.newPos.y })
+                : updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.newPos.x, y: m.newPos.y })
+                    .then(() => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.newPos.x, y: m.newPos.y }))
+              ).catch(() => {})
+            ))
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           } else if (entry.action === 'create') {
             const { newRfId, newNodeId, newNodeData } = await recreateNode(entry)
@@ -573,9 +620,11 @@ function CanvasInner({ projectId }) {
           : { action: 'batchMove', moves: historyMoves }
         )
         await Promise.all(historyMoves.map(m =>
-          updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.newPos.x, y: m.newPos.y })
-            .then(() => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.newPos.x, y: m.newPos.y }))
-            .catch(err => console.error('Arrow move failed:', err))
+          (m.nodeType === 'group'
+            ? updateGroup(m.projectId, m.nodeId, { x: m.newPos.x, y: m.newPos.y })
+            : updateNode(m.projectId, m.nodeType, m.nodeId, { x: m.newPos.x, y: m.newPos.y })
+                .then(() => socket.emit('node:moved', { project_id: m.projectId, node_type: m.nodeType, node_id: m.nodeId, x: m.newPos.x, y: m.newPos.y }))
+          ).catch(err => console.error('Arrow move failed:', err))
         ))
         return
       }
@@ -583,7 +632,7 @@ function CanvasInner({ projectId }) {
       // ── Copy selected node (Ctrl+C) ────────────────────────────────────
       if (ctrl && e.key === 'c') {
         const { selectedNode } = store
-        if (!selectedNode || selectedNode.data.nodeType === 'root') return
+        if (!selectedNode || selectedNode.data.nodeType === 'root' || selectedNode.type === 'groupNode') return
         store.setCopiedNode(selectedNode)
         return
       }
@@ -680,8 +729,12 @@ function CanvasInner({ projectId }) {
     // Persist to DB in parallel
     await Promise.all(historyMoves.map(async ({ rfId, nodeType, nodeId, newPos: { x, y } }) => {
       try {
-        await updateNode(projectId, nodeType, nodeId, { x, y })
-        socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, x, y })
+        if (nodeType === 'group') {
+          await updateGroup(projectId, nodeId, { x, y })
+        } else {
+          await updateNode(projectId, nodeType, nodeId, { x, y })
+          socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, x, y })
+        }
       } catch (err) {
         console.error('Align failed:', err)
       }
@@ -691,8 +744,8 @@ function CanvasInner({ projectId }) {
   async function alignNodes(type) {
     const selected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
     if (selected.length < 2) return
-    const nodeW = n => n.measured?.width  ?? 180
-    const nodeH = n => n.measured?.height ?? 40
+    const nodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
+    const nodeH = n => n.type === 'groupNode' ? (n.style?.height ?? 200) : (n.measured?.height ?? 40)
     const minLeft   = Math.min(...selected.map(n => n.position.x))
     const maxRight  = Math.max(...selected.map(n => n.position.x + nodeW(n)))
     const minTop    = Math.min(...selected.map(n => n.position.y))
@@ -716,7 +769,7 @@ function CanvasInner({ projectId }) {
     let updates
     if (axis === 'h') {
       const sorted = [...selected].sort((a, b) => a.position.x - b.position.x)
-      const nodeW = n => n.measured?.width ?? 180
+      const nodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
       // Keep the outer edges of the first and last nodes fixed; equal gaps between them
       const spanStart = sorted[0].position.x
       const spanEnd   = sorted[sorted.length - 1].position.x + nodeW(sorted[sorted.length - 1])
@@ -730,7 +783,7 @@ function CanvasInner({ projectId }) {
       })
     } else {
       const sorted = [...selected].sort((a, b) => a.position.y - b.position.y)
-      const nodeH = n => n.measured?.height ?? 40
+      const nodeH = n => n.type === 'groupNode' ? (n.style?.height ?? 200) : (n.measured?.height ?? 40)
       const spanStart = sorted[0].position.y
       const spanEnd   = sorted[sorted.length - 1].position.y + nodeH(sorted[sorted.length - 1])
       const totalNodeH = sorted.reduce((s, n) => s + nodeH(n), 0)
@@ -743,6 +796,72 @@ function CanvasInner({ projectId }) {
       })
     }
     await applyAlignPositions(updates)
+  }
+
+  async function handleGroup() {
+    if (isExporting) return
+    const selected = reactFlow.getNodes().filter(n => n.selected && n.type !== 'rootNode' && !n.data?.hidden)
+    if (selected.length < 2) return
+    const GROUP_PAD = 24
+    const getNodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
+    const getNodeH = n => n.type === 'groupNode' ? (n.style?.height ?? 200) : (n.measured?.height ?? 40)
+    const minX = Math.min(...selected.map(n => n.position.x))
+    const minY = Math.min(...selected.map(n => n.position.y))
+    const maxX = Math.max(...selected.map(n => n.position.x + getNodeW(n)))
+    const maxY = Math.max(...selected.map(n => n.position.y + getNodeH(n)))
+    const groupX = minX - GROUP_PAD
+    const groupY = minY - GROUP_PAD
+    const groupW = (maxX - minX) + 2 * GROUP_PAD
+    const groupH = (maxY - minY) + 2 * GROUP_PAD
+    const members = selected.map(n => {
+      const parts = n.id.split('-')
+      const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
+      const nodeId = parseInt(parts[parts.length - 1])
+      return { node_type: nodeType, node_id: nodeId, rel_x: n.position.x - groupX, rel_y: n.position.y - groupY }
+    })
+    try {
+      const result = await createGroup(projectId, { label: '', x: groupX, y: groupY, width: groupW, height: groupH, members })
+      const group = result.group
+      const rfGroupId = `group-${group.id}`
+      const store = useCanvasStore.getState()
+      store.addRFNode({
+        id: rfGroupId,
+        type: 'groupNode',
+        position: { x: groupX, y: groupY },
+        style: { width: groupW, height: groupH },
+        data: { label: '', nodeType: 'group', groupId: group.id },
+        zIndex: -1,
+      })
+      selected.forEach(n => {
+        store.setRFNodeParentAndPos(n.id, rfGroupId, { x: n.position.x - groupX, y: n.position.y - groupY })
+      })
+    } catch (err) {
+      console.error('Group failed:', err)
+      // eslint-disable-next-line no-alert
+      window.alert('Failed to create group: ' + err.message)
+    }
+  }
+
+  async function handleUngroup() {
+    const selected = reactFlow.getNodes().filter(n => n.selected && n.type === 'groupNode')
+    if (selected.length !== 1) return
+    const groupNode = selected[0]
+    const groupId = groupNode.data.groupId
+    try {
+      const result = await deleteGroup(projectId, groupId)
+      const store = useCanvasStore.getState()
+      result.released_members.forEach(({ node_type, node_id, abs_x, abs_y }) => {
+        const rfId = node_type === 'group'
+          ? `group-${node_id}`
+          : `${nodeTypeToPrefix(node_type)}-${node_id}`
+        store.setRFNodeParentAndPos(rfId, null, { x: abs_x, y: abs_y })
+      })
+      store.removeRFNode(`group-${groupId}`)
+    } catch (err) {
+      console.error('Ungroup failed:', err)
+      // eslint-disable-next-line no-alert
+      window.alert('Failed to ungroup: ' + err.message)
+    }
   }
 
   function _exportUrl(format) {
@@ -911,39 +1030,60 @@ function CanvasInner({ projectId }) {
           </Panel>
         )}
 
-        {/* Align + Distribute toolbar — visible when 2+ nodes selected and not in view-only */}
-        {!viewOnly && selectionCount >= 2 && (
+        {/* Align + Distribute + Group toolbar */}
+        {!viewOnly && (selectionCount >= 2 || singleGroupSelected) && (
           <Panel position="top-center" style={{ top: 12, pointerEvents: 'auto' }}>
             <div className="flex items-center gap-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md px-2 py-1.5">
               <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 pr-1.5 select-none border-r border-gray-200 dark:border-gray-600 mr-1">
                 {selectionCount} selected
               </span>
-              {[
-                { type: 'left',    title: 'Align Left',              Icon: AlignLeftIcon },
-                { type: 'centerH', title: 'Align Center (horiz.)',   Icon: AlignCenterHIcon },
-                { type: 'right',   title: 'Align Right',             Icon: AlignRightIcon },
-                { type: 'top',     title: 'Align Top',               Icon: AlignTopIcon },
-                { type: 'centerV', title: 'Align Middle (vert.)',    Icon: AlignMiddleVIcon },
-                { type: 'bottom',  title: 'Align Bottom',            Icon: AlignBottomIcon },
-              ].map(({ type, title, Icon }) => (
-                <button key={type} onClick={() => alignNodes(type)} title={title}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                  <Icon />
-                </button>
-              ))}
-              {selectionCount >= 3 && (
+              {selectionCount >= 2 && (
                 <>
-                  <div className="w-px h-5 bg-gray-200 mx-1" />
                   {[
-                    { axis: 'h', title: 'Distribute Horizontally', Icon: DistributeHIcon },
-                    { axis: 'v', title: 'Distribute Vertically',   Icon: DistributeVIcon },
-                  ].map(({ axis, title, Icon }) => (
-                    <button key={axis} onClick={() => distributeNodes(axis)} title={title}
+                    { type: 'left',    title: 'Align Left',              Icon: AlignLeftIcon },
+                    { type: 'centerH', title: 'Align Center (horiz.)',   Icon: AlignCenterHIcon },
+                    { type: 'right',   title: 'Align Right',             Icon: AlignRightIcon },
+                    { type: 'top',     title: 'Align Top',               Icon: AlignTopIcon },
+                    { type: 'centerV', title: 'Align Middle (vert.)',    Icon: AlignMiddleVIcon },
+                    { type: 'bottom',  title: 'Align Bottom',            Icon: AlignBottomIcon },
+                  ].map(({ type, title, Icon }) => (
+                    <button key={type} onClick={() => alignNodes(type)} title={title}
                       className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                       <Icon />
                     </button>
                   ))}
+                  {selectionCount >= 3 && (
+                    <>
+                      <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1" />
+                      {[
+                        { axis: 'h', title: 'Distribute Horizontally', Icon: DistributeHIcon },
+                        { axis: 'v', title: 'Distribute Vertically',   Icon: DistributeVIcon },
+                      ].map(({ axis, title, Icon }) => (
+                        <button key={axis} onClick={() => distributeNodes(axis)} title={title}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                          <Icon />
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1" />
+                  <button
+                    onClick={handleGroup}
+                    title="Group selected nodes"
+                    className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                  >
+                    Group
+                  </button>
                 </>
+              )}
+              {singleGroupSelected && (
+                <button
+                  onClick={handleUngroup}
+                  title="Ungroup"
+                  className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                >
+                  Ungroup
+                </button>
               )}
             </div>
           </Panel>
