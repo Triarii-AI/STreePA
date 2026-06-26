@@ -26,13 +26,18 @@ def _chromium_png(project_id, base_url, cookie_value, *, dark, cross_refs, hidde
 
     Loads /projects/<id>?render=1 (the bare render-mode canvas), which the worker
     captures at the graph's natural size — pixel-accurate to the live GUI.
+
+    Cross-refs are intentionally excluded from the initial page URL and enabled
+    via JS *after* the page is ready.  Loading thousands of FloatingEdge components
+    simultaneously during first render crashes the browser on large projects.
+
     Returns (png_bytes, None) on success or (None, error_message).
     """
     from urllib.parse import urlencode
     qs = urlencode({
         'render': '1',
         'theme': 'dark' if dark else 'light',
-        'cross_refs': '1' if cross_refs else '0',
+        'cross_refs': '0',   # always load without cross-refs; worker enables via JS post-ready
         'hidden': ','.join(hidden_ids),
     })
     url = f'{base_url}/projects/{project_id}?{qs}'
@@ -49,6 +54,7 @@ def _chromium_png(project_id, base_url, cookie_value, *, dark, cross_refs, hidde
             '--max-css', '12000',  # cap total CSS dim → controls zoom for huge graphs
             '--tile-size', '3000', # CSS px per tile; physical = 3000*2 = 6000px (safe for GPU)
             '--scale', '2',        # Retina quality — 2 physical px per CSS px
+            '--cross-refs', '1' if cross_refs else '0',
         ]
         if cookie_value:
             cmd += ['--cookie-name', 'session', '--cookie-value', cookie_value]
@@ -58,9 +64,9 @@ def _chromium_png(project_id, base_url, cookie_value, *, dark, cross_refs, hidde
         # so the hub keeps serving the browser's requests.
         try:
             from eventlet import tpool
-            proc = tpool.execute(subprocess.run, cmd, capture_output=True, timeout=90)
+            proc = tpool.execute(subprocess.run, cmd, capture_output=True, timeout=180)
         except ImportError:
-            proc = subprocess.run(cmd, capture_output=True, timeout=90)
+            proc = subprocess.run(cmd, capture_output=True, timeout=180)
         if proc.returncode != 0:
             return None, (proc.stderr.decode('utf-8', 'replace')[-500:] or 'worker failed')
         with open(tmp, 'rb') as f:

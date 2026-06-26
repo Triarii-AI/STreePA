@@ -437,6 +437,15 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
   }, [renderMode, nodesInitialized, visibleNodes.length, showCrossRefs, reactFlow])
 
+  // Expose cross-ref toggle for the screenshot worker so it can enable cross-refs
+  // AFTER the initial page load (avoids crashing the browser with thousands of edges
+  // all mounting simultaneously during first render).
+  useEffect(() => {
+    if (!renderMode) return
+    window.__setShowCrossRefs = (val) => setShowCrossRefs(val)
+    return () => { delete window.__setShowCrossRefs }
+  }, [renderMode])
+
   // Empty dep arrays: read current state via getState() so these callbacks are created
   // once and never recreated. Stable references prevent React Flow from re-reconciling
   // on every state change, which is critical during fast drag events.

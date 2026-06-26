@@ -41,8 +41,10 @@ def main():
                     help='cap on total CSS width/height — controls zoom level for huge graphs')
     ap.add_argument('--tile-size', type=int, default=3000,
                     help='CSS pixels per tile side; physical = tile_size * scale')
+    ap.add_argument('--cross-refs', type=int, default=0,
+                    help='1 = enable cross-ref edges via JS after initial ready signal')
     ap.add_argument('--pad', type=int, default=40, help='padding around graph (CSS px)')
-    ap.add_argument('--timeout', type=int, default=25000, help='readiness timeout (ms)')
+    ap.add_argument('--timeout', type=int, default=30000, help='readiness timeout (ms)')
     args = ap.parse_args()
 
     try:
@@ -98,6 +100,29 @@ def main():
             page.wait_for_timeout(1500)
 
         bounds = page.evaluate('() => window.__EXPORT_BOUNDS__') if ready else None
+
+        # Enable cross-ref edges AFTER the initial ready signal.
+        # Loading all FloatingEdge components simultaneously during first render crashes
+        # the browser on large projects; adding them incrementally after nodes are
+        # initialised is stable because React Flow's internals are already warm.
+        if ready and args.cross_refs:
+            has_setter = page.evaluate(
+                '() => typeof window.__setShowCrossRefs === "function"'
+            )
+            if has_setter:
+                print('Enabling cross-ref edges post-ready...', file=sys.stderr)
+                # Reset ready flag, enable cross-refs, wait for the canvas to re-signal.
+                page.evaluate(
+                    '() => { window.__EXPORT_READY__ = false; window.__setShowCrossRefs(true); }'
+                )
+                try:
+                    page.wait_for_function(
+                        '() => window.__EXPORT_READY__ === true', timeout=90000
+                    )
+                except Exception:
+                    page.wait_for_timeout(5000)   # fallback: just wait a bit
+                # Re-read bounds (fitView ran again after cross-refs rendered)
+                bounds = page.evaluate('() => window.__EXPORT_BOUNDS__')
 
         if not bounds or bounds.get('width', 0) <= 0 or bounds.get('height', 0) <= 0:
             # No bounds signal — fall back to a single screenshot of current viewport.
