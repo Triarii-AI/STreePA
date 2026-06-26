@@ -425,9 +425,20 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     // Publish the graph's model-space bounding box and a direct viewport setter so the
     // screenshot worker can size the output canvas to the content and place it exactly,
     // instead of relying on fitView (whose result depends on container-size timing).
-    const bounds = getNodesBounds(reactFlow.getNodes().filter(n => !n.data?.hidden))
+    const visibleRFNodes = reactFlow.getNodes().filter(n => !n.data?.hidden)
+    const bounds = getNodesBounds(visibleRFNodes)
     window.__EXPORT_BOUNDS__ = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
     window.__rfSetViewport = (vp) => reactFlow.setViewport(vp, { duration: 0 })
+    // Export exact absolute positions + measured sizes for every node so the
+    // server-side cross-ref overlay can compute pixel-accurate edge paths.
+    // getNodesBounds per node uses positionAbsolute internally, so grouped
+    // nodes return correct absolute coords even when position is parent-relative.
+    const exportNodes = {}
+    visibleRFNodes.forEach(n => {
+      const b = getNodesBounds([n])
+      exportNodes[n.id] = { x: b.x, y: b.y, w: b.width, h: b.height }
+    })
+    window.__EXPORT_NODES__ = exportNodes
     // Default fit so the page isn't empty even if the worker never resizes.
     reactFlow.fitView({ padding: 0.1, duration: 0 })
     let raf2

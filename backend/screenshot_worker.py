@@ -41,6 +41,8 @@ def main():
                     help='cap on total CSS width/height — controls zoom level for huge graphs')
     ap.add_argument('--tile-size', type=int, default=3000,
                     help='CSS pixels per tile side; physical = tile_size * scale')
+    ap.add_argument('--meta-out', default=None,
+                    help='write JSON file with exact zoom/bounds/node-positions for server-side overlay')
     ap.add_argument('--pad', type=int, default=40, help='padding around graph (CSS px)')
     ap.add_argument('--timeout', type=int, default=30000, help='readiness timeout (ms)')
     args = ap.parse_args()
@@ -112,6 +114,24 @@ def main():
         zoom = min(args.node_zoom,
                    args.max_css / bounds['width'],
                    args.max_css / bounds['height'])
+
+        # Write meta JSON for the server-side cross-ref overlay so it can use the
+        # exact same zoom/bounds/node-geometry instead of estimating from the DB.
+        if args.meta_out:
+            import json as _json
+            export_nodes = page.evaluate('() => window.__EXPORT_NODES__ || {}')
+            try:
+                with open(args.meta_out, 'w') as _mf:
+                    _json.dump({
+                        'zoom':     zoom,
+                        'bounds_x': bounds['x'],
+                        'bounds_y': bounds['y'],
+                        'pad':      args.pad,
+                        'scale':    scale_i,
+                        'nodes':    export_nodes,
+                    }, _mf)
+            except Exception as _e:
+                print(f'meta-out write failed: {_e}', file=sys.stderr)
 
         total_w_css = math.ceil(bounds['width'] * zoom + 2 * args.pad)
         total_h_css = math.ceil(bounds['height'] * zoom + 2 * args.pad)

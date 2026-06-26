@@ -39,8 +39,11 @@ def _chromium_png(project_id, base_url, cookie_value, *, dark, hidden_ids):
     })
     url = f'{base_url}/projects/{project_id}?{qs}'
 
+    import json as _json
     fd, tmp = tempfile.mkstemp(suffix='.png')
     os.close(fd)
+    fd_m, meta_path = tempfile.mkstemp(suffix='.json')
+    os.close(fd_m)
     try:
         cmd = [
             sys.executable, _WORKER,
@@ -51,6 +54,7 @@ def _chromium_png(project_id, base_url, cookie_value, *, dark, hidden_ids):
             '--max-css', '12000',
             '--tile-size', '3000',
             '--scale', '2',
+            '--meta-out', meta_path,
         ]
         if cookie_value:
             cmd += ['--cookie-name', 'session', '--cookie-value', cookie_value]
@@ -64,148 +68,202 @@ def _chromium_png(project_id, base_url, cookie_value, *, dark, hidden_ids):
         except ImportError:
             proc = subprocess.run(cmd, capture_output=True, timeout=180)
         if proc.returncode != 0:
-            return None, (proc.stderr.decode('utf-8', 'replace')[-500:] or 'worker failed')
-        with open(tmp, 'rb') as f:
-            return f.read(), None
-    except subprocess.TimeoutExpired:
-        return None, 'screenshot timed out'
-    finally:
+            return None, None, (proc.stderr.decode('utf-8', 'replace')[-500:] or 'worker failed')
+        meta = {}
         try:
-            os.remove(tmp)
-        except OSError:
+            with open(meta_path) as mf:
+                meta = _json.load(mf)
+        except Exception:
             pass
+        with open(tmp, 'rb') as f:
+            return f.read(), meta, None
+    except subprocess.TimeoutExpired:
+        return None, None, 'screenshot timed out'
+    finally:
+        for p in (tmp, meta_path):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
 
 
 def _draw_cross_refs_on_png(png_bytes, project, losses, hazards, scs, cas, ucas, lss, cedges,
-                             hidden_ids, node_zoom=1.0, max_css=12000, pad=40, scale_i=2):
+                             hidden_ids, node_zoom=1.0, max_css=12000, pad=40, scale_i=2,
+                             meta=None):
     """
-    Overlay dashed cross-reference edges on a Chromium-rendered PNG using Pillow.
+    Overlay dashed cross-reference edges on a Chromium-rendered PNG.
 
-    The worker renders nodes + solid structural edges only (no cross-refs), so the
-    browser never has to mount thousands of FloatingEdge components.  We compute
-    edge geometry from DB positions and draw bezier dashes here instead.
+    Strategy
+    --------
+    Lines are drawn on a transparent RGBA overlay, then node bounding boxes are
+    erased from that overlay (set to transparent), so when we alpha-composite the
+    overlay onto the base PNG the lines appear *behind* node boxes — matching how
+    React Flow renders edges below the node layer.
 
     Coordinate math
     ---------------
-    React Flow viewport at zoom z with base offset (vx, vy = pad - bounds * zoom):
-      css_pos_of_node  = (mx - bounds_x) * zoom + pad           (top-left)
-      visual_css_size  = natural_css_size * zoom                 (transform: scale(zoom))
-      physical_pixel   = css * scale_i                           (deviceScaleFactor)
+    React Flow viewport at zoom z, base offset (vx, vy = pad - bounds * zoom):
+      css_top_left  = (mx - bounds_x) * zoom + pad
+      visual_size   = natural_css_size * zoom      (container transform: scale(zoom))
+      physical      = css * scale_i                (deviceScaleFactor)
     """
     import io as _io
     import math
+    import traceback
     from PIL import Image, ImageDraw
 
     hidden_set = set(hidden_ids or [])
 
-    # ── Build node geometry (same estimation as _generate_svg) ────────────
-    node_info = {}
+    # ── Node geometry ─────────────────────────────────────────────────────
+    # Prefer exact positions/sizes exported by the browser (meta['nodes']) so
+    # grouped nodes (parent-relative positions) and actual measured dimensions
+    # are used.  Fall back to DB + size-estimation when meta is unavailable.
 
-    def add_node(nid, ntype, x, y, label, desc=None, uca_type=None, is_sub=False):
-        if nid in hidden_set:
-            return
-        if ntype == 'root':
-            nw = float(ROOT_W)
-            nh = float(_root_height(label, desc))
-        else:
-            nw = float(_node_width(label, ntype, is_sub))
-            nh = float(_std_height(label, desc, ntype, nw=int(nw), is_sub=is_sub, uca_type=uca_type))
-        node_info[nid] = {'x': float(x or 0), 'y': float(y or 0), 'w': nw, 'h': nh}
+    if meta and meta.get('nodes'):
+        node_geo  = meta['nodes']          # {rfId: {x, y, w, h}} absolute model coords
+        zoom      = meta['zoom']
+        bounds_x  = meta['bounds_x']
+        bounds_y  = meta['bounds_y']
+        pad       = int(meta.get('pad', pad))
+        scale_i   = int(meta.get('scale', scale_i))
+        print(f'[export] cross-ref overlay: using browser meta '
+              f'(zoom={zoom:.4f}, {len(node_geo)} nodes)', file=sys.stderr)
+    else:
+        # ── Fallback: estimate from DB positions ──────────────────────────
+        print('[export] cross-ref overlay: no meta — falling back to DB estimates', file=sys.stderr)
+        node_geo = {}
 
-    add_node(f'root-{project.id}', 'root',
-             project.root_x or 500, project.root_y or 50,
-             project.title, project.purpose_statement)
-    for n in losses:
-        d = n.to_dict()
-        add_node(f'loss-{d["id"]}', 'loss', d['x'], d['y'], d['label'], d.get('description'))
-    for n in hazards:
-        d = n.to_dict()
-        add_node(f'hazard-{d["id"]}', 'hazard', d['x'], d['y'], d['label'], d.get('description'),
-                 is_sub=bool(d.get('parent_hazard_id')))
-    for n in scs:
-        d = n.to_dict()
-        add_node(f'sc-{d["id"]}', 'system_constraint', d['x'], d['y'], d['label'], d.get('description'))
-    for n in cas:
-        d = n.to_dict()
-        name   = d.get('name') or ''
-        lbl    = d.get('label') or name
-        desc_c = name if name and name != lbl else None
-        add_node(f'ca-{d["id"]}', 'control_action', d['x'], d['y'], lbl, desc_c)
-    for n in ucas:
-        d = n.to_dict()
-        add_node(f'uca-{d["id"]}', 'uca', d['x'], d['y'], d['label'], d.get('description'),
-                 uca_type=d.get('uca_type'))
-    for n in lss:
-        d = n.to_dict()
-        add_node(f'ls-{d["id"]}', 'loss_scenario', d['x'], d['y'], d['label'], d.get('description'))
+        def add_node(nid, ntype, x, y, label, desc=None, uca_type=None, is_sub=False):
+            if nid in hidden_set:
+                return
+            if ntype == 'root':
+                nw = float(ROOT_W)
+                nh = float(_root_height(label, desc))
+            else:
+                nw = float(_node_width(label, ntype, is_sub))
+                nh = float(_std_height(label, desc, ntype, nw=int(nw), is_sub=is_sub,
+                                       uca_type=uca_type))
+            node_geo[nid] = {'x': float(x or 0), 'y': float(y or 0), 'w': nw, 'h': nh}
 
-    if not node_info:
-        return png_bytes
+        try:
+            add_node(f'root-{project.id}', 'root',
+                     project.root_x or 500, project.root_y or 50,
+                     project.title, project.purpose_statement)
+            for n in losses:
+                d = n.to_dict()
+                add_node(f'loss-{d["id"]}', 'loss', d['x'], d['y'], d['label'], d.get('description'))
+            for n in hazards:
+                d = n.to_dict()
+                add_node(f'hazard-{d["id"]}', 'hazard', d['x'], d['y'], d['label'],
+                         d.get('description'), is_sub=bool(d.get('parent_hazard_id')))
+            for n in scs:
+                d = n.to_dict()
+                add_node(f'sc-{d["id"]}', 'system_constraint', d['x'], d['y'],
+                         d['label'], d.get('description'))
+            for n in cas:
+                d = n.to_dict()
+                name   = d.get('name') or ''
+                lbl    = d.get('label') or name
+                desc_c = name if name and name != lbl else None
+                add_node(f'ca-{d["id"]}', 'control_action', d['x'], d['y'], lbl, desc_c)
+            for n in ucas:
+                d = n.to_dict()
+                add_node(f'uca-{d["id"]}', 'uca', d['x'], d['y'], d['label'],
+                         d.get('description'), uca_type=d.get('uca_type'))
+            for n in lss:
+                d = n.to_dict()
+                add_node(f'ls-{d["id"]}', 'loss_scenario', d['x'], d['y'],
+                         d['label'], d.get('description'))
+        except Exception:
+            print('[export] cross-ref overlay: failed building node table', file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return png_bytes
 
-    # ── Compute zoom — mirrors screenshot_worker.py exactly ───────────────
-    min_x = min(n['x'] for n in node_info.values())
-    min_y = min(n['y'] for n in node_info.values())
-    max_x = max(n['x'] + n['w'] for n in node_info.values())
-    max_y = max(n['y'] + n['h'] for n in node_info.values())
-    W = max(max_x - min_x, 1.0)
-    H = max(max_y - min_y, 1.0)
-    zoom     = min(node_zoom, max_css / W, max_css / H)
-    bounds_x = min_x
-    bounds_y = min_y
+        if not node_geo:
+            return png_bytes
+
+        min_x = min(n['x'] for n in node_geo.values())
+        min_y = min(n['y'] for n in node_geo.values())
+        max_x = max(n['x'] + n['w'] for n in node_geo.values())
+        max_y = max(n['y'] + n['h'] for n in node_geo.values())
+        W = max(max_x - min_x, 1.0)
+        H = max(max_y - min_y, 1.0)
+        zoom     = min(node_zoom, max_css / W, max_css / H)
+        bounds_x = min_x
+        bounds_y = min_y
 
     # ── Collect cross-ref (dashed) edges ──────────────────────────────────
     cross_edges = []
 
     def try_edge(src, tgt):
-        if src in node_info and tgt in node_info:
+        if src in node_geo and tgt in node_geo:
             cross_edges.append((src, tgt))
 
-    for n in hazards:
-        d = n.to_dict()
-        for lid in d.get('loss_ids', []):
-            try_edge(f'hazard-{d["id"]}', f'loss-{lid}')
-    for n in scs:
-        d = n.to_dict()
-        for hid in d.get('hazard_ids', []):
-            if hid != d.get('linked_hazard_id'):
-                try_edge(f'sc-{d["id"]}', f'hazard-{hid}')
-    for n in ucas:
-        d = n.to_dict()
-        for hid in d.get('hazard_ids', []):
-            try_edge(f'uca-{d["id"]}', f'hazard-{hid}')
-    for n in lss:
-        d = n.to_dict()
-        for hid in d.get('hazard_ids', []):
-            try_edge(f'ls-{d["id"]}', f'hazard-{hid}')
-    for ce in cedges:
-        # Solid CanvasEdges are already rendered by Chromium — only overlay dashed ones.
-        if ce.style == 'dashed':
-            src = f'{NODE_PREFIX.get(ce.from_node_type, ce.from_node_type)}-{ce.from_node_id}'
-            tgt = f'{NODE_PREFIX.get(ce.to_node_type, ce.to_node_type)}-{ce.to_node_id}'
-            try_edge(src, tgt)
+    try:
+        for n in hazards:
+            d = n.to_dict()
+            for lid in d.get('loss_ids', []):
+                try_edge(f'hazard-{d["id"]}', f'loss-{lid}')
+        for n in scs:
+            d = n.to_dict()
+            for hid in d.get('hazard_ids', []):
+                if hid != d.get('linked_hazard_id'):
+                    try_edge(f'sc-{d["id"]}', f'hazard-{hid}')
+        for n in ucas:
+            d = n.to_dict()
+            for hid in d.get('hazard_ids', []):
+                try_edge(f'uca-{d["id"]}', f'hazard-{hid}')
+        for n in lss:
+            d = n.to_dict()
+            for hid in d.get('hazard_ids', []):
+                try_edge(f'ls-{d["id"]}', f'hazard-{hid}')
+        for ce in cedges:
+            # Solid CanvasEdges are already in the Chromium render; only overlay dashed ones.
+            if ce.style == 'dashed':
+                src = f'{NODE_PREFIX.get(ce.from_node_type, ce.from_node_type)}-{ce.from_node_id}'
+                tgt = f'{NODE_PREFIX.get(ce.to_node_type,   ce.to_node_type)}-{ce.to_node_id}'
+                try_edge(src, tgt)
+    except Exception:
+        print('[export] cross-ref overlay: failed collecting edges', file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return png_bytes
 
+    print(f'[export] cross-ref overlay: {len(cross_edges)} edges to draw', file=sys.stderr)
     if not cross_edges:
         return png_bytes
 
     # ── Coordinate helpers ─────────────────────────────────────────────────
     def center_phys(nid):
-        n   = node_info[nid]
-        cx  = ((n['x'] - bounds_x) * zoom + pad + n['w'] * zoom / 2) * scale_i
-        cy  = ((n['y'] - bounds_y) * zoom + pad + n['h'] * zoom / 2) * scale_i
+        n  = node_geo[nid]
+        cx = ((n['x'] - bounds_x) * zoom + pad + n['w'] * zoom / 2.0) * scale_i
+        cy = ((n['y'] - bounds_y) * zoom + pad + n['h'] * zoom / 2.0) * scale_i
         return cx, cy
 
     def size_phys(nid):
-        n = node_info[nid]
+        n = node_geo[nid]
         return n['w'] * zoom * scale_i, n['h'] * zoom * scale_i
 
-    # ── Draw ──────────────────────────────────────────────────────────────
-    img  = Image.open(_io.BytesIO(png_bytes)).convert('RGB')
-    draw = ImageDraw.Draw(img)
+    def node_box_phys(nid):
+        """(x0, y0, x1, y1) bounding box in physical pixels."""
+        n  = node_geo[nid]
+        x0 = ((n['x'] - bounds_x) * zoom + pad) * scale_i
+        y0 = ((n['y'] - bounds_y) * zoom + pad) * scale_i
+        x1 = x0 + n['w'] * zoom * scale_i
+        y1 = y0 + n['h'] * zoom * scale_i
+        return x0, y0, x1, y1
 
-    DASH_COLOR = (148, 163, 184)          # slate-400 = #94a3b8
-    STROKE_W   = max(1, round(1.5 * scale_i))
-    dash_px    = max(3, round(5 * zoom * scale_i))
-    gap_px     = max(3, round(5 * zoom * scale_i))
+    # ── Build RGBA overlay: lines behind nodes ────────────────────────────
+    # 1. Draw all dashed bezier edges on a transparent overlay.
+    # 2. Erase (set transparent) the overlay everywhere a node box sits.
+    # 3. Alpha-composite the overlay onto the base PNG.
+    # Result: lines are visible in inter-node gaps, hidden where they would
+    # cross a node — matching React Flow's SVG-under-div rendering order.
+
+    DASH_RGBA  = (148, 163, 184, 255)   # slate-400 opaque
+    ERASE_RGBA = (0, 0, 0, 0)           # fully transparent
+    STROKE_W   = max(2, scale_i * 2)    # 4 physical px @ scale=2
+    dash_px    = max(4, round(5 * zoom * scale_i))
+    gap_px     = max(4, round(5 * zoom * scale_i))
 
     def sample_cubic(p0, c0, c1, p1, steps=80):
         pts = []
@@ -217,46 +275,69 @@ def _draw_cross_refs_on_png(png_bytes, project, losses, hazards, scs, cas, ucas,
             ))
         return pts
 
-    def draw_dashed(pts, color, width, on, off):
+    def draw_dashed_on(drw, pts, color, width, on, off):
+        """Draw a dashed polyline using integer pixel segments."""
         remaining = on
         is_on     = True
         for i in range(1, len(pts)):
-            x0, y0 = pts[i - 1]; x1, y1 = pts[i]
-            seg = math.hypot(x1 - x0, y1 - y0)
-            if seg < 0.01:
+            ax, ay = pts[i - 1]; bx, by = pts[i]
+            seg = math.hypot(bx - ax, by - ay)
+            if seg < 0.5:
                 continue
             done = 0.0
             while done < seg:
                 step = min(remaining, seg - done)
                 if is_on:
                     t0 = done / seg; t1 = (done + step) / seg
-                    draw.line(
-                        [(x0 + t0*(x1-x0), y0 + t0*(y1-y0)),
-                         (x0 + t1*(x1-x0), y0 + t1*(y1-y0))],
-                        fill=color, width=width,
-                    )
+                    x0i = int(ax + t0 * (bx - ax))
+                    y0i = int(ay + t0 * (by - ay))
+                    x1i = int(ax + t1 * (bx - ax))
+                    y1i = int(ay + t1 * (by - ay))
+                    drw.line([(x0i, y0i), (x1i, y1i)], fill=color, width=width)
                 done += step; remaining -= step
                 if remaining <= 0:
                     is_on = not is_on
                     remaining = on if is_on else off
 
-    for src_id, tgt_id in cross_edges:
-        scx, scy = center_phys(src_id)
-        tcx, tcy = center_phys(tgt_id)
-        sw, sh   = size_phys(src_id)
-        tw, th   = size_phys(tgt_id)
+    try:
+        Image.MAX_IMAGE_PIXELS = None   # large stitched PNGs exceed the default 178M-pixel bomb guard
+        base_img = Image.open(_io.BytesIO(png_bytes)).convert('RGBA')
+        overlay  = Image.new('RGBA', base_img.size, ERASE_RGBA)
+        drw      = ImageDraw.Draw(overlay)
 
-        sx, sy, spos = _border_pt(scx, scy, sw, sh, tcx, tcy)
-        tx, ty, tpos = _border_pt(tcx, tcy, tw, th, scx, scy)
-        c1 = _bezier_ctrl(spos, sx, sy, tx, ty)
-        c2 = _bezier_ctrl(tpos, tx, ty, sx, sy)
+        for src_id, tgt_id in cross_edges:
+            scx, scy = center_phys(src_id)
+            tcx, tcy = center_phys(tgt_id)
+            sw, sh   = size_phys(src_id)
+            tw, th   = size_phys(tgt_id)
 
-        pts = sample_cubic((sx, sy), c1, c2, (tx, ty))
-        draw_dashed(pts, DASH_COLOR, STROKE_W, dash_px, gap_px)
+            sx, sy, spos = _border_pt(scx, scy, sw, sh, tcx, tcy)
+            tx, ty, tpos = _border_pt(tcx, tcy, tw, th, scx, scy)
+            c1 = _bezier_ctrl(spos, sx, sy, tx, ty)
+            c2 = _bezier_ctrl(tpos, tx, ty, sx, sy)
 
-    out = _io.BytesIO()
-    img.save(out, 'PNG')
-    return out.getvalue()
+            pts = sample_cubic((sx, sy), c1, c2, (tx, ty))
+            draw_dashed_on(drw, pts, DASH_RGBA, STROKE_W, dash_px, gap_px)
+
+        # Erase overlay under every node box so lines appear behind nodes.
+        ERASE_MARGIN = scale_i  # 2px extra buffer for estimation imprecision
+        for nid in node_geo:
+            x0, y0, x1, y1 = node_box_phys(nid)
+            drw.rectangle(
+                [int(x0 - ERASE_MARGIN), int(y0 - ERASE_MARGIN),
+                 int(x1 + ERASE_MARGIN), int(y1 + ERASE_MARGIN)],
+                fill=ERASE_RGBA,
+            )
+
+        result = Image.alpha_composite(base_img, overlay).convert('RGB')
+        out = _io.BytesIO()
+        result.save(out, 'PNG')
+        return out.getvalue()
+
+    except Exception:
+        print('[export] cross-ref overlay: failed drawing', file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        return png_bytes
 
 # ── Colors (exact Tailwind values used by node components) ────────────────────
 
@@ -768,7 +849,7 @@ def export_project(project_id):
             server_port = request.environ.get('SERVER_PORT', '5000')
             local_base = f'http://127.0.0.1:{server_port}'
             cookie_value = request.cookies.get('session')
-            png, err = _chromium_png(
+            png, meta, err = _chromium_png(
                 project_id, local_base, cookie_value,
                 dark=dark, hidden_ids=hidden_ids,
             )
@@ -777,10 +858,12 @@ def export_project(project_id):
                     try:
                         png = _draw_cross_refs_on_png(
                             png, project, losses, hazards, scs, cas, ucas, lss, cedges,
-                            hidden_ids=hidden_ids,
+                            hidden_ids=hidden_ids, meta=meta,
                         )
-                    except Exception as e:
-                        print(f'[export] cross-ref overlay failed (returning without): {e}', file=sys.stderr)
+                    except Exception:
+                        import traceback as _tb
+                        print('[export] cross-ref overlay failed (returning without cross-refs):', file=sys.stderr)
+                        _tb.print_exc(file=sys.stderr)
                 return Response(
                     png,
                     mimetype='image/png',
