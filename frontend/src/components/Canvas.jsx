@@ -10,7 +10,6 @@ import {
   MiniMap,
   Panel,
   useReactFlow,
-  useViewport,
   applyNodeChanges,
   applyEdgeChanges,
 } from '@xyflow/react'
@@ -31,6 +30,7 @@ import LSNode from './nodes/LSNode.jsx'
 import GroupNode from './nodes/GroupNode.jsx'
 import AddNodeForm from './forms/AddNodeForm.jsx'
 import FloatingEdge from './edges/FloatingEdge.jsx'
+import RemoteOverlays from './RemoteOverlays.jsx'
 
 const nodeTypes = {
   rootNode: RootNode,
@@ -68,6 +68,13 @@ function getNodeColor(type) {
   }
   return colorMap[type] || '#94a3b8'
 }
+
+// Stable reference so MiniMap doesn't see a new prop each render.
+const minimapNodeColor = (n) => getNodeColor(n.type)
+
+// Above this node count the MiniMap is hidden: it repaints a rect per node on every
+// pan/zoom frame (a real perf sink at scale) and nodes are too small to be useful anyway.
+const MINIMAP_NODE_LIMIT = 500
 
 const RF_PREFIX_TO_TYPE = {
   sc: 'system_constraint', ca: 'control_action', uca: 'uca',
@@ -287,7 +294,6 @@ function CanvasInner({ projectId }) {
   const dragStartPos = useRef({})
   const containerRef = useRef(null)
   const cursorThrottleRef = useRef(null)
-  const { x: vpX, y: vpY, zoom: vpZoom } = useViewport()
 
   // Fit view on initial load
   useEffect(() => {
@@ -359,6 +365,11 @@ function CanvasInner({ projectId }) {
   // Cross-reference edges (dashed) are hidden by default to reduce rendered edge count.
   // When a node is selected, its own cross-refs are always shown.
   // showCrossRefs toggle reveals all of them.
+  // Selection highlight/dim is folded into each edge's `data.selKind` HERE (once per
+  // selection change) rather than read via a per-edge Zustand subscription. With
+  // thousands of cross-ref edges, a live subscription in every edge would re-run
+  // thousands of selectors on every store write (including each drag frame). Computing
+  // it in this memo means edges only reconcile when the selection actually changes.
   const displayEdges = useMemo(() => {
     const nodeId = selectedNode?.id
     const filtered = showCrossRefs
@@ -368,9 +379,14 @@ function CanvasInner({ projectId }) {
           return nodeId && (e.source === nodeId || e.target === nodeId)
         })
     if (!nodeId) return filtered
-    return filtered.map(e =>
-      (e.source === nodeId || e.target === nodeId) ? { ...e, zIndex: 10 } : e
-    )
+    return filtered.map(e => {
+      const connected = e.source === nodeId || e.target === nodeId
+      return {
+        ...e,
+        zIndex: connected ? 10 : e.zIndex,
+        data: { ...e.data, selKind: connected ? 'connected' : 'dimmed' },
+      }
+    })
   }, [visibleEdges, selectedNode, showCrossRefs])
 
   // Empty dep arrays: read current state via getState() so these callbacks are created
@@ -985,13 +1001,15 @@ function CanvasInner({ projectId }) {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant="dots" gap={20} size={1} color={darkMode ? '#334155' : '#e2e8f0'} />
-        <MiniMap
-          position="bottom-left"
-          nodeColor={n => getNodeColor(n.type)}
-          style={{ background: darkMode ? '#1e293b' : '#f8fafc', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, borderRadius: 8, overflow: 'hidden' }}
-          zoomable
-          pannable
-        />
+        {visibleNodes.length <= MINIMAP_NODE_LIMIT && (
+          <MiniMap
+            position="bottom-left"
+            nodeColor={minimapNodeColor}
+            style={{ background: darkMode ? '#1e293b' : '#f8fafc', border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, borderRadius: 8, overflow: 'hidden' }}
+            zoomable
+            pannable
+          />
+        )}
         <Panel position="top-right" style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: 12 }}>
           <button
             onClick={() => reactFlow.zoomIn({ duration: 200 })}
@@ -1232,69 +1250,10 @@ function CanvasInner({ projectId }) {
         </div>
       )}
 
-      {/* Remote selection rings — colored border around nodes other users have selected */}
-      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 6 }}>
-        {Object.entries(remoteSelections).map(([userId, { rfNodeId, username, avatarColor }]) => {
-          const node = reactFlow.getNode(rfNodeId)
-          if (!node || node.data?.hidden) return null
-          const w = (node.measured?.width ?? 180) * vpZoom
-          const h = (node.measured?.height ?? 40) * vpZoom
-          const sx = node.position.x * vpZoom + vpX
-          const sy = node.position.y * vpZoom + vpY
-          return (
-            <div key={userId} style={{
-              position: 'absolute',
-              left: sx - 3,
-              top: sy - 3,
-              width: w + 6,
-              height: h + 6,
-              border: `2.5px solid ${avatarColor}`,
-              borderRadius: 11,
-              boxShadow: `0 0 0 1px ${avatarColor}55`,
-            }} />
-          )
-        })}
-      </div>
-
-      {/* Remote cursors — colored pointer + name label */}
-      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 15 }}>
-        {Object.entries(remoteCursors).map(([userId, { x, y, username, avatarColor }]) => {
-          const sx = x * vpZoom + vpX
-          const sy = y * vpZoom + vpY
-          return (
-            <div key={userId} style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(0, 0)' }}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ display: 'block' }}>
-                <path
-                  d="M2 2L7.5 16.5L10 10L16.5 7.5L2 2Z"
-                  fill={avatarColor}
-                  stroke="white"
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <div style={{
-                marginTop: 1,
-                marginLeft: 3,
-                background: avatarColor,
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 600,
-                fontFamily: 'system-ui, sans-serif',
-                lineHeight: 1.2,
-                padding: '2px 5px',
-                borderRadius: 4,
-                whiteSpace: 'nowrap',
-                maxWidth: 100,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-              }}>
-                {username}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      {/* Remote collaborator cursors + selection rings.
+          Isolated component owns the useViewport() subscription so pan/zoom
+          frames don't re-render the whole canvas. */}
+      <RemoteOverlays remoteSelections={remoteSelections} remoteCursors={remoteCursors} />
     </div>
   )
 }

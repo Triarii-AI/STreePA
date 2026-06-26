@@ -1,6 +1,5 @@
 import { memo, useMemo } from 'react'
 import { BaseEdge, getBezierPath, Position, useInternalNode } from '@xyflow/react'
-import useCanvasStore from '../../store/canvasStore.js'
 
 function borderPoint(node, towardX, towardY) {
   const { x, y } = node.internals.positionAbsolute
@@ -33,18 +32,15 @@ function borderPoint(node, towardX, towardY) {
   return { x: bx, y: by, pos }
 }
 
-function FloatingEdge({ id, source, target, style, markerEnd }) {
+function FloatingEdge({ id, source, target, style, markerEnd, data }) {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
 
-  // Per-edge selection status using a targeted selector so Zustand only re-renders
-  // THIS component when ITS own connection status changes, not when any node is clicked.
+  // Selection status is delivered as a plain prop (data.selKind) computed once in
+  // Canvas's displayEdges memo — NOT via a store subscription. This keeps edges inert
+  // during drag/pan and avoids thousands of selector evaluations per store write.
   // 'none' → no selection; 'connected' → touches selected node; 'dimmed' → everything else
-  const selStatus = useCanvasStore(s => {
-    const selId = s.selectedNode?.id
-    if (!selId) return 'none'
-    return (source === selId || target === selId) ? 'connected' : 'dimmed'
-  })
+  const selStatus = data?.selKind ?? 'none'
 
   const effectiveStyle = useMemo(() => {
     if (selStatus === 'none') return style
