@@ -315,19 +315,42 @@ const useCanvasStore = create((set, get) => ({
     }))
   },
 
-  setRFNodeParentAndPos(rfNodeId, parentId, position) {
-    set(state => ({
-      nodes: state.nodes.map(n => {
-        if (n.id !== rfNodeId) return n
-        const updated = { ...n, position: position || n.position }
-        if (parentId) {
-          updated.parentId = parentId
-        } else {
+  // Atomically inserts the group node BEFORE its first member and sets parentId + relative
+  // positions on all members in one render. React Flow requires parent before children.
+  groupRFNodes(groupRFNode, memberUpdates) {
+    // memberUpdates: [{ rfNodeId, relX, relY }]
+    set(state => {
+      const memberIdSet = new Set(memberUpdates.map(u => u.rfNodeId))
+      const firstMemberIdx = state.nodes.findIndex(n => memberIdSet.has(n.id))
+      const insertAt = firstMemberIdx >= 0 ? firstMemberIdx : 0
+      const updatedNodes = state.nodes.map(n => {
+        const u = memberUpdates.find(m => m.rfNodeId === n.id)
+        if (!u) return n
+        return { ...n, parentId: groupRFNode.id, position: { x: u.relX, y: u.relY } }
+      })
+      updatedNodes.splice(insertAt, 0, groupRFNode)
+      return { nodes: updatedNodes }
+    })
+  },
+
+  // Atomically removes the group node and restores absolute positions on ex-members.
+  ungroupRFNodes(groupRfId, memberUpdates) {
+    // memberUpdates: [{ rfNodeId, absX, absY }]
+    set(state => {
+      const updatedNodes = state.nodes
+        .filter(n => n.id !== groupRfId)
+        .map(n => {
+          const u = memberUpdates.find(m => m.rfNodeId === n.id)
+          if (!u) return n
+          const updated = { ...n, position: { x: u.absX, y: u.absY } }
           delete updated.parentId
-        }
-        return updated
-      }),
-    }))
+          return updated
+        })
+      return {
+        nodes: updatedNodes,
+        selectedNode: state.selectedNode?.id === groupRfId ? null : state.selectedNode,
+      }
+    })
   },
 
   addRFEdge(rfEdge) {

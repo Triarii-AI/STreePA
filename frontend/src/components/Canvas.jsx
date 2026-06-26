@@ -478,13 +478,12 @@ function CanvasInner({ projectId }) {
         for (const groupNode of selectedGroups) {
           try {
             const result = await deleteGroup(projectId, groupNode.data.groupId)
-            result.released_members.forEach(({ node_type, node_id, abs_x, abs_y }) => {
-              const rfId = node_type === 'group'
-                ? `group-${node_id}`
-                : `${nodeTypeToPrefix(node_type)}-${node_id}`
-              store.setRFNodeParentAndPos(rfId, null, { x: abs_x, y: abs_y })
-            })
-            store.removeRFNode(`group-${groupNode.data.groupId}`)
+            const memberUpdates = result.released_members.map(({ node_type, node_id, abs_x, abs_y }) => ({
+              rfNodeId: node_type === 'group' ? `group-${node_id}` : `${nodeTypeToPrefix(node_type)}-${node_id}`,
+              absX: abs_x,
+              absY: abs_y,
+            }))
+            useCanvasStore.getState().ungroupRFNodes(`group-${groupNode.data.groupId}`, memberUpdates)
           } catch (err) { console.error('Ungroup failed:', err) }
         }
         // Regular nodes: confirm then delete
@@ -823,18 +822,20 @@ function CanvasInner({ projectId }) {
       const result = await createGroup(projectId, { label: '', x: groupX, y: groupY, width: groupW, height: groupH, members })
       const group = result.group
       const rfGroupId = `group-${group.id}`
-      const store = useCanvasStore.getState()
-      store.addRFNode({
+      const groupRFNode = {
         id: rfGroupId,
         type: 'groupNode',
         position: { x: groupX, y: groupY },
         style: { width: groupW, height: groupH },
         data: { label: '', nodeType: 'group', groupId: group.id },
         zIndex: -1,
-      })
-      selected.forEach(n => {
-        store.setRFNodeParentAndPos(n.id, rfGroupId, { x: n.position.x - groupX, y: n.position.y - groupY })
-      })
+      }
+      const memberUpdates = selected.map(n => ({
+        rfNodeId: n.id,
+        relX: n.position.x - groupX,
+        relY: n.position.y - groupY,
+      }))
+      useCanvasStore.getState().groupRFNodes(groupRFNode, memberUpdates)
     } catch (err) {
       console.error('Group failed:', err)
       // eslint-disable-next-line no-alert
@@ -849,14 +850,12 @@ function CanvasInner({ projectId }) {
     const groupId = groupNode.data.groupId
     try {
       const result = await deleteGroup(projectId, groupId)
-      const store = useCanvasStore.getState()
-      result.released_members.forEach(({ node_type, node_id, abs_x, abs_y }) => {
-        const rfId = node_type === 'group'
-          ? `group-${node_id}`
-          : `${nodeTypeToPrefix(node_type)}-${node_id}`
-        store.setRFNodeParentAndPos(rfId, null, { x: abs_x, y: abs_y })
-      })
-      store.removeRFNode(`group-${groupId}`)
+      const memberUpdates = result.released_members.map(({ node_type, node_id, abs_x, abs_y }) => ({
+        rfNodeId: node_type === 'group' ? `group-${node_id}` : `${nodeTypeToPrefix(node_type)}-${node_id}`,
+        absX: abs_x,
+        absY: abs_y,
+      }))
+      useCanvasStore.getState().ungroupRFNodes(`group-${groupId}`, memberUpdates)
     } catch (err) {
       console.error('Ungroup failed:', err)
       // eslint-disable-next-line no-alert
