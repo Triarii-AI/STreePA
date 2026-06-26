@@ -261,7 +261,7 @@ def _draw_cross_refs_on_png(png_bytes, project, losses, hazards, scs, cas, ucas,
 
     DASH_RGBA  = (148, 163, 184, 255)   # slate-400 opaque
     ERASE_RGBA = (0, 0, 0, 0)           # fully transparent
-    STROKE_W   = max(2, scale_i * 2)    # 4 physical px @ scale=2
+    STROKE_W   = max(1, scale_i)         # 2 physical px @ scale=2
     dash_px    = max(4, round(5 * zoom * scale_i))
     gap_px     = max(4, round(5 * zoom * scale_i))
 
