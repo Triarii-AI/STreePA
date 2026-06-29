@@ -1,5 +1,5 @@
 export const LAYER_COLORS = {
-  root: { bg: '#ede9fe', border: '#6366f1', text: '#4338ca' },
+  root: { bg: '#f0faf5', border: '#2d6a4f', text: '#1b4332' },
   loss: { bg: '#fef2f2', border: '#ef4444', text: '#991b1b' },
   hazard: { bg: '#fff7ed', border: '#f97316', text: '#9a3412' },
   system_constraint: { bg: '#fefce8', border: '#eab308', text: '#854d0e' },
