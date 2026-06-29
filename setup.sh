@@ -12,8 +12,8 @@ BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 
 echo ""
-echo "  STPA Tree Graph — Setup"
-echo "  ========================"
+echo "  STreePA — STPA Tree Planning Application — Setup"
+echo "  ================================================="
 echo ""
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
@@ -57,14 +57,6 @@ fi
 
 command -v npm >/dev/null 2>&1 || die "npm not found after Node install — something went wrong."
 success "npm:    $(npm --version)"
-
-# Optional: cloudflared (only needed for ./run.sh --tunnel)
-if command -v cloudflared >/dev/null 2>&1; then
-  success "cloudflared: $(cloudflared --version 2>&1 | head -1)"
-else
-  warn "cloudflared not found — only needed for tunnel mode (./run.sh --tunnel)."
-  warn "  Install: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"
-fi
 
 # ── Backend .env ──────────────────────────────────────────────────────────────
 
@@ -117,6 +109,6 @@ success "npm packages installed."
 echo ""
 echo -e "${GREEN}Setup complete!${NC}"
 echo ""
-echo -e "  Start (dev mode):    ${CYAN}./run.sh${NC}"
-echo -e "  Start (tunnel mode): ${CYAN}./run.sh --tunnel${NC}  (requires cloudflared)"
+echo -e "  Start: ${CYAN}./run.sh${NC}"
+echo -e "  To change ports, edit ${CYAN}BACKEND_PORT${NC} and ${CYAN}FRONTEND_PORT${NC} at the top of run.sh"
 echo ""

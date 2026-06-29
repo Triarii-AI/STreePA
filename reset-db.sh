@@ -35,5 +35,5 @@ source "$VENV/bin/activate"
 cd "$ROOT/backend"
 python3 -c "from app import create_app; create_app()"
 
-success "Database reset. Fresh schema created at backend/stpa.db."
+success "Database reset. Fresh schema created at backend/instance/stpa.db."
 echo ""
