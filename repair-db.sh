@@ -17,7 +17,6 @@ echo "  ============================"
 echo ""
 
 [[ -d "$VENV" ]] || die "Python venv not found at backend/venv. Run ./setup.sh first."
-[[ -f "$ROOT/backend/.env" ]] || die ".env not found. Run ./setup.sh first."
 
 info "Ensuring all SQLite tables exist..."
 source "$VENV/bin/activate"

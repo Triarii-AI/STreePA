@@ -34,15 +34,6 @@ export const LAYER_Y_POSITIONS = {
 
 export const NODE_HORIZONTAL_SPACING = 240
 
-export const NODE_TYPES_LIST = [
-  'loss',
-  'hazard',
-  'system_constraint',
-  'control_action',
-  'uca',
-  'loss_scenario',
-]
-
 export function nodeTypeToPrefix(nodeType) {
   const map = {
     loss: 'loss', hazard: 'hazard', system_constraint: 'sc',

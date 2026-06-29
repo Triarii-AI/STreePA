@@ -58,24 +58,6 @@ fi
 command -v npm >/dev/null 2>&1 || die "npm not found after Node install — something went wrong."
 success "npm:    $(npm --version)"
 
-# ── Backend .env ──────────────────────────────────────────────────────────────
-
-echo ""
-info "Setting up backend configuration..."
-
-ENV_FILE="$BACKEND/.env"
-
-if [[ -f "$ENV_FILE" ]]; then
-  warn ".env already exists — skipping (delete it to reconfigure)."
-else
-  SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-  cat > "$ENV_FILE" <<EOF
-SECRET_KEY=$SECRET_KEY
-DATABASE_URL=sqlite:///stpa.db
-EOF
-  success ".env written (SQLite database will be created at backend/stpa.db on first run)."
-fi
-
 # ── Python virtual environment ────────────────────────────────────────────────
 
 echo ""

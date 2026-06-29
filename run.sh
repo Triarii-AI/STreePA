@@ -22,7 +22,6 @@ echo ""
 
 # ── Preflight checks ──────────────────────────────────────────────────────────
 
-[[ -f "$BACKEND/.env" ]] || die "backend/.env not found. Run ./setup.sh first."
 [[ -d "$BACKEND/venv" ]] || die "Python venv not found. Run ./setup.sh first."
 [[ -d "$FRONTEND/node_modules" ]] || die "node_modules not found. Run ./setup.sh first."
 
