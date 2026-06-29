@@ -175,7 +175,7 @@ export default function Toolbar({ project }) {
   return (
     <div className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center pl-2 pr-4 gap-4 flex-shrink-0 z-30">
       {/* Logo */}
-      <img src="/streepa_wordmark.svg" alt="STreePA" className="h-10 w-auto flex-shrink-0 dark:brightness-150" />
+      <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 w-auto flex-shrink-0 dark:brightness-150 ml-1" />
       <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 flex-shrink-0" />
       {/* Back to Dashboard */}
       <button

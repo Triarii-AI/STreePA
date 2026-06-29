@@ -58,7 +58,7 @@ export default function Login() {
     <div className="min-h-screen w-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8 w-full max-w-sm">
         <div className="text-center mb-6">
-          <img src="/streepa_wordmark.svg" alt="STreePA" className="h-16 mx-auto mb-3" />
+          <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 mx-auto mb-3" />
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {mode === 'login' ? 'Sign in to your account' : 'Create a new account'}
           </p>

@@ -52,7 +52,7 @@ fi
 info "Starting backend..."
 source "$BACKEND/venv/bin/activate"
 cd "$BACKEND"
-FLASK_RUN_PORT="$BACKEND_PORT" PYTHONWARNINGS="ignore::DeprecationWarning:eventlet" python app.py &
+FLASK_RUN_PORT="$BACKEND_PORT" python app.py &
 BACKEND_PID=$!
 cd "$ROOT"
 success "Backend running (PID $BACKEND_PID) → http://localhost:$BACKEND_PORT"
