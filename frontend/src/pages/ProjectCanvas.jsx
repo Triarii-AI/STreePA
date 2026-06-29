@@ -96,7 +96,7 @@ function RenderModeCanvas({ id, themeDark, crossRefs, hiddenIds }) {
   // NOTE: flex flex-col is required — Canvas's root uses `flex-1` for its height, which
   // collapses to 0 (clipping the whole graph) unless the parent is a flex container.
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-gray-900" data-export-canvas>
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-neutral-900" data-export-canvas>
       <ReactFlowProvider>
         <Canvas projectId={id} renderMode initialCrossRefs={crossRefs} />
       </ReactFlowProvider>
@@ -231,7 +231,7 @@ export default function ProjectCanvas() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-gray-900">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-neutral-900">
       <ReactFlowProvider>
         <Toolbar project={currentProject} />
 

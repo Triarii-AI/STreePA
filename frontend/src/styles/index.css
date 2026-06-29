@@ -9,23 +9,23 @@ body { margin: 0; overflow: hidden; }
 
 /* React Flow built-in controls — dark mode overrides */
 .dark .react-flow__controls {
-  background: #1e293b;
-  border-color: #334155;
+  background: #262626;
+  border-color: #404040;
   box-shadow: 0 1px 6px rgba(0,0,0,0.5);
 }
 .dark .react-flow__controls-button {
-  background: #1e293b;
-  border-color: #334155;
-  fill: #94a3b8;
-  color: #94a3b8;
+  background: #262626;
+  border-color: #404040;
+  fill: #a3a3a3;
+  color: #a3a3a3;
 }
 .dark .react-flow__controls-button:hover {
-  background: #334155;
-  fill: #e2e8f0;
+  background: #404040;
+  fill: #e5e5e5;
 }
-.dark .react-flow__minimap-mask { fill: rgba(15,23,42,0.6); }
-.dark .react-flow__edge-path { stroke: #64748b; }
-.dark .react-flow__handle { background: #475569; border-color: #475569; }
+.dark .react-flow__minimap-mask { fill: rgba(23,23,23,0.6); }
+.dark .react-flow__edge-path { stroke: #737373; }
+.dark .react-flow__handle { background: #525252; border-color: #525252; }
 
 /* Minimap: rounded corners to match the UI */
 .react-flow__minimap { border-radius: 8px !important; overflow: hidden !important; }

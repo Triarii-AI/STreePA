@@ -31,7 +31,7 @@ const LAYER_BADGE_COLORS = {
 
 function LinkChip({ label, onRemove }) {
   return (
-    <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs px-2 py-1 rounded-full">
+    <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-neutral-700 text-gray-700 dark:text-neutral-300 text-xs px-2 py-1 rounded-full">
       {label}
       {onRemove && (
         <button onClick={onRemove} className="text-gray-400 hover:text-red-500 ml-0.5 leading-none">
@@ -309,9 +309,9 @@ export default function NodePanel({ projectId }) {
   const linkedHazardId = formData.linked_hazard_id || nodeData.linked_hazard_id
 
   return (
-    <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden flex-shrink-0">
+    <div className="w-80 bg-white dark:bg-neutral-800 border-l border-gray-200 dark:border-neutral-700 flex flex-col overflow-hidden flex-shrink-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-neutral-700 flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeClass}`}>
             {LAYER_LABELS[nodeType] || nodeType.toUpperCase()}
@@ -319,7 +319,7 @@ export default function NodePanel({ projectId }) {
         </div>
         <button
           onClick={() => setSelectedNode(null)}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+          className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 p-1 rounded-lg"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -336,7 +336,7 @@ export default function NodePanel({ projectId }) {
               type="text"
               value={formData.label || ''}
               onChange={e => handleFieldChange('label', e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
             />
           </div>
         )}
@@ -345,21 +345,21 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'root' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Title</label>
               <input
                 type="text"
                 value={formData.title || ''}
                 onChange={e => handleFieldChange('title', e.target.value)}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Purpose Statement</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Purpose Statement</label>
               <textarea
                 value={formData.purpose_statement || ''}
                 onChange={e => handleFieldChange('purpose_statement', e.target.value)}
                 rows={4}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
           </>
@@ -367,12 +367,12 @@ export default function NodePanel({ projectId }) {
 
         {nodeType === 'loss' && (
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
             <textarea
               value={formData.description || ''}
               onChange={e => handleFieldChange('description', e.target.value)}
               rows={3}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
             />
           </div>
         )}
@@ -380,16 +380,16 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'hazard' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
               <textarea
                 value={formData.description || ''}
                 onChange={e => handleFieldChange('description', e.target.value)}
                 rows={3}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Parent Hazard</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Parent Hazard</label>
               <SearchableSelect
                 value={formData.parent_hazard_id || ''}
                 onChange={v => handleFieldChange('parent_hazard_id', v)}
@@ -405,16 +405,16 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'system_constraint' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
               <textarea
                 value={formData.description || ''}
                 onChange={e => handleFieldChange('description', e.target.value)}
                 rows={3}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Parent Hazard</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Parent Hazard</label>
               <SearchableSelect
                 value={formData.linked_hazard_id || ''}
                 onChange={v => handleFieldChange('linked_hazard_id', v)}
@@ -430,12 +430,12 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'control_action' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Name</label>
               <input
                 type="text"
                 value={formData.name || ''}
                 onChange={e => handleFieldChange('name', e.target.value)}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
           </>
@@ -444,20 +444,20 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'uca' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
               <textarea
                 value={formData.description || ''}
                 onChange={e => handleFieldChange('description', e.target.value)}
                 rows={3}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">UCA Type</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">UCA Type</label>
               <select
                 value={formData.uca_type || ''}
                 onChange={e => handleFieldChange('uca_type', e.target.value)}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               >
                 <option value="">Select type...</option>
                 {Object.entries(UCA_TYPE_LABELS).map(([k, v]) => (
@@ -466,7 +466,7 @@ export default function NodePanel({ projectId }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Control Action</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Control Action</label>
               <SearchableSelect
                 value={formData.control_action_id || ''}
                 onChange={v => handleFieldChange('control_action_id', v)}
@@ -481,16 +481,16 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'loss_scenario' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
               <textarea
                 value={formData.description || ''}
                 onChange={e => handleFieldChange('description', e.target.value)}
                 rows={3}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">UCA</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">UCA</label>
               <SearchableSelect
                 value={formData.uca_id || ''}
                 onChange={v => handleFieldChange('uca_id', v)}
@@ -533,10 +533,10 @@ export default function NodePanel({ projectId }) {
 
         {/* Hazard → Losses */}
         {nodeType === 'hazard' && (
-          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Linked Losses</p>
+          <div className="border-t border-gray-100 dark:border-neutral-700 pt-3">
+            <p className="text-xs font-semibold text-gray-600 dark:text-neutral-400 mb-2">Linked Losses</p>
             {allLosses.length === 0
-              ? <p className="text-xs text-gray-400 dark:text-gray-500">No losses exist yet.</p>
+              ? <p className="text-xs text-gray-400 dark:text-neutral-500">No losses exist yet.</p>
               : (
                 <SearchableCheckboxList
                   items={allLosses}
@@ -554,10 +554,10 @@ export default function NodePanel({ projectId }) {
 
         {/* UCA → Hazards */}
         {nodeType === 'uca' && (
-          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Linked Hazards</p>
+          <div className="border-t border-gray-100 dark:border-neutral-700 pt-3">
+            <p className="text-xs font-semibold text-gray-600 dark:text-neutral-400 mb-2">Linked Hazards</p>
             {allHazards.length === 0
-              ? <p className="text-xs text-gray-400 dark:text-gray-500">No hazards exist yet.</p>
+              ? <p className="text-xs text-gray-400 dark:text-neutral-500">No hazards exist yet.</p>
               : (
                 <SearchableCheckboxList
                   items={allHazards}
@@ -576,14 +576,14 @@ export default function NodePanel({ projectId }) {
 
         {/* Loss Scenario → Hazards (inherited from parent UCA, read-only) */}
         {nodeType === 'loss_scenario' && (
-          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Inherited Hazards</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Automatically inherited from parent UCA</p>
+          <div className="border-t border-gray-100 dark:border-neutral-700 pt-3">
+            <p className="text-xs font-semibold text-gray-600 dark:text-neutral-400 mb-1">Inherited Hazards</p>
+            <p className="text-xs text-gray-400 dark:text-neutral-500 mb-2">Automatically inherited from parent UCA</p>
             {(() => {
               const parentUCA = allUCAs.find(u => u.id === nodeData.uca_id)
               const hazardIds = parentUCA ? (parentUCA.hazard_ids || []) : (nodeData.hazard_ids || [])
               const inherited = allHazards.filter(h => hazardIds.includes(h.id))
-              if (inherited.length === 0) return <p className="text-xs text-gray-400 dark:text-gray-500 italic">None — parent UCA has no linked hazards</p>
+              if (inherited.length === 0) return <p className="text-xs text-gray-400 dark:text-neutral-500 italic">None — parent UCA has no linked hazards</p>
               return (
                 <div className="flex flex-wrap gap-1">
                   {inherited.map(h => (
@@ -599,10 +599,10 @@ export default function NodePanel({ projectId }) {
 
         {/* System Constraint → Hazards (multi-select checkboxes) */}
         {nodeType === 'system_constraint' && (
-          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Linked Hazards</p>
+          <div className="border-t border-gray-100 dark:border-neutral-700 pt-3">
+            <p className="text-xs font-semibold text-gray-600 dark:text-neutral-400 mb-2">Linked Hazards</p>
             {allHazards.length === 0
-              ? <p className="text-xs text-gray-400 dark:text-gray-500">No hazards exist yet.</p>
+              ? <p className="text-xs text-gray-400 dark:text-neutral-500">No hazards exist yet.</p>
               : (
                 <SearchableCheckboxList
                   items={allHazards}

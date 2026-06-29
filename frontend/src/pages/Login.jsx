@@ -55,11 +55,11 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen w-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8 w-full max-w-sm">
+    <div className="min-h-screen w-screen bg-gray-100 dark:bg-neutral-900 flex items-center justify-center">
+      <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-gray-200 dark:border-neutral-700 p-8 w-full max-w-sm">
         <div className="text-center mb-6">
-          <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 mx-auto mb-3" />
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 mx-auto mb-3 px-2" />
+          <p className="text-sm text-gray-500 dark:text-neutral-400 mt-1">
             {mode === 'login' ? 'Sign in to your account' : 'Create a new account'}
           </p>
         </div>
@@ -72,26 +72,26 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Username</label>
             <input
               type="text"
               autoComplete="username"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
               placeholder="Enter your username"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Password</label>
             <input
               type="password"
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
               placeholder="Enter your password"
               required
             />
@@ -99,13 +99,13 @@ export default function Login() {
 
           {mode === 'register' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Confirm Password</label>
               <input
                 type="password"
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
                 placeholder="Confirm your password"
                 required
               />
@@ -121,7 +121,7 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
+        <p className="text-center text-sm text-gray-500 dark:text-neutral-400 mt-5">
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
           <button
             type="button"
@@ -136,7 +136,7 @@ export default function Login() {
       <button
         type="button"
         onClick={toggleDarkMode}
-        className="fixed bottom-4 right-4 z-50 p-2 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 shadow-md text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white transition-colors"
+        className="fixed bottom-4 right-4 z-50 p-2 rounded-full bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 shadow-md text-gray-500 dark:text-neutral-300 hover:text-gray-700 dark:hover:text-white transition-colors"
         title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
       >
         {darkMode ? (

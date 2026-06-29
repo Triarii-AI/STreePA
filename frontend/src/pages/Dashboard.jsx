@@ -395,19 +395,19 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-neutral-900">
       {/* Top bar */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 pl-3 pr-6 h-14 flex items-center justify-between">
+      <header className="bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 pl-3 pr-6 h-14 flex items-center justify-between">
         <div className="flex items-center">
-          <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 w-auto dark:brightness-150" />
+          <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 w-auto dark:brightness-150 ml-2" />
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="text-sm text-gray-600 dark:text-neutral-400">
             {user?.username || user?.name || 'User'}
           </span>
           <button
             onClick={toggleDarkMode}
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
             title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {darkMode ? (
@@ -422,7 +422,7 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => { setShowAccountSettings(true); setAcctError(''); setAcctSuccess('') }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
             title="Account Settings"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -432,7 +432,7 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => { setShowBackups(true); setBackupMsg(null) }}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-streepa-700 dark:hover:text-streepa-400 border border-gray-200 dark:border-gray-600 hover:border-streepa-300 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5"
+            className="text-sm text-gray-500 dark:text-neutral-400 hover:text-streepa-700 dark:hover:text-streepa-400 border border-gray-200 dark:border-neutral-600 hover:border-streepa-300 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5"
             title="Database Backups"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -442,7 +442,7 @@ export default function Dashboard() {
           </button>
           <button
             onClick={handleLogout}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 transition-colors"
+            className="text-sm text-gray-500 dark:text-neutral-400 hover:text-gray-800 dark:hover:text-neutral-200 border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-1.5 transition-colors"
           >
             Logout
           </button>
@@ -453,31 +453,31 @@ export default function Dashboard() {
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* Tabs + actions row */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-xl p-1">
             <button
               onClick={() => setActiveTab('mine')}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 activeTab === 'mine'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 shadow-sm'
+                  : 'text-gray-500 dark:text-neutral-400 hover:text-gray-700 dark:hover:text-neutral-300'
               }`}
             >
               My Projects
               {projects.length > 0 && (
-                <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{projects.length}</span>
+                <span className="ml-1.5 text-xs text-gray-400 dark:text-neutral-500">{projects.length}</span>
               )}
             </button>
             <button
               onClick={() => setActiveTab('shared')}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 activeTab === 'shared'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                  ? 'bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 shadow-sm'
+                  : 'text-gray-500 dark:text-neutral-400 hover:text-gray-700 dark:hover:text-neutral-300'
               }`}
             >
               Shared with Me
               {sharedProjects.length > 0 && (
-                <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">{sharedProjects.length}</span>
+                <span className="ml-1.5 text-xs text-gray-400 dark:text-neutral-500">{sharedProjects.length}</span>
               )}
             </button>
           </div>
@@ -494,7 +494,7 @@ export default function Dashboard() {
               <button
                 onClick={() => importInputRef.current?.click()}
                 disabled={importing}
-                className="border border-gray-300 dark:border-gray-600 hover:border-streepa-400 text-gray-700 dark:text-gray-300 hover:text-streepa-700 dark:hover:text-streepa-400 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="border border-gray-300 dark:border-neutral-600 hover:border-streepa-400 text-gray-700 dark:text-neutral-300 hover:text-streepa-700 dark:hover:text-streepa-400 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -523,8 +523,8 @@ export default function Dashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
               </div>
-              <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No projects yet</h2>
-              <p className="text-gray-400 dark:text-gray-500 text-sm mb-6">Create your first STPA analysis project to get started.</p>
+              <h2 className="text-lg font-semibold text-gray-700 dark:text-neutral-300 mb-2">No projects yet</h2>
+              <p className="text-gray-400 dark:text-neutral-500 text-sm mb-6">Create your first STPA analysis project to get started.</p>
               <button
                 onClick={() => setShowNewModal(true)}
                 className="bg-streepa-600 hover:bg-streepa-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
@@ -541,13 +541,13 @@ export default function Dashboard() {
                   <div
                     key={project.id}
                     onClick={() => navigate(`/projects/${project.id}`)}
-                    className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-streepa-300 dark:hover:border-streepa-500 hover:shadow-md transition-all relative"
+                    className="group bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl p-5 cursor-pointer hover:border-streepa-300 dark:hover:border-streepa-500 hover:shadow-md transition-all relative"
                   >
                     {/* Three-dot menu button */}
                     <div className="absolute top-3 right-3">
                       <button
                         onClick={e => { e.stopPropagation(); setCardMenu(isMenuOpen ? null : { project }) }}
-                        className={`p-1.5 rounded-lg transition-opacity ${isMenuOpen ? 'opacity-100 bg-gray-100 dark:bg-gray-700' : 'opacity-0 group-hover:opacity-100'} text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700`}
+                        className={`p-1.5 rounded-lg transition-opacity ${isMenuOpen ? 'opacity-100 bg-gray-100 dark:bg-neutral-700' : 'opacity-0 group-hover:opacity-100'} text-gray-400 hover:text-gray-700 dark:hover:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700`}
                         title="Project options"
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -557,41 +557,41 @@ export default function Dashboard() {
                       {isMenuOpen && (
                         <>
                           <div className="fixed inset-0 z-30" onClick={e => { e.stopPropagation(); setCardMenu(null) }} />
-                          <div className="absolute right-0 top-8 z-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-52 py-1.5" onClick={e => e.stopPropagation()}>
-                            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
-                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Icon color</p>
+                          <div className="absolute right-0 top-8 z-40 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-xl shadow-lg w-52 py-1.5" onClick={e => e.stopPropagation()}>
+                            <div className="px-3 py-2 border-b border-gray-100 dark:border-neutral-700">
+                              <p className="text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1.5">Icon color</p>
                               <div className="flex gap-1.5 flex-wrap">
                                 {ICON_COLORS.map(c => (
                                   <button
                                     key={c.name}
                                     onClick={e => handleColorChange(e, project, c.name)}
-                                    className={`w-5 h-5 rounded-full ${c.swatch} transition-transform hover:scale-110 ${project.icon_color === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-gray-500' : ''}`}
+                                    className={`w-5 h-5 rounded-full ${c.swatch} transition-transform hover:scale-110 ${project.icon_color === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-neutral-500' : ''}`}
                                     title={c.name}
                                   />
                                 ))}
                               </div>
                             </div>
-                            <button onClick={e => openRename(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => openRename(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                               Rename
                             </button>
-                            <button onClick={e => { e.stopPropagation(); openShareModal(e, project) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => { e.stopPropagation(); openShareModal(e, project) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                               Share
                             </button>
-                            <button onClick={e => handleDuplicate(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => handleDuplicate(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                               Duplicate
                             </button>
-                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectJson(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectJson(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                               Download JSON
                             </button>
-                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectExcel(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectExcel(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                               Download Excel
                             </button>
-                            <div className="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1">
+                            <div className="border-t border-gray-100 dark:border-neutral-700 mt-1 pt-1">
                               <button onClick={e => { e.stopPropagation(); setCardMenu(null); handleDelete(e, project.id) }} className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 Delete
@@ -613,13 +613,13 @@ export default function Dashboard() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                         </svg>
                       </button>
-                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1 pr-8">{project.title}</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-neutral-100 text-base leading-tight mb-1 pr-8">{project.title}</h3>
                       {project.purpose_statement && (
-                        <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
+                        <p className="text-gray-500 dark:text-neutral-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
                       )}
                     </div>
 
-                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <div className="text-xs text-gray-400 dark:text-neutral-500 mt-3 pt-3 border-t border-gray-100 dark:border-neutral-700 flex items-center justify-between">
                       <span>Created {formatDate(project.created_at)}</span>
                       {project.updated_at && (
                         <span title={new Date(project.updated_at).toLocaleString()}>
@@ -638,13 +638,13 @@ export default function Dashboard() {
         {activeTab === 'shared' && (
           sharedProjects.length === 0 ? (
             <div className="text-center py-20">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-100 dark:bg-neutral-800 mb-4">
                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                 </svg>
               </div>
-              <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No shared projects</h2>
-              <p className="text-gray-400 dark:text-gray-500 text-sm">Projects shared with you by other users will appear here.</p>
+              <h2 className="text-lg font-semibold text-gray-700 dark:text-neutral-300 mb-2">No shared projects</h2>
+              <p className="text-gray-400 dark:text-neutral-500 text-sm">Projects shared with you by other users will appear here.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -655,13 +655,13 @@ export default function Dashboard() {
                   <div
                     key={project.id}
                     onClick={() => navigate(`/projects/${project.id}`)}
-                    className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 cursor-pointer hover:border-streepa-300 dark:hover:border-streepa-500 hover:shadow-md transition-all relative"
+                    className="group bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl p-5 cursor-pointer hover:border-streepa-300 dark:hover:border-streepa-500 hover:shadow-md transition-all relative"
                   >
                     {/* Three-dot menu button */}
                     <div className="absolute top-3 right-3">
                       <button
                         onClick={e => { e.stopPropagation(); setCardMenu(isMenuOpen ? null : { project }) }}
-                        className={`p-1.5 rounded-lg transition-opacity ${isMenuOpen ? 'opacity-100 bg-gray-100 dark:bg-gray-700' : 'opacity-0 group-hover:opacity-100'} text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700`}
+                        className={`p-1.5 rounded-lg transition-opacity ${isMenuOpen ? 'opacity-100 bg-gray-100 dark:bg-neutral-700' : 'opacity-0 group-hover:opacity-100'} text-gray-400 hover:text-gray-700 dark:hover:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700`}
                         title="Project options"
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -671,37 +671,37 @@ export default function Dashboard() {
                       {isMenuOpen && (
                         <>
                           <div className="fixed inset-0 z-30" onClick={e => { e.stopPropagation(); setCardMenu(null) }} />
-                          <div className="absolute right-0 top-8 z-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-52 py-1.5" onClick={e => e.stopPropagation()}>
-                            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
-                              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Icon color</p>
+                          <div className="absolute right-0 top-8 z-40 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-xl shadow-lg w-52 py-1.5" onClick={e => e.stopPropagation()}>
+                            <div className="px-3 py-2 border-b border-gray-100 dark:border-neutral-700">
+                              <p className="text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1.5">Icon color</p>
                               <div className="flex gap-1.5 flex-wrap">
                                 {ICON_COLORS.map(c => (
                                   <button
                                     key={c.name}
                                     onClick={e => handleColorChange(e, project, c.name)}
-                                    className={`w-5 h-5 rounded-full ${c.swatch} transition-transform hover:scale-110 ${project.icon_color === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-gray-500' : ''}`}
+                                    className={`w-5 h-5 rounded-full ${c.swatch} transition-transform hover:scale-110 ${project.icon_color === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-neutral-500' : ''}`}
                                     title={c.name}
                                   />
                                 ))}
                               </div>
                             </div>
-                            <button onClick={e => openRename(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => openRename(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                               Rename
                             </button>
-                            <button onClick={e => { e.stopPropagation(); openShareModal(e, project) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => { e.stopPropagation(); openShareModal(e, project) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                               Share
                             </button>
-                            <button onClick={e => handleDuplicate(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => handleDuplicate(e, project)} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                               Duplicate
                             </button>
-                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectJson(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectJson(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                               Download JSON
                             </button>
-                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectExcel(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                            <button onClick={e => { e.stopPropagation(); setCardMenu(null); downloadProjectExcel(project.id) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2">
                               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                               Download Excel
                             </button>
@@ -722,19 +722,19 @@ export default function Dashboard() {
                         </svg>
                       </button>
                       <div className="flex items-start justify-between gap-2 pr-8">
-                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-base leading-tight mb-1">{project.title}</h3>
+                        <h3 className="font-semibold text-gray-900 dark:text-neutral-100 text-base leading-tight mb-1">{project.title}</h3>
                         {project.user_role === 'viewer' && (
-                          <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                          <span className="flex-shrink-0 text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 dark:bg-neutral-700 text-gray-500 dark:text-neutral-400">
                             Viewer
                           </span>
                         )}
                       </div>
                       {project.purpose_statement && (
-                        <p className="text-gray-500 dark:text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
+                        <p className="text-gray-500 dark:text-neutral-400 text-sm line-clamp-2 leading-relaxed">{project.purpose_statement}</p>
                       )}
                     </div>
 
-                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1">
+                    <div className="text-xs text-gray-400 dark:text-neutral-500 mt-3 pt-3 border-t border-gray-100 dark:border-neutral-700 space-y-1">
                       <div className="flex items-center justify-between">
                         <span>Created {formatDate(project.created_at)}</span>
                         {project.updated_at && (
@@ -745,7 +745,7 @@ export default function Dashboard() {
                       </div>
                       {project.owner_username && (
                         <div className="flex justify-end">
-                          <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full text-xs">
+                          <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-neutral-700 text-gray-500 dark:text-neutral-400 px-2 py-0.5 rounded-full text-xs">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
@@ -765,18 +765,18 @@ export default function Dashboard() {
       {/* Backups Modal */}
       {showBackups && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-700 w-full max-w-2xl max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-neutral-700 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <svg className="w-5 h-5 text-streepa-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0 2 1.5 3 3.5 3h9C18.5 10 20 9 20 7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3" />
                 </svg>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Database Backups</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-neutral-100">Database Backups</h2>
               </div>
               <button
                 onClick={() => setShowBackups(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 p-1 rounded-lg"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -797,10 +797,10 @@ export default function Dashboard() {
               )}
 
               {/* Manual backup */}
-              <div className="flex items-center justify-between gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
+              <div className="flex items-center justify-between gap-4 p-4 bg-gray-50 dark:bg-neutral-700/50 rounded-xl border border-gray-200 dark:border-neutral-600">
                 <div>
-                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Manual Backup</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Create a full copy of the database right now and validate it.</div>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-neutral-100">Manual Backup</div>
+                  <div className="text-xs text-gray-500 dark:text-neutral-400 mt-0.5">Create a full copy of the database right now and validate it.</div>
                 </div>
                 <button
                   onClick={handleBackupNow}
@@ -827,11 +827,11 @@ export default function Dashboard() {
               </div>
 
               {/* Auto-backup settings */}
-              <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-xl space-y-3">
+              <div className="p-4 border border-gray-200 dark:border-neutral-600 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Auto-Backup</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Automatically back up the database on a schedule.</div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-neutral-100">Auto-Backup</div>
+                    <div className="text-xs text-gray-500 dark:text-neutral-400 mt-0.5">Automatically back up the database on a schedule.</div>
                   </div>
                   <button
                     type="button"
@@ -845,12 +845,12 @@ export default function Dashboard() {
                 {backupSettings.enabled && (
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Interval</label>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Interval</label>
                       <select
                         value={backupSettings.interval_minutes}
                         onChange={e => handleSaveSettings({ ...backupSettings, interval_minutes: parseInt(e.target.value) })}
                         disabled={savingSettings}
-                        className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
+                        className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-200"
                       >
                         {INTERVAL_OPTIONS.map(o => (
                           <option key={o.value} value={o.value}>{o.label}</option>
@@ -858,7 +858,7 @@ export default function Dashboard() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Keep last</label>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Keep last</label>
                       <div className="flex items-center gap-2">
                         <input
                           type="number"
@@ -868,9 +868,9 @@ export default function Dashboard() {
                           onChange={e => setBackupSettings(s => ({ ...s, max_backups: parseInt(e.target.value) || 1 }))}
                           onBlur={() => handleSaveSettings(backupSettings)}
                           disabled={savingSettings}
-                          className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
+                          className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-200"
                         />
-                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">backups</span>
+                        <span className="text-xs text-gray-500 dark:text-neutral-400 whitespace-nowrap">backups</span>
                       </div>
                     </div>
                   </div>
@@ -880,7 +880,7 @@ export default function Dashboard() {
               {/* Backup list */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100">
                     Stored Backups {!backupsLoading && <span className="text-gray-400 font-normal">({backups.length})</span>}
                   </h3>
                   <button onClick={loadBackups} disabled={backupsLoading} className="text-xs text-streepa-600 hover:underline disabled:opacity-50">
@@ -889,30 +889,30 @@ export default function Dashboard() {
                 </div>
 
                 {backupsLoading ? (
-                  <div className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">Loading…</div>
+                  <div className="text-sm text-gray-400 dark:text-neutral-500 text-center py-8">Loading…</div>
                 ) : backups.length === 0 ? (
-                  <div className="text-sm text-gray-400 dark:text-gray-500 text-center py-8 border border-dashed border-gray-200 dark:border-gray-600 rounded-xl">
+                  <div className="text-sm text-gray-400 dark:text-neutral-500 text-center py-8 border border-dashed border-gray-200 dark:border-neutral-600 rounded-xl">
                     No backups yet. Click "Backup Now" to create one.
                   </div>
                 ) : (
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                  <div className="border border-gray-200 dark:border-neutral-700 rounded-xl overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Date</th>
-                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Size</th>
-                          <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Valid</th>
+                        <tr className="bg-gray-50 dark:bg-neutral-700/50 border-b border-gray-200 dark:border-neutral-600">
+                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-neutral-400 uppercase tracking-wide">Date</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-neutral-400 uppercase tracking-wide">Size</th>
+                          <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-500 dark:text-neutral-400 uppercase tracking-wide">Valid</th>
                           <th className="px-4 py-2.5" />
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                      <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
                         {backups.map(b => (
-                          <tr key={b.filename} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                          <tr key={b.filename} className="hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-colors">
                             <td className="px-4 py-3">
-                              <div className="font-medium text-gray-800 dark:text-gray-200">{formatBackupDate(b.created_at)}</div>
-                              <div className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5">{b.filename}</div>
+                              <div className="font-medium text-gray-800 dark:text-neutral-200">{formatBackupDate(b.created_at)}</div>
+                              <div className="text-xs text-gray-400 dark:text-neutral-500 font-mono mt-0.5">{b.filename}</div>
                             </td>
-                            <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{formatSize(b.size)}</td>
+                            <td className="px-4 py-3 text-gray-600 dark:text-neutral-400 whitespace-nowrap">{formatSize(b.size)}</td>
                             <td className="px-4 py-3 text-center">
                               {b.valid
                                 ? <span className="inline-flex items-center gap-1 text-green-700 font-medium text-xs"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>OK</span>
@@ -946,15 +946,15 @@ export default function Dashboard() {
       {/* Share Project Modal */}
       {showShareModal && shareTargetProject && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-700 w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-neutral-700">
               <div>
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Share Project</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-xs">{shareTargetProject.title}</p>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-neutral-100">Share Project</h2>
+                <p className="text-xs text-gray-500 dark:text-neutral-400 mt-0.5 truncate max-w-xs">{shareTargetProject.title}</p>
               </div>
               <button
                 onClick={() => setShowShareModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 p-1 rounded-lg"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -979,12 +979,12 @@ export default function Dashboard() {
                           value={shareUsername}
                           onChange={e => setShareUsername(e.target.value)}
                           placeholder="Enter username"
-                          className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                          className="flex-1 border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
                         />
                         <select
                           value={shareRole}
                           onChange={e => setShareRole(e.target.value)}
-                          className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none flex-shrink-0"
+                          className="border border-gray-300 dark:border-neutral-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-neutral-700 text-gray-700 dark:text-neutral-200 focus:outline-none flex-shrink-0"
                         >
                           <option value="editor">Editor</option>
                           <option value="viewer">Viewer</option>
@@ -1001,26 +1001,26 @@ export default function Dashboard() {
 
                     {shareList.length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Shared with</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-neutral-400 mb-2">Shared with</p>
                         <ul className="space-y-1">
                           {shareList.map(s => (
-                            <li key={s.user_id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                            <li key={s.user_id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-neutral-700/50 rounded-lg">
                               <div className="w-6 h-6 rounded-full bg-streepa-100 dark:bg-streepa-900/40 flex items-center justify-center text-xs font-semibold text-streepa-600 flex-shrink-0">
                                 {s.username[0].toUpperCase()}
                               </div>
-                              <span className="text-sm text-gray-800 dark:text-gray-200 flex-1 truncate">{s.username}</span>
+                              <span className="text-sm text-gray-800 dark:text-neutral-200 flex-1 truncate">{s.username}</span>
                               {canManageRoles ? (
                                 <select
                                   value={s.role}
                                   onChange={e => handleUpdateShareRole(s.user_id, e.target.value)}
                                   disabled={updatingShareRole === s.user_id}
-                                  className="text-xs border border-gray-200 dark:border-gray-600 rounded px-1.5 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none disabled:opacity-50"
+                                  className="text-xs border border-gray-200 dark:border-neutral-600 rounded px-1.5 py-1 bg-white dark:bg-neutral-700 text-gray-700 dark:text-neutral-200 focus:outline-none disabled:opacity-50"
                                 >
                                   <option value="editor">Editor</option>
                                   <option value="viewer">Viewer</option>
                                 </select>
                               ) : (
-                                <span className={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${s.role === 'viewer' ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
+                                <span className={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${s.role === 'viewer' ? 'bg-gray-100 dark:bg-neutral-700 text-gray-500 dark:text-neutral-400' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
                                   {s.role === 'viewer' ? 'Viewer' : 'Editor'}
                                 </span>
                               )}
@@ -1052,12 +1052,12 @@ export default function Dashboard() {
       {/* Account Settings Modal */}
       {showAccountSettings && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Account Settings</h2>
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-700 w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-neutral-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-neutral-100">Account Settings</h2>
               <button
                 onClick={() => setShowAccountSettings(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 p-1 rounded-lg"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1076,44 +1076,44 @@ export default function Dashboard() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Username</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">New Username</label>
                 <input
                   type="text"
                   value={acctNewUsername}
                   onChange={e => setAcctNewUsername(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                  className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
                   placeholder="Leave blank to keep current"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">New Password</label>
                 <input
                   type="password"
                   value={acctNewPassword}
                   onChange={e => setAcctNewPassword(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                  className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
                   placeholder="Leave blank to keep current"
                 />
               </div>
               {acctNewPassword && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Confirm New Password</label>
                   <input
                     type="password"
                     value={acctConfirmPassword}
                     onChange={e => setAcctConfirmPassword(e.target.value)}
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                    className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
                     placeholder="Confirm new password"
                   />
                 </div>
               )}
-              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Password <span className="text-red-500">*</span></label>
+              <div className="border-t border-gray-100 dark:border-neutral-700 pt-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Current Password <span className="text-red-500">*</span></label>
                 <input
                   type="password"
                   value={acctCurrentPassword}
                   onChange={e => setAcctCurrentPassword(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                  className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
                   placeholder="Required to confirm changes"
                   required
                 />
@@ -1122,7 +1122,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setShowAccountSettings(false)}
-                  className="flex-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="flex-1 border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-neutral-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1142,12 +1142,12 @@ export default function Dashboard() {
       {/* New Project Modal */}
       {showNewModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">New Project</h2>
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-700 w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-neutral-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-neutral-100">New Project</h2>
               <button
                 onClick={() => { setShowNewModal(false); setNewTitle(''); setNewPurpose(''); setCreateError('') }}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 p-1 rounded-lg"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1162,23 +1162,23 @@ export default function Dashboard() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Project Title <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Project Title <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={newTitle}
                   onChange={e => setNewTitle(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
                   placeholder="e.g. Autonomous Vehicle Braking System"
                   required
                   autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purpose Statement <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-neutral-300 mb-1">Purpose Statement <span className="text-red-500">*</span></label>
                 <textarea
                   value={newPurpose}
                   onChange={e => setNewPurpose(e.target.value)}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent resize-none bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
                   placeholder="Describe the system purpose and safety objectives..."
                   rows={3}
                   required
@@ -1188,7 +1188,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => { setShowNewModal(false); setNewTitle(''); setNewPurpose(''); setCreateError('') }}
-                  className="flex-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="flex-1 border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-neutral-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1208,12 +1208,12 @@ export default function Dashboard() {
       {/* Rename Project Modal */}
       {renamingProject && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Rename Project</h2>
+          <div className="bg-white dark:bg-neutral-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-neutral-700 w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-neutral-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-neutral-100">Rename Project</h2>
               <button
                 onClick={() => setRenamingProject(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 p-1 rounded-lg"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1225,7 +1225,7 @@ export default function Dashboard() {
                 type="text"
                 value={renameValue}
                 onChange={e => setRenameValue(e.target.value)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-300 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
                 autoFocus
                 required
               />
@@ -1233,7 +1233,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setRenamingProject(null)}
-                  className="flex-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  className="flex-1 border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-neutral-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
                 >
                   Cancel
                 </button>

@@ -32,7 +32,7 @@ function UserAvatar({ user, index }) {
   const bg = user.avatar_color || AVATAR_COLORS[index % AVATAR_COLORS.length]
   return (
     <div className="relative group">
-      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium ring-2 ring-white dark:ring-gray-800" style={{ backgroundColor: bg }}>
+      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium ring-2 ring-white dark:ring-neutral-800" style={{ backgroundColor: bg }}>
         {userInitials(user)}
       </div>
       <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
@@ -173,14 +173,14 @@ export default function Toolbar({ project }) {
   const extraCount = activeUsers.length > 3 ? activeUsers.length - 3 : 0
 
   return (
-    <div className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center pl-2 pr-4 gap-4 flex-shrink-0 z-30">
+    <div className="h-14 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 shadow-sm flex items-center pl-2 pr-4 gap-4 flex-shrink-0 z-30">
       {/* Logo */}
-      <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 w-auto flex-shrink-0 dark:brightness-150 ml-1" />
-      <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 flex-shrink-0" />
+      <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 w-auto flex-shrink-0 dark:brightness-150 ml-3" />
+      <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 flex-shrink-0" />
       {/* Back to Dashboard */}
       <button
         onClick={() => navigate('/dashboard')}
-        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-streepa-600 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 dark:hover:text-streepa-400 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
+        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-neutral-400 hover:text-streepa-600 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 dark:hover:text-streepa-400 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
         title="Back to Dashboard"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,14 +213,14 @@ export default function Toolbar({ project }) {
               {showColorPicker && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
-                  <div className="absolute left-0 top-full mt-2 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-3" onClick={e => e.stopPropagation()}>
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Icon color</p>
+                  <div className="absolute left-0 top-full mt-2 z-50 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-xl shadow-lg p-3" onClick={e => e.stopPropagation()}>
+                    <p className="text-xs font-medium text-gray-500 dark:text-neutral-400 mb-2">Icon color</p>
                     <div className="flex gap-1.5 flex-wrap" style={{ width: 132 }}>
                       {ICON_COLORS.map(c => (
                         <button
                           key={c.name}
                           onClick={() => handleIconColorChange(c.name)}
-                          className={`w-6 h-6 rounded-full ${c.bg} transition-transform hover:scale-110 ${iconColor === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-gray-500' : ''}`}
+                          className={`w-6 h-6 rounded-full ${c.bg} transition-transform hover:scale-110 ${iconColor === c.name ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-neutral-500' : ''}`}
                           title={c.name}
                         />
                       ))}
@@ -233,7 +233,7 @@ export default function Toolbar({ project }) {
         </div>
 
         {isViewer ? (
-          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate max-w-xs">
+          <span className="text-sm font-semibold text-gray-900 dark:text-neutral-100 truncate max-w-xs">
             {displayTitle}
           </span>
         ) : editingTitle ? (
@@ -248,7 +248,7 @@ export default function Toolbar({ project }) {
         ) : (
           <button
             onClick={startEditTitle}
-            className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:text-streepa-600 truncate max-w-xs text-left"
+            className="text-sm font-semibold text-gray-900 dark:text-neutral-100 hover:text-streepa-600 truncate max-w-xs text-left"
             title="Click to edit title"
           >
             {displayTitle}
@@ -271,7 +271,7 @@ export default function Toolbar({ project }) {
           className={`h-8 px-3 flex items-center gap-1.5 rounded-lg border text-xs font-medium transition-colors flex-shrink-0 ${
             viewOnly
               ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-400 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50'
-              : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              : 'border-gray-200 dark:border-neutral-600 text-gray-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700'
           }`}
           title={viewOnly ? 'Switch to edit mode' : 'Switch to view-only mode'}
         >
@@ -292,7 +292,7 @@ export default function Toolbar({ project }) {
       {/* Dark mode toggle */}
       <button
         onClick={toggleDarkMode}
-        className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+        className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors flex-shrink-0"
         title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
       >
         {darkMode ? (
@@ -310,7 +310,7 @@ export default function Toolbar({ project }) {
       <div className="relative flex-shrink-0">
         <button
           onClick={() => setShowExportMenu(s => !s)}
-          className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-xs font-medium"
+          className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-neutral-600 text-gray-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors text-xs font-medium"
           title="Export project"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -324,10 +324,10 @@ export default function Toolbar({ project }) {
         {showExportMenu && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
-            <div className="absolute right-0 top-10 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1 w-48">
+            <div className="absolute right-0 top-10 z-20 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-lg shadow-lg py-1 w-48">
               <button
                 onClick={() => { downloadProjectJson((project || currentProject)?.id); setShowExportMenu(false) }}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2"
               >
                 <svg className="w-4 h-4 text-streepa-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -336,7 +336,7 @@ export default function Toolbar({ project }) {
               </button>
               <button
                 onClick={() => { downloadProjectExcel((project || currentProject)?.id); setShowExportMenu(false) }}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-neutral-300 hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-2"
               >
                 <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -352,7 +352,7 @@ export default function Toolbar({ project }) {
       <div className="relative ml-2" ref={usersPanelRef}>
         <button
           onClick={handleToggleUsersPanel}
-          className="flex items-center gap-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg px-2 py-1 transition-colors"
+          className="flex items-center gap-1.5 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg px-2 py-1 transition-colors"
         >
           {activeUsers.length > 0 ? (
             <>
@@ -362,14 +362,14 @@ export default function Toolbar({ project }) {
                 ))}
               </div>
               {extraCount > 0 && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">+{extraCount}</span>
+                <span className="text-xs text-gray-500 dark:text-neutral-400 font-medium">+{extraCount}</span>
               )}
-              <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">
+              <span className="text-xs text-gray-400 dark:text-neutral-500 ml-1">
                 {activeUsers.length} online
               </span>
             </>
           ) : (
-            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-1.5 text-gray-500 dark:text-neutral-400">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -381,12 +381,12 @@ export default function Toolbar({ project }) {
         {showUsersPanel && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowUsersPanel(false)} />
-            <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg w-64 py-2">
+            <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-xl shadow-lg w-64 py-2">
 
               {/* Online users section */}
               {activeUsers.length > 0 && (
                 <>
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 pb-1.5">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-neutral-400 px-3 pb-1.5">
                     Currently online
                   </p>
                   <ul className="mb-1">
@@ -395,19 +395,19 @@ export default function Toolbar({ project }) {
                         <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0" style={{ backgroundColor: u.avatar_color || AVATAR_COLORS[i % AVATAR_COLORS.length] }}>
                           {userInitials(u)}
                         </div>
-                        <span className="text-sm text-gray-800 dark:text-gray-200 truncate">
+                        <span className="text-sm text-gray-800 dark:text-neutral-200 truncate">
                           {u.username || u.name}
                         </span>
                       </li>
                     ))}
                   </ul>
-                  <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
+                  <div className="border-t border-gray-100 dark:border-neutral-700 my-1" />
                 </>
               )}
 
               {/* Shared users with roles */}
               <div className="px-3 pt-1 pb-1">
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                <p className="text-xs font-semibold text-gray-500 dark:text-neutral-400 mb-1.5">
                   {sharesLoading ? 'Loading…' : `Shared with (${sharesList.length})`}
                 </p>
                 {sharesList.length > 0 && (
@@ -417,18 +417,18 @@ export default function Toolbar({ project }) {
                         <div className="w-6 h-6 rounded-full bg-streepa-100 dark:bg-streepa-900/40 flex items-center justify-center text-xs font-semibold text-streepa-600 flex-shrink-0">
                           {(s.username || '?')[0].toUpperCase()}
                         </div>
-                        <span className="text-xs text-gray-800 dark:text-gray-200 truncate flex-1">{s.username}</span>
+                        <span className="text-xs text-gray-800 dark:text-neutral-200 truncate flex-1">{s.username}</span>
                         {!isViewer ? (
                           <select
                             value={s.role}
                             onChange={e => handleRoleChange(s.user_id, e.target.value)}
-                            className="text-xs border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none"
+                            className="text-xs border border-gray-200 dark:border-neutral-600 rounded px-1 py-0.5 bg-white dark:bg-neutral-700 text-gray-700 dark:text-neutral-200 focus:outline-none"
                           >
                             <option value="editor">Editor</option>
                             <option value="viewer">Viewer</option>
                           </select>
                         ) : (
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${s.role === 'viewer' ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${s.role === 'viewer' ? 'bg-gray-100 dark:bg-neutral-700 text-gray-500 dark:text-neutral-400' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
                             {s.role === 'viewer' ? 'Viewer' : 'Editor'}
                           </span>
                         )}
@@ -451,8 +451,8 @@ export default function Toolbar({ project }) {
 
               {/* Invite form — hidden for viewers */}
               {!isViewer && (
-                <div className="border-t border-gray-100 dark:border-gray-700 px-3 pt-2 pb-1">
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Invite someone</p>
+                <div className="border-t border-gray-100 dark:border-neutral-700 px-3 pt-2 pb-1">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-neutral-400 mb-1.5">Invite someone</p>
                   {shareStatus && (
                     <p className={`text-xs mb-1.5 ${shareStatus.type === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                       {shareStatus.text}
@@ -464,13 +464,13 @@ export default function Toolbar({ project }) {
                       value={shareInput}
                       onChange={e => { setShareInput(e.target.value); setShareStatus(null) }}
                       placeholder="Username"
-                      className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                      className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-streepa-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100 placeholder-gray-400 dark:placeholder-neutral-500"
                     />
                     <div className="flex gap-1.5">
                       <select
                         value={shareRole}
                         onChange={e => setShareRole(e.target.value)}
-                        className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none flex-shrink-0"
+                        className="text-xs border border-gray-200 dark:border-neutral-600 rounded-lg px-2 py-1.5 bg-white dark:bg-neutral-700 text-gray-700 dark:text-neutral-200 focus:outline-none flex-shrink-0"
                       >
                         <option value="editor">Editor</option>
                         <option value="viewer">Viewer</option>

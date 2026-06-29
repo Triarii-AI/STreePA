@@ -253,19 +253,19 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
   const labelExample = LABEL_EXAMPLES[nodeType] || ''
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-5 w-80 relative">
+    <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-2xl border border-gray-200 dark:border-neutral-700 p-5 w-80 relative">
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg"
+        className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 dark:hover:text-neutral-300 p-1 rounded-lg"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
 
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Add {title}</h3>
-      <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Will be auto-labeled ({labelExample})</p>
+      <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-1">Add {title}</h3>
+      <p className="text-xs text-gray-400 dark:text-neutral-500 mb-4">Will be auto-labeled ({labelExample})</p>
 
       {error && (
         <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
@@ -277,13 +277,13 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         {/* Loss */}
         {nodeType === 'loss' && (
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description <span className="text-red-500">*</span></label>
             <textarea
               value={formData.description || ''}
               onChange={e => handleChange('description', e.target.value)}
               rows={3}
               placeholder="Describe the loss event..."
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               required
             />
           </div>
@@ -293,18 +293,18 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         {nodeType === 'hazard' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description <span className="text-red-500">*</span></label>
               <textarea
                 value={formData.description || ''}
                 onChange={e => handleChange('description', e.target.value)}
                 rows={3}
                 placeholder="Describe the hazard..."
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Parent Hazard (optional)</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Parent Hazard (optional)</label>
               <SearchableSelect
                 value={formData.parent_hazard_id || ''}
                 onChange={v => handleChange('parent_hazard_id', v)}
@@ -316,7 +316,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
             </div>
             {allLosses.length > 0 && (
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Link to Losses (optional)</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Link to Losses (optional)</label>
                 <SearchableCheckboxList
                   items={allLosses}
                   selectedIds={selectedLossIds}
@@ -332,18 +332,18 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         {nodeType === 'system_constraint' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description <span className="text-red-500">*</span></label>
               <textarea
                 value={formData.description || ''}
                 onChange={e => handleChange('description', e.target.value)}
                 rows={3}
                 placeholder="Describe the system constraint..."
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Parent Hazard <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Parent Hazard <span className="text-red-500">*</span></label>
               <SearchableSelect
                 value={formData.linked_hazard_id || ''}
                 onChange={v => handleChange('linked_hazard_id', v)}
@@ -356,7 +356,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
             </div>
             {allHazards.length > 0 && (
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Additional Linked Hazards (optional)</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Additional Linked Hazards (optional)</label>
                 <SearchableCheckboxList
                   items={allHazards}
                   selectedIds={selectedHazardIds}
@@ -372,13 +372,13 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         {/* Control Action */}
         {nodeType === 'control_action' && (
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Name <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Name <span className="text-red-500">*</span></label>
             <input
               type="text"
               value={formData.name || ''}
               onChange={e => handleChange('name', e.target.value)}
               placeholder="e.g. Apply brakes"
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               required
             />
           </div>
@@ -388,17 +388,17 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         {nodeType === 'uca' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
               <textarea
                 value={formData.description || ''}
                 onChange={e => handleChange('description', e.target.value)}
                 rows={2}
                 placeholder="Describe the unsafe control action..."
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Control Action <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Control Action <span className="text-red-500">*</span></label>
               <SearchableSelect
                 value={formData.control_action_id || ''}
                 onChange={v => handleChange('control_action_id', v)}
@@ -409,11 +409,11 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">UCA Type <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">UCA Type <span className="text-red-500">*</span></label>
               <select
                 value={formData.uca_type || ''}
                 onChange={e => handleChange('uca_type', e.target.value)}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
                 required
               >
                 <option value="">Select type...</option>
@@ -424,7 +424,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
             </div>
             {allHazards.length > 0 && (
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Link to Hazards (optional)</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Link to Hazards (optional)</label>
                 <SearchableCheckboxList
                   items={allHazards}
                   selectedIds={selectedHazardIds}
@@ -441,17 +441,17 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         {nodeType === 'loss_scenario' && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
               <textarea
                 value={formData.description || ''}
                 onChange={e => handleChange('description', e.target.value)}
                 rows={2}
                 placeholder="Describe the loss scenario..."
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">UCA <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">UCA <span className="text-red-500">*</span></label>
               <SearchableSelect
                 value={formData.uca_id || ''}
                 onChange={v => handleChange('uca_id', v)}
@@ -466,9 +466,9 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
               const inherited = allHazards.filter(h => (selectedUCA?.hazard_ids || []).includes(h.id))
               return (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Inherited Hazards</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1">Inherited Hazards</label>
                   {inherited.length === 0
-                    ? <p className="text-xs text-gray-400 dark:text-gray-500 italic">None — UCA has no linked hazards</p>
+                    ? <p className="text-xs text-gray-400 dark:text-neutral-500 italic">None — UCA has no linked hazards</p>
                     : (
                       <div className="flex flex-wrap gap-1">
                         {inherited.map(h => (
@@ -489,7 +489,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="flex-1 border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-neutral-300 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors"
           >
             Cancel
           </button>

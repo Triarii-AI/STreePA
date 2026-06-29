@@ -364,8 +364,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   // Stable unless darkMode flips, so the MiniMap doesn't re-render on unrelated
   // CanvasInner renders (and never on pan, since CanvasInner no longer tracks viewport).
   const minimapStyle = useMemo(() => ({
-    background: darkMode ? '#1e293b' : '#f8fafc',
-    border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`,
+    background: darkMode ? '#262626' : '#f8fafc',
+    border: `1px solid ${darkMode ? '#404040' : '#e2e8f0'}`,
     borderRadius: 8,
     overflow: 'hidden',
   }), [darkMode])
@@ -989,7 +989,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   }
 
   return (
-    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-slate-900" onMouseMove={onMouseMove}>
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-900" onMouseMove={onMouseMove}>
       <ReactFlow
         nodes={visibleNodes}
         edges={displayEdges}
@@ -1016,7 +1016,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         fitView
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant="dots" gap={20} size={1} color={darkMode ? '#334155' : '#e2e8f0'} />
+        <Background variant="dots" gap={20} size={1} color={darkMode ? '#404040' : '#e2e8f0'} />
         <MiniMap
           position="bottom-left"
           nodeColor={minimapNodeColor}
@@ -1027,17 +1027,17 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         <Panel position="top-right" style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: 12 }}>
           <button
             onClick={() => reactFlow.zoomIn({ duration: 200 })}
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm transition-colors text-lg font-medium"
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700 shadow-sm transition-colors text-lg font-medium"
             title="Zoom In"
           >+</button>
           <button
             onClick={() => reactFlow.zoomOut({ duration: 200 })}
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm transition-colors text-lg font-medium"
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700 shadow-sm transition-colors text-lg font-medium"
             title="Zoom Out"
           >&minus;</button>
           <button
             onClick={() => reactFlow.fitView({ duration: 400, padding: 0.1 })}
-            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-gray-600 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-700 shadow-sm transition-colors"
             title="Fit View"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1053,7 +1053,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               <button
                 key={btn.nodeType}
                 onClick={() => openAddForm(btn.nodeType)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap bg-white/90 dark:bg-gray-800/90 ${btn.colorClass}`}
+                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap bg-white/90 dark:bg-neutral-800/90 ${btn.colorClass}`}
               >
                 {btn.label}
               </button>
@@ -1064,8 +1064,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         {/* Align + Distribute + Group toolbar */}
         {!viewOnly && (selectionCount >= 2 || singleGroupSelected) && (
           <Panel position="top-center" style={{ top: 12, pointerEvents: 'auto' }}>
-            <div className="flex items-center gap-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md px-2 py-1.5">
-              <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 pr-1.5 select-none border-r border-gray-200 dark:border-gray-600 mr-1">
+            <div className="flex items-center gap-0.5 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-xl shadow-md px-2 py-1.5">
+              <span className="text-[10px] font-medium text-gray-400 dark:text-neutral-500 pr-1.5 select-none border-r border-gray-200 dark:border-neutral-600 mr-1">
                 {selectionCount} selected
               </span>
               {selectionCount >= 2 && (
@@ -1079,29 +1079,29 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                     { type: 'bottom',  title: 'Align Bottom',            Icon: AlignBottomIcon },
                   ].map(({ type, title, Icon }) => (
                     <button key={type} onClick={() => alignNodes(type)} title={title}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors">
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors">
                       <Icon />
                     </button>
                   ))}
                   {selectionCount >= 3 && (
                     <>
-                      <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1" />
+                      <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
                       {[
                         { axis: 'h', title: 'Distribute Horizontally', Icon: DistributeHIcon },
                         { axis: 'v', title: 'Distribute Vertically',   Icon: DistributeVIcon },
                       ].map(({ axis, title, Icon }) => (
                         <button key={axis} onClick={() => distributeNodes(axis)} title={title}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors">
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors">
                           <Icon />
                         </button>
                       ))}
                     </>
                   )}
-                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1" />
+                  <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
                   <button
                     onClick={handleGroup}
                     title="Group selected nodes"
-                    className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-gray-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
+                    className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
                   >
                     Group
                   </button>
@@ -1111,7 +1111,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                 <button
                   onClick={handleUngroup}
                   title="Ungroup"
-                  className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                  className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                 >
                   Ungroup
                 </button>
@@ -1129,8 +1129,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               disabled={isExporting}
               className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
                 isExporting
-                  ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-300 cursor-wait'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-streepa-300 hover:text-streepa-600'
+                  ? 'bg-gray-100 dark:bg-neutral-700 border-gray-200 dark:border-neutral-600 text-gray-300 cursor-wait'
+                  : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:border-streepa-300 hover:text-streepa-600'
               }`}
               title="Export PNG"
             >
@@ -1153,7 +1153,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
                 showCrossRefs
                   ? 'bg-streepa-600 border-streepa-600 text-white'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-streepa-300 hover:text-streepa-600'
+                  : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:border-streepa-300 hover:text-streepa-600'
               }`}
               title={showCrossRefs ? 'Hide cross-reference arrows' : 'Show cross-reference arrows'}
             >
@@ -1167,14 +1167,14 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             <div className="relative">
               <button
                 onClick={() => setShowShortcuts(s => !s)}
-                className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center text-xs font-semibold transition-colors ${showShortcuts ? 'bg-streepa-600 border-streepa-600 text-white' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-streepa-300 hover:text-streepa-600'}`}
+                className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center text-xs font-semibold transition-colors ${showShortcuts ? 'bg-streepa-600 border-streepa-600 text-white' : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:border-streepa-300 hover:text-streepa-600'}`}
                 title="Keyboard shortcuts"
               >
                 ?
               </button>
               {showShortcuts && (
-                <div className="absolute bottom-9 right-0 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 shadow-lg p-3 w-52 z-10">
-                  <div className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Keyboard Shortcuts</div>
+                <div className="absolute bottom-9 right-0 bg-white dark:bg-neutral-800 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-lg p-3 w-52 z-10">
+                  <div className="text-[10px] font-semibold text-gray-400 dark:text-neutral-500 uppercase tracking-wide mb-2">Keyboard Shortcuts</div>
                   <div className="space-y-1.5">
                     {[
                       { keys: 'Drag canvas', desc: 'Select box' },
@@ -1187,8 +1187,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                       { keys: 'Ctrl+Y / Ctrl+Shift+Z', desc: 'Redo last move' },
                     ].map(({ keys, desc }) => (
                       <div key={keys} className="flex items-center justify-between gap-3">
-                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded whitespace-nowrap">{keys}</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 text-right">{desc}</span>
+                        <span className="font-mono text-[10px] bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-neutral-300 px-1.5 py-0.5 rounded whitespace-nowrap">{keys}</span>
+                        <span className="text-xs text-gray-500 dark:text-neutral-400 text-right">{desc}</span>
                       </div>
                     ))}
                   </div>
@@ -1197,7 +1197,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             </div>
 
             {/* Legend */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm px-3 py-2 text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            <div className="bg-white dark:bg-neutral-800 rounded-lg border border-gray-200 dark:border-neutral-600 shadow-sm px-3 py-2 text-xs text-gray-500 dark:text-neutral-400 space-y-1">
               <div className="flex items-center gap-2">
                 <svg width="32" height="10">
                   <line x1="0" y1="5" x2="32" y2="5" stroke="#64748b" strokeWidth="2" />

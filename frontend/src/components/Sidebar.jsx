@@ -87,7 +87,7 @@ function SidebarSection({ title, items, nodeType, searchQuery, onItemClick }) {
     <div className="mb-1">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+        className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-neutral-400 uppercase tracking-wide hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-lg transition-colors"
       >
         <span>{title}</span>
         <div className="flex items-center gap-1.5">
@@ -112,7 +112,7 @@ function SidebarSection({ title, items, nodeType, searchQuery, onItemClick }) {
                 <button
                   key={item.rfId}
                   onClick={() => onItemClick(item.rfId)}
-                  className="w-full flex items-start gap-2 pr-3 py-1.5 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="w-full flex items-start gap-2 pr-3 py-1.5 text-left rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
                   style={{ paddingLeft: depth === 0 ? 12 : 12 + depth * 14 }}
                 >
                   {isHazard && depth > 0 ? (
@@ -124,11 +124,11 @@ function SidebarSection({ title, items, nodeType, searchQuery, onItemClick }) {
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${dotColor}`} />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className={`text-xs truncate ${depth === 0 ? 'font-semibold text-gray-800 dark:text-gray-200' : 'font-medium text-gray-700 dark:text-gray-300'}`}>
+                    <div className={`text-xs truncate ${depth === 0 ? 'font-semibold text-gray-800 dark:text-neutral-200' : 'font-medium text-gray-700 dark:text-neutral-300'}`}>
                       {item.label}
                     </div>
                     {item.description && (
-                      <div className="text-xs text-gray-400 dark:text-gray-500 truncate">{item.description}</div>
+                      <div className="text-xs text-gray-400 dark:text-neutral-500 truncate">{item.description}</div>
                     )}
                   </div>
                 </button>
@@ -190,7 +190,7 @@ export default function Sidebar() {
       {/* Toggle button — sibling of overflow container so it never gets clipped */}
       <button
         onClick={() => setIsOpen(o => !o)}
-        className={`absolute -right-3 top-4 z-20 w-6 h-6 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-sm flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:shadow-md transition-all ${isOpen ? '' : 'translate-x-3'}`}
+        className={`absolute -right-3 top-4 z-20 w-6 h-6 rounded-full bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 shadow-sm flex items-center justify-center text-gray-400 dark:text-neutral-500 hover:text-gray-600 dark:hover:text-neutral-300 hover:shadow-md transition-all ${isOpen ? '' : 'translate-x-3'}`}
         title={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
       >
         <svg
@@ -203,12 +203,12 @@ export default function Sidebar() {
 
       {/* Content — overflow-hidden here, not on the outer div */}
       <div
-        className="flex flex-col h-full overflow-hidden transition-all duration-300 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700"
+        className="flex flex-col h-full overflow-hidden transition-all duration-300 bg-white dark:bg-neutral-800 border-r border-gray-200 dark:border-neutral-700"
         style={{ width: isOpen ? 260 : 0 }}
       >
           {/* Header */}
           <div className="px-4 pt-4 pb-2 flex-shrink-0">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Navigator</h2>
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-neutral-200 mb-2">Navigator</h2>
             <div className="relative">
               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -218,7 +218,7 @@ export default function Sidebar() {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search nodes..."
-                className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
+                className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 dark:border-neutral-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-gray-50 dark:bg-neutral-700 dark:text-neutral-200 dark:placeholder-neutral-500"
               />
             </div>
           </div>
