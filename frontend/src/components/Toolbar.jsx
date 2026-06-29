@@ -173,7 +173,10 @@ export default function Toolbar({ project }) {
   const extraCount = activeUsers.length > 3 ? activeUsers.length - 3 : 0
 
   return (
-    <div className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center px-4 gap-4 flex-shrink-0 z-30">
+    <div className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm flex items-center pl-2 pr-4 gap-4 flex-shrink-0 z-30">
+      {/* Logo */}
+      <img src="/streepa_wordmark.svg" alt="STreePA" className="h-10 w-auto flex-shrink-0 dark:brightness-150" />
+      <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 flex-shrink-0" />
       {/* Back to Dashboard */}
       <button
         onClick={() => navigate('/dashboard')}

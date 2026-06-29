@@ -397,14 +397,9 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Top bar */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-          </div>
-          <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">STPA Tree Graph</span>
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 pl-3 pr-6 h-14 flex items-center justify-between">
+        <div className="flex items-center">
+          <img src="/streepa_wordmark.svg" alt="STreePA" className="h-12 w-auto dark:brightness-150" />
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600 dark:text-gray-400">
