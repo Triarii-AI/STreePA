@@ -218,7 +218,7 @@ export default function Sidebar() {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search nodes..."
-                className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
+                className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-500"
               />
             </div>
           </div>

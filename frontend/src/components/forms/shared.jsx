@@ -25,7 +25,7 @@ export function SearchableSelect({ value, onChange, options, placeholder, focusR
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className={`w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 ${focusRingClass || 'focus:ring-indigo-400'} ${!selectedOption ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}
+        className={`w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 bg-white dark:bg-gray-700 ${focusRingClass || 'focus:ring-streepa-400'} ${!selectedOption ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}
       >
         <span className={selectedOption && isMainFn && isMainFn(selectedOption) ? 'font-bold' : ''}>
           {selectedOption ? `${selectedOption.label}${selectedOption.description ? ` — ${selectedOption.description.slice(0, 40)}` : ''}` : placeholder}
@@ -43,7 +43,7 @@ export function SearchableSelect({ value, onChange, options, placeholder, focusR
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search..."
-              className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500"
               onClick={e => e.stopPropagation()}
             />
           </div>
@@ -64,7 +64,7 @@ export function SearchableSelect({ value, onChange, options, placeholder, focusR
               <button
                 key={o.id}
                 type="button"
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-1 ${String(o.id) === String(value) ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300'}`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-1 ${String(o.id) === String(value) ? 'bg-streepa-50 dark:bg-streepa-900/30 text-streepa-700 dark:text-streepa-300' : 'text-gray-700 dark:text-gray-300'}`}
                 onClick={() => { onChange(String(o.id)); setOpen(false); setQuery('') }}
               >
                 <span className={isMainFn && isMainFn(o) ? 'font-bold' : ''}>{o.label}</span>
@@ -100,7 +100,7 @@ export function SearchableCheckboxList({ items, selectedIds, onToggle, accentCla
           className="flex-1 text-xs focus:outline-none bg-transparent placeholder-gray-400"
         />
         {selectedCount > 0 && (
-          <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+          <span className="text-[10px] font-medium text-streepa-600 bg-streepa-50 px-1.5 py-0.5 rounded-full flex-shrink-0">
             {selectedCount} selected
           </span>
         )}

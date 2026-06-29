@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title style="fill:rgb(0, 0, 0);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">STreePA favicon</title>
+  <desc style="fill:rgb(0, 0, 0);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">STreePA icon — ST over PA lettermark centered in a rounded square</desc>
+
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="#1b4332" style="fill:rgb(27, 67, 50);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  
+  <text text-anchor="middle" x="32" y="28" font-family="Georgia, serif" font-size="26" font-weight="700" style="fill:rgb(0, 0, 0);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:Georgia, serif;font-size:26px;font-weight:700;text-anchor:middle;dominant-baseline:auto">
+    <tspan fill="#d8f3dc" style="fill:rgb(216, 243, 220);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:Georgia, serif;font-size:26px;font-weight:700;text-anchor:middle;dominant-baseline:auto">S</tspan><tspan fill="#52b788" style="fill:rgb(82, 183, 136);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:Georgia, serif;font-size:26px;font-weight:700;text-anchor:middle;dominant-baseline:auto">T</tspan>
+  </text>
+
+  
+  <text text-anchor="middle" x="32" y="52" font-family="Georgia, serif" font-size="26" font-weight="700" style="fill:rgb(0, 0, 0);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:Georgia, serif;font-size:26px;font-weight:700;text-anchor:middle;dominant-baseline:auto">
+    <tspan fill="#52b788" style="fill:rgb(82, 183, 136);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:Georgia, serif;font-size:26px;font-weight:700;text-anchor:middle;dominant-baseline:auto">P</tspan><tspan fill="#d8f3dc" style="fill:rgb(216, 243, 220);stroke:none;color:rgb(11, 11, 11);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:Georgia, serif;font-size:26px;font-weight:700;text-anchor:middle;dominant-baseline:auto">A</tspan>
+  </text>
+</svg>

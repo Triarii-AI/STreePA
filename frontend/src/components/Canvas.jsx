@@ -1079,7 +1079,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                     { type: 'bottom',  title: 'Align Bottom',            Icon: AlignBottomIcon },
                   ].map(({ type, title, Icon }) => (
                     <button key={type} onClick={() => alignNodes(type)} title={title}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors">
                       <Icon />
                     </button>
                   ))}
@@ -1091,7 +1091,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                         { axis: 'v', title: 'Distribute Vertically',   Icon: DistributeVIcon },
                       ].map(({ axis, title, Icon }) => (
                         <button key={axis} onClick={() => distributeNodes(axis)} title={title}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors">
                           <Icon />
                         </button>
                       ))}
@@ -1101,7 +1101,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                   <button
                     onClick={handleGroup}
                     title="Group selected nodes"
-                    className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-gray-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-gray-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
                   >
                     Group
                   </button>
@@ -1130,7 +1130,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
                 isExporting
                   ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-300 cursor-wait'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-streepa-300 hover:text-streepa-600'
               }`}
               title="Export PNG"
             >
@@ -1152,8 +1152,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               onClick={() => setShowCrossRefs(s => !s)}
               className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center transition-colors ${
                 showCrossRefs
-                  ? 'bg-indigo-600 border-indigo-600 text-white'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'
+                  ? 'bg-streepa-600 border-streepa-600 text-white'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-streepa-300 hover:text-streepa-600'
               }`}
               title={showCrossRefs ? 'Hide cross-reference arrows' : 'Show cross-reference arrows'}
             >
@@ -1167,7 +1167,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             <div className="relative">
               <button
                 onClick={() => setShowShortcuts(s => !s)}
-                className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center text-xs font-semibold transition-colors ${showShortcuts ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600'}`}
+                className={`w-7 h-7 rounded-full border shadow-sm flex items-center justify-center text-xs font-semibold transition-colors ${showShortcuts ? 'bg-streepa-600 border-streepa-600 text-white' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-streepa-300 hover:text-streepa-600'}`}
                 title="Keyboard shortcuts"
               >
                 ?

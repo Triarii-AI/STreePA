@@ -97,7 +97,7 @@ This does everything automatically:
 
 The script is safe to re-run — it skips steps that are already complete.
 
-The SQLite database is created automatically at `backend/instance/stpa.db` on first launch.
+The SQLite database is created automatically at `backend/instance/stpa.db` on first launch. A secret key for session signing is auto-generated and saved to `backend/.secret_key` on first run — this file is gitignored and stays local to your machine.
 
 ---
 
@@ -316,7 +316,8 @@ STreePA/
 │   │   ├── backups.py       # Backup management
 │   │   └── groups.py        # Node group CRUD
 │   ├── instance/
-│   │   └── stpa.db          # SQLite database (auto-created)
+│   │   └── stpa.db          # SQLite database (auto-created on first run)
+│   ├── .secret_key          # Auto-generated session secret (gitignored)
 │   ├── backups/             # Timestamped database snapshots
 │   └── requirements.txt
 ├── frontend/

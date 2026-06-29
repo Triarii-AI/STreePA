@@ -7,6 +7,7 @@ backend/**/*.pyo
 
 # Environment
 backend/.env
+backend/.secret_key
 
 # SQLite database
 backend/instance/

@@ -496,7 +496,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+            className="flex-1 bg-streepa-600 hover:bg-streepa-700 disabled:bg-streepa-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
           >
             {loading ? 'Adding...' : `Add ${title}`}
           </button>

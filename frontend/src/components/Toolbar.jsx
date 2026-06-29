@@ -5,11 +5,11 @@ import useCanvasStore from '../store/canvasStore.js'
 
 const AVATAR_COLORS = [
   'bg-purple-500', 'bg-blue-500', 'bg-green-500', 'bg-orange-500',
-  'bg-pink-500', 'bg-teal-500', 'bg-red-500', 'bg-indigo-500',
+  'bg-pink-500', 'bg-teal-500', 'bg-red-500', 'bg-streepa-500',
 ]
 
 const ICON_COLORS = [
-  { name: 'indigo', bg: 'bg-indigo-600' },
+  { name: 'streepa', bg: 'bg-streepa-600' },
   { name: 'blue',   bg: 'bg-blue-500' },
   { name: 'teal',   bg: 'bg-teal-500' },
   { name: 'green',  bg: 'bg-green-500' },
@@ -164,7 +164,7 @@ export default function Toolbar({ project }) {
     }
   }
 
-  const iconColor = (project || currentProject)?.icon_color || 'indigo'
+  const iconColor = (project || currentProject)?.icon_color || 'streepa'
   const displayTitle = project?.title || currentProject?.title || 'Untitled Project'
   const userRole = (project || currentProject)?.user_role || 'owner'
   const isViewer = userRole === 'viewer'
@@ -180,7 +180,7 @@ export default function Toolbar({ project }) {
       {/* Back to Dashboard */}
       <button
         onClick={() => navigate('/dashboard')}
-        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-400 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
+        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-streepa-600 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 dark:hover:text-streepa-400 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
         title="Back to Dashboard"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,12 +243,12 @@ export default function Toolbar({ project }) {
             onChange={e => setTitleValue(e.target.value)}
             onBlur={saveTitle}
             onKeyDown={handleTitleKeyDown}
-            className="text-sm font-semibold text-gray-900 border border-indigo-400 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[120px] max-w-xs"
+            className="text-sm font-semibold text-gray-900 border border-streepa-400 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-streepa-500 min-w-[120px] max-w-xs"
           />
         ) : (
           <button
             onClick={startEditTitle}
-            className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:text-indigo-600 truncate max-w-xs text-left"
+            className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:text-streepa-600 truncate max-w-xs text-left"
             title="Click to edit title"
           >
             {displayTitle}
@@ -329,7 +329,7 @@ export default function Toolbar({ project }) {
                 onClick={() => { downloadProjectJson((project || currentProject)?.id); setShowExportMenu(false) }}
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
               >
-                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-streepa-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 Backup (.stpa.json)
@@ -414,7 +414,7 @@ export default function Toolbar({ project }) {
                   <ul className="space-y-1 mb-2">
                     {sharesList.map(s => (
                       <li key={s.user_id} className="flex items-center gap-2 py-1">
-                        <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-xs font-semibold text-indigo-600 flex-shrink-0">
+                        <div className="w-6 h-6 rounded-full bg-streepa-100 dark:bg-streepa-900/40 flex items-center justify-center text-xs font-semibold text-streepa-600 flex-shrink-0">
                           {(s.username || '?')[0].toUpperCase()}
                         </div>
                         <span className="text-xs text-gray-800 dark:text-gray-200 truncate flex-1">{s.username}</span>
@@ -464,7 +464,7 @@ export default function Toolbar({ project }) {
                       value={shareInput}
                       onChange={e => { setShareInput(e.target.value); setShareStatus(null) }}
                       placeholder="Username"
-                      className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                      className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     />
                     <div className="flex gap-1.5">
                       <select
@@ -478,7 +478,7 @@ export default function Toolbar({ project }) {
                       <button
                         type="submit"
                         disabled={shareLoading || !shareInput.trim()}
-                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
+                        className="flex-1 bg-streepa-600 hover:bg-streepa-700 disabled:bg-streepa-400 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
                       >
                         {shareLoading ? '…' : 'Share'}
                       </button>

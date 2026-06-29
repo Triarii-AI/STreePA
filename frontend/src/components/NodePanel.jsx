@@ -20,7 +20,7 @@ const LAYER_LABELS = {
 }
 
 const LAYER_BADGE_COLORS = {
-  root: 'bg-indigo-100 text-indigo-700',
+  root: 'bg-streepa-100 text-streepa-700',
   loss: 'bg-red-100 text-red-700',
   hazard: 'bg-orange-100 text-orange-700',
   system_constraint: 'bg-yellow-100 text-yellow-700',
@@ -336,7 +336,7 @@ export default function NodePanel({ projectId }) {
               type="text"
               value={formData.label || ''}
               onChange={e => handleFieldChange('label', e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
           </div>
         )}
@@ -350,7 +350,7 @@ export default function NodePanel({ projectId }) {
                 type="text"
                 value={formData.title || ''}
                 onChange={e => handleFieldChange('title', e.target.value)}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
             <div>
@@ -359,7 +359,7 @@ export default function NodePanel({ projectId }) {
                 value={formData.purpose_statement || ''}
                 onChange={e => handleFieldChange('purpose_statement', e.target.value)}
                 rows={4}
-                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-streepa-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
           </>
@@ -507,7 +507,7 @@ export default function NodePanel({ projectId }) {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
+            className="flex-1 bg-streepa-600 hover:bg-streepa-700 disabled:bg-streepa-400 text-white text-sm font-medium py-2 rounded-lg transition-colors"
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
