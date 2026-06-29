@@ -8,7 +8,7 @@ A web-based collaborative tool for building and visualizing **STPA (System-Theor
 
 - [What is STPA?](#what-is-stpa)
 - [Features](#features)
-- [Tech Stack](#tech-stack)
+- [Specifications](#specifications)
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
 - [Running the App](#running-the-app)
@@ -56,7 +56,7 @@ STreePA models all seven layers as connected nodes on a live canvas, preserving 
 
 ---
 
-## Tech Stack
+## Specifications
 
 | Layer | Technology |
 |---|---|
