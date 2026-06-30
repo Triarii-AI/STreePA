@@ -1,26 +1,29 @@
 import { memo } from 'react'
-import { useViewport, useReactFlow } from '@xyflow/react'
+import { useViewport, useStore } from '@xyflow/react'
 
 // Remote collaborator cursors + selection rings.
 //
 // This component is deliberately isolated from CanvasInner so that the
 // useViewport() subscription (which fires on EVERY pan/zoom frame) only
 // re-renders this small overlay, not the entire canvas + ReactFlow tree.
+// useStore(s => s.nodeLookup) also re-renders on every node position change,
+// which is needed so rings track nodes during drags by other users.
 function RemoteOverlays({ remoteSelections, remoteCursors }) {
   const { x: vpX, y: vpY, zoom: vpZoom } = useViewport()
-  const reactFlow = useReactFlow()
+  const nodeLookup = useStore(s => s.nodeLookup)
 
   return (
     <>
       {/* Remote selection rings — colored border around nodes other users have selected */}
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 6 }}>
         {Object.entries(remoteSelections).map(([userId, { rfNodeId, avatarColor }]) => {
-          const node = reactFlow.getNode(rfNodeId)
+          const node = nodeLookup?.get(rfNodeId)
           if (!node || node.data?.hidden) return null
           const w = (node.measured?.width ?? 180) * vpZoom
           const h = (node.measured?.height ?? 40) * vpZoom
-          const sx = node.position.x * vpZoom + vpX
-          const sy = node.position.y * vpZoom + vpY
+          const absPos = node.internals?.positionAbsolute ?? node.position
+          const sx = absPos.x * vpZoom + vpX
+          const sy = absPos.y * vpZoom + vpY
           return (
             <div key={userId} style={{
               position: 'absolute',

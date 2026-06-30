@@ -167,6 +167,7 @@ def update_project(project_id):
         'project_id': project_id,
         'title': project.title,
         'icon_color': project.icon_color,
+        'purpose_statement': project.purpose_statement,
     }, room=f'project:{project_id}')
     return jsonify(project.to_dict())
 

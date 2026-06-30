@@ -17,7 +17,7 @@ function RootNode({ data, selected }) {
       }}
     >
       <div className="mb-2">
-        <span className="inline-block text-xs font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-streepa-900/60 dark:bg-streepa-900 text-streepa-300 dark:text-streepa-300 mb-2">
+        <span className="inline-block text-xs font-bold tracking-widest uppercase px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 mb-2">
           Purpose Statement
         </span>
         <h2 className="text-base font-bold text-streepa-900 dark:text-streepa-100 leading-tight break-words">{data.title || 'Untitled Project'}</h2>

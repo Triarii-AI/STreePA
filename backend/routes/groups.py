@@ -113,3 +113,59 @@ def delete_group(project_id, group_id):
     db.session.delete(group)
     db.session.commit()
     return jsonify({'released_members': released})
+
+
+@groups_bp.route('/projects/<int:project_id>/groups/<int:group_id>/members', methods=['PATCH'])
+@login_required
+def add_group_members(project_id, group_id):
+    """Add nodes to an existing group and update its bounds."""
+    check_project_access(project_id, require_editor=True)
+    group = NodeGroup.query.filter_by(id=group_id, project_id=project_id).first_or_404()
+    data = request.get_json() or {}
+
+    for field in ('x', 'y', 'width', 'height'):
+        if field in data:
+            setattr(group, field, float(data[field]))
+    if 'label' in data:
+        group.label = data['label']
+
+    for member in data.get('members', []):
+        node_type = member.get('node_type')
+        node_id = int(member.get('node_id', 0))
+        rel_x = float(member.get('rel_x', 0))
+        rel_y = float(member.get('rel_y', 0))
+        if node_type == 'group':
+            child = NodeGroup.query.filter_by(id=node_id, project_id=project_id).first()
+            if child:
+                child.parent_group_id = group.id
+                child.x = rel_x
+                child.y = rel_y
+        else:
+            model_cls = NODE_MODEL_MAP.get(node_type)
+            if model_cls:
+                node = model_cls.query.filter_by(id=node_id, project_id=project_id).first()
+                if node:
+                    node.group_id = group.id
+                    node.x = rel_x
+                    node.y = rel_y
+
+    for member in data.get('existing_members', []):
+        node_type = member.get('node_type')
+        node_id = int(member.get('node_id', 0))
+        rel_x = float(member.get('rel_x', 0))
+        rel_y = float(member.get('rel_y', 0))
+        if node_type == 'group':
+            child = NodeGroup.query.filter_by(id=node_id, project_id=project_id).first()
+            if child and child.parent_group_id == group.id:
+                child.x = rel_x
+                child.y = rel_y
+        else:
+            model_cls = NODE_MODEL_MAP.get(node_type)
+            if model_cls:
+                node = model_cls.query.filter_by(id=node_id, project_id=project_id).first()
+                if node and node.group_id == group.id:
+                    node.x = rel_x
+                    node.y = rel_y
+
+    db.session.commit()
+    return jsonify({'group': group.to_dict()})

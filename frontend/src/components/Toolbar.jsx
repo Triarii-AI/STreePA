@@ -47,6 +47,7 @@ export default function Toolbar({ project }) {
   const currentProject = useCanvasStore(s => s.currentProject)
   const patchCurrentProject = useCanvasStore(s => s.patchCurrentProject)
   const activeUsers = useCanvasStore(s => s.activeUsers)
+  const currentUser = useCanvasStore(s => s.user)
   const viewOnly = useCanvasStore(s => s.viewOnly)
   const setViewOnly = useCanvasStore(s => s.setViewOnly)
   const darkMode = useCanvasStore(s => s.darkMode)
@@ -169,8 +170,9 @@ export default function Toolbar({ project }) {
   const userRole = (project || currentProject)?.user_role || 'owner'
   const isViewer = userRole === 'viewer'
   const isOwner = userRole === 'owner'
-  const visibleUsers = activeUsers.slice(0, 3)
-  const extraCount = activeUsers.length > 3 ? activeUsers.length - 3 : 0
+  const otherActiveUsers = activeUsers.filter(u => u.user_id !== currentUser?.id)
+  const visibleUsers = otherActiveUsers.slice(0, 3)
+  const extraCount = otherActiveUsers.length > 3 ? otherActiveUsers.length - 3 : 0
 
   return (
     <div className="h-14 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 shadow-sm flex items-center pl-2 pr-4 gap-4 flex-shrink-0 z-30">

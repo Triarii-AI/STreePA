@@ -128,6 +128,41 @@ def register_events(socketio):
             room = get_room_key(project_id)
             emit('edge:deleted', data, room=room, include_self=False)
 
+    @socketio.on('group:created')
+    def on_group_created(data):
+        project_id = data.get('project_id')
+        if project_id:
+            room = get_room_key(project_id)
+            emit('group:created', data, room=room, include_self=False)
+
+    @socketio.on('group:moved')
+    def on_group_moved(data):
+        project_id = data.get('project_id')
+        if project_id:
+            room = get_room_key(project_id)
+            emit('group:moved', data, room=room, include_self=False)
+
+    @socketio.on('group:deleted')
+    def on_group_deleted(data):
+        project_id = data.get('project_id')
+        if project_id:
+            room = get_room_key(project_id)
+            emit('group:deleted', data, room=room, include_self=False)
+
+    @socketio.on('group:resized')
+    def on_group_resized(data):
+        project_id = data.get('project_id')
+        if project_id:
+            room = get_room_key(project_id)
+            emit('group:resized', data, room=room, include_self=False)
+
+    @socketio.on('group:members_updated')
+    def on_group_members_updated(data):
+        project_id = data.get('project_id')
+        if project_id:
+            room = get_room_key(project_id)
+            emit('group:members_updated', data, room=room, include_self=False)
+
     @socketio.on('user:select')
     @login_required_socket
     def on_user_select(data):

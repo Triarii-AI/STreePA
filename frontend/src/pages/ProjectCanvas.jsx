@@ -126,6 +126,10 @@ export default function ProjectCanvas() {
   const setActiveUsers = useCanvasStore(s => s.setActiveUsers)
   const selectedNode = useCanvasStore(s => s.selectedNode)
   const viewOnly = useCanvasStore(s => s.viewOnly)
+  const groupRFNodes = useCanvasStore(s => s.groupRFNodes)
+  const ungroupRFNodes = useCanvasStore(s => s.ungroupRFNodes)
+  const resizeGroupRF = useCanvasStore(s => s.resizeGroupRF)
+  const addNodesToGroupRF = useCanvasStore(s => s.addNodesToGroupRF)
 
   const handleNodeAdded = useCallback((data) => {
     addRFNode(convertToRFNode(data))
@@ -176,6 +180,44 @@ export default function ProjectCanvas() {
     removeRFEdge(data.edge_id)
   }, [removeRFEdge])
 
+  const handleGroupCreated = useCallback((data) => {
+    const { group, group_rf_node, member_updates } = data
+    const groupRFNode = group_rf_node || {
+      id: `group-${group.id}`,
+      type: 'groupNode',
+      position: { x: group.x, y: group.y },
+      style: { width: group.width, height: group.height },
+      data: { label: group.label || '', nodeType: 'group', groupId: group.id },
+      zIndex: -1,
+    }
+    groupRFNodes(groupRFNode, member_updates || [])
+  }, [groupRFNodes])
+
+  const handleGroupDeleted = useCallback((data) => {
+    const { group_rf_id, released_members } = data
+    const memberUpdates = (released_members || []).map(({ node_type, node_id, abs_x, abs_y }) => ({
+      rfNodeId: `${nodeTypePrefix(node_type)}-${node_id}`,
+      absX: abs_x,
+      absY: abs_y,
+    }))
+    ungroupRFNodes(group_rf_id, memberUpdates)
+  }, [ungroupRFNodes])
+
+  const handleGroupMoved = useCallback((data) => {
+    const { group_rf_id, x, y } = data
+    moveRFNode(group_rf_id, x, y)
+  }, [moveRFNode])
+
+  const handleGroupResized = useCallback((data) => {
+    const { group_rf_id, x, y, width, height, child_updates } = data
+    resizeGroupRF(group_rf_id, x, y, width, height, child_updates || [])
+  }, [resizeGroupRF])
+
+  const handleGroupMembersUpdated = useCallback((data) => {
+    const { group_rf_id, x, y, width, height, new_member_updates, existing_member_updates } = data
+    addNodesToGroupRF(group_rf_id, new_member_updates || [], existing_member_updates || [], x, y, width, height)
+  }, [addNodesToGroupRF])
+
   const handlePresenceUpdate = useCallback((data) => {
     setActiveUsers(data.active_users || [])
   }, [setActiveUsers])
@@ -209,6 +251,11 @@ export default function ProjectCanvas() {
     socket.on('node:deleted', handleNodeDeleted)
     socket.on('edge:added', handleEdgeAdded)
     socket.on('edge:deleted', handleEdgeDeleted)
+    socket.on('group:created', handleGroupCreated)
+    socket.on('group:deleted', handleGroupDeleted)
+    socket.on('group:moved', handleGroupMoved)
+    socket.on('group:resized', handleGroupResized)
+    socket.on('group:members_updated', handleGroupMembersUpdated)
     socket.on('presence:update', handlePresenceUpdate)
     socket.on('share:role_changed', onRoleChanged)
 
@@ -220,6 +267,11 @@ export default function ProjectCanvas() {
       socket.off('node:deleted', handleNodeDeleted)
       socket.off('edge:added', handleEdgeAdded)
       socket.off('edge:deleted', handleEdgeDeleted)
+      socket.off('group:created', handleGroupCreated)
+      socket.off('group:deleted', handleGroupDeleted)
+      socket.off('group:moved', handleGroupMoved)
+      socket.off('group:resized', handleGroupResized)
+      socket.off('group:members_updated', handleGroupMembersUpdated)
       socket.off('presence:update', handlePresenceUpdate)
       socket.off('share:role_changed', onRoleChanged)
       socket.disconnect()

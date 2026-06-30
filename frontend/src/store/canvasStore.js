@@ -333,6 +333,37 @@ const useCanvasStore = create((set, get) => ({
     })
   },
 
+  resizeGroupRF(groupRfId, newX, newY, newW, newH, childUpdates) {
+    const childMap = new Map((childUpdates || []).map(u => [u.rfNodeId, u]))
+    set(state => ({
+      nodes: state.nodes.map(n => {
+        if (n.id === groupRfId) {
+          return { ...n, position: { x: newX, y: newY }, style: { ...n.style, width: newW, height: newH } }
+        }
+        const u = childMap.get(n.id)
+        if (u) return { ...n, position: { x: u.relX, y: u.relY } }
+        return n
+      }),
+    }))
+  },
+
+  addNodesToGroupRF(groupRfId, newMembers, existingMemberUpdates, newGroupX, newGroupY, newGroupW, newGroupH) {
+    const newMemberMap = new Map((newMembers || []).map(u => [u.rfNodeId, u]))
+    const existingMap = new Map((existingMemberUpdates || []).map(u => [u.rfNodeId, u]))
+    set(state => ({
+      nodes: state.nodes.map(n => {
+        if (n.id === groupRfId) {
+          return { ...n, position: { x: newGroupX, y: newGroupY }, style: { ...n.style, width: newGroupW, height: newGroupH } }
+        }
+        const nm = newMemberMap.get(n.id)
+        if (nm) return { ...n, parentId: groupRfId, position: { x: nm.relX, y: nm.relY } }
+        const em = existingMap.get(n.id)
+        if (em) return { ...n, position: { x: em.relX, y: em.relY } }
+        return n
+      }),
+    }))
+  },
+
   // Atomically removes the group node and restores absolute positions on ex-members.
   ungroupRFNodes(groupRfId, memberUpdates) {
     // memberUpdates: [{ rfNodeId, absX, absY }]

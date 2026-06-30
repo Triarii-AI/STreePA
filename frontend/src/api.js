@@ -214,6 +214,13 @@ export async function deleteGroup(projectId, groupId) {
   })
 }
 
+export async function addGroupMembers(projectId, groupId, data) {
+  return request(`/api/projects/${projectId}/groups/${groupId}/members`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
 export async function createCanvasEdge(projectId, data) {
   return request(`/api/projects/${projectId}/canvas_edges`, {
     method: 'POST',

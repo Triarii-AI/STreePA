@@ -346,8 +346,16 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         return next
       })
     }
-    function onProjectUpdated({ title, icon_color }) {
-      useCanvasStore.getState().patchCurrentProject({ title, icon_color })
+    function onProjectUpdated({ title, icon_color, purpose_statement }) {
+      const update = {}
+      if (title !== undefined) update.title = title
+      if (icon_color !== undefined) update.icon_color = icon_color
+      if (purpose_statement !== undefined) update.purpose_statement = purpose_statement
+      const state = useCanvasStore.getState()
+      state.patchCurrentProject(update)
+      // Also patch the root RF node so RootNode re-renders with the new values
+      const rootNode = state.nodes.find(n => n.type === 'rootNode')
+      if (rootNode) state.updateRFNode(rootNode.id, update)
     }
     socket.on('user:select', onUserSelect)
     socket.on('cursor:move', onCursorMove)
@@ -490,8 +498,11 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
   const onSelectionChange = useCallback(({ nodes }) => {
     const visible = nodes.filter(n => !n.data?.hidden)
-    setSelectionCount(visible.length)
-    setSingleGroupSelected(visible.length === 1 && visible[0].type === 'groupNode')
+    const selectedGroupIds = new Set(visible.filter(n => n.type === 'groupNode').map(n => n.id))
+    // Exclude nodes that are children of a selected group (they're auto-selected on drag)
+    const effective = visible.filter(n => !selectedGroupIds.has(n.parentId))
+    setSelectionCount(effective.length)
+    setSingleGroupSelected(effective.length === 1 && effective[0].type === 'groupNode')
   }, [])
 
   const onNodeDragStart = useCallback((e, node, draggedNodes) => {
@@ -501,20 +512,74 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
   const onNodeDragStop = useCallback(async (e, node, draggedNodes) => {
     const all = draggedNodes?.length > 1 ? draggedNodes : [node]
+
+    // Snapshot and clear start positions before any async work
+    const startPositions = {}
+    all.forEach(n => {
+      startPositions[n.id] = dragStartPos.current[n.id]
+      delete dragStartPos.current[n.id]
+    })
+
     const historyMoves = []
-    await Promise.all(all.map(async n => {
+    const draggedIds = new Set(all.map(n => n.id))
+
+    // Children whose parent group is NOT also being dragged → they should move the parent group
+    const childrenMovingParent = all.filter(n => n.parentId && !draggedIds.has(n.parentId))
+    const normalNodes = all.filter(n => !childrenMovingParent.includes(n))
+
+    // For each unique parent: move the parent by the drag delta, restore children's relative positions
+    const processedParents = new Set()
+    for (const child of childrenMovingParent) {
+      if (processedParents.has(child.parentId)) continue
+      processedParents.add(child.parentId)
+
+      const startPos = startPositions[child.id]
+      if (!startPos) continue
+      const delta = { x: child.position.x - startPos.x, y: child.position.y - startPos.y }
+      if (Math.abs(delta.x) < 0.5 && Math.abs(delta.y) < 0.5) continue
+
+      const parentNode = useCanvasStore.getState().nodes.find(n => n.id === child.parentId)
+      if (!parentNode) continue
+      const groupId = parentNode.data.groupId
+      const oldParentPos = { x: parentNode.position.x, y: parentNode.position.y }
+      const newParentPos = { x: oldParentPos.x + delta.x, y: oldParentPos.y + delta.y }
+
+      // Restore all dragged siblings to original relative positions (parent absorbs the delta)
+      const movedSiblings = all.filter(n => n.parentId === child.parentId)
+      const siblingOriginals = new Map(movedSiblings.map(s => [s.id, startPositions[s.id]]))
+
+      useCanvasStore.setState(state => ({
+        nodes: state.nodes.map(n => {
+          if (n.id === child.parentId) return { ...n, position: newParentPos }
+          const orig = siblingOriginals.get(n.id)
+          if (orig) return { ...n, position: orig }
+          return n
+        }),
+      }))
+
+      historyMoves.push({ rfId: child.parentId, nodeType: 'group', nodeId: groupId, projectId, oldPos: oldParentPos, newPos: newParentPos })
+      try {
+        await updateGroup(projectId, groupId, { x: newParentPos.x, y: newParentPos.y })
+        socket.emit('group:moved', { project_id: projectId, group_rf_id: child.parentId, x: newParentPos.x, y: newParentPos.y })
+      } catch (err) {
+        console.error('Failed to persist group position after child drag:', err)
+      }
+    }
+
+    // Process groups and standalone nodes normally
+    await Promise.all(normalNodes.map(async n => {
       const parts = n.id.split('-')
       const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
       const nodeId = parseInt(parts[parts.length - 1])
       if (!nodeType) return
-      const oldPos = dragStartPos.current[n.id]
+      const oldPos = startPositions[n.id]
       const newPos = { x: n.position.x, y: n.position.y }
-      delete dragStartPos.current[n.id]
       try {
         if (nodeType === 'root') {
           await updateProject(projectId, { root_x: newPos.x, root_y: newPos.y })
         } else if (nodeType === 'group') {
           await updateGroup(projectId, nodeId, newPos)
+          socket.emit('group:moved', { project_id: projectId, group_rf_id: n.id, x: newPos.x, y: newPos.y })
           if (oldPos && (oldPos.x !== newPos.x || oldPos.y !== newPos.y)) {
             historyMoves.push({ rfId: n.id, nodeType, nodeId, projectId, oldPos, newPos })
           }
@@ -529,6 +594,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         console.error('Failed to persist node position:', err)
       }
     }))
+
     if (historyMoves.length === 1) {
       useCanvasStore.getState().pushHistory({ action: 'move', ...historyMoves[0] })
     } else if (historyMoves.length > 1) {
@@ -555,7 +621,9 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
       if ((e.key === 'Delete' || e.key === 'Backspace') && !ctrl) {
         const allSelected = reactFlow.getNodes().filter(n => n.selected && n.data.nodeType !== 'root')
         const selectedGroups = allSelected.filter(n => n.type === 'groupNode')
-        const selectedNodes = allSelected.filter(n => n.type !== 'groupNode')
+        const selectedGroupIds = new Set(selectedGroups.map(n => n.id))
+        // Exclude children of selected groups from individual deletion
+        const selectedNodes = allSelected.filter(n => n.type !== 'groupNode' && !selectedGroupIds.has(n.parentId))
         if (allSelected.length === 0) return
         e.preventDefault()
         // Groups: ungroup (non-destructive — releases members, removes frame only)
@@ -568,12 +636,37 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               absY: abs_y,
             }))
             useCanvasStore.getState().ungroupRFNodes(`group-${groupNode.data.groupId}`, memberUpdates)
+            socket.emit('group:deleted', { project_id: projectId, group_rf_id: `group-${groupNode.data.groupId}`, group_id: groupNode.data.groupId, released_members: result.released_members })
+            useCanvasStore.getState().pushHistory({
+              action: 'ungroup',
+              groupRfId: `group-${groupNode.data.groupId}`,
+              groupId: groupNode.data.groupId,
+              projectId,
+              groupRFNode: groupNode,
+              memberUpdates: result.released_members.map(({ node_type, node_id, abs_x, abs_y }) => {
+                const rfNodeId = node_type === 'group' ? `group-${node_id}` : `${nodeTypeToPrefix(node_type)}-${node_id}`
+                const relX = abs_x - groupNode.position.x
+                const relY = abs_y - groupNode.position.y
+                return { rfNodeId, relX, relY }
+              }),
+            })
           } catch (err) { console.error('Ungroup failed:', err) }
         }
         // Regular nodes: confirm then delete
         if (selectedNodes.length > 0) {
           const confirmMsg = selectedNodes.length === 1 ? 'Delete this node?' : `Delete ${selectedNodes.length} nodes?`
           if (!window.confirm(confirmMsg)) { store.setSelectedNode(null); return }
+          // Track which groups need resizing after all deletions
+          const groupsToResize = new Map()
+          for (const node of selectedNodes) {
+            if (node.parentId?.startsWith('group-')) {
+              if (!groupsToResize.has(node.parentId)) {
+                const currentChildren = reactFlow.getNodes().filter(n => n.parentId === node.parentId && !n.data?.hidden)
+                groupsToResize.set(node.parentId, new Map(currentChildren.map(n => [n.id, n])))
+              }
+              groupsToResize.get(node.parentId).delete(node.id)
+            }
+          }
           for (const node of selectedNodes) {
             const { nodeType, id: nodeId } = node.data
             const snapshot = {
@@ -593,6 +686,10 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                 store.updateRFNode(`${prefix}-${id}`, { label, ...(nullField ? { [nullField]: null } : {}) })
               })
             } catch (err) { console.error('Delete failed:', err) }
+          }
+          // Resize (or auto-delete) any groups that lost members
+          for (const [groupRfId, childrenMap] of groupsToResize) {
+            await resizeGroupAfterDelete(groupRfId, Array.from(childrenMap.values()))
           }
         }
         store.setSelectedNode(null)
@@ -635,6 +732,32 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             store.updateHistoryEntry(moveHistoryIndex, { rfId: newRfId, nodeId: newNodeId })
             socket.emit('node:added', { project_id: entry.projectId, node_type: entry.snapshot.nodeData.nodeType, node_data: newNodeData, position: entry.snapshot.position })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          } else if (entry.action === 'group') {
+            // Undo group creation: delete the group (ungroup its members)
+            const result = await deleteGroup(entry.projectId, entry.groupId)
+            const memberUpdates = result.released_members.map(({ node_type, node_id, abs_x, abs_y }) => ({
+              rfNodeId: node_type === 'group' ? `group-${node_id}` : `${nodeTypeToPrefix(node_type)}-${node_id}`,
+              absX: abs_x, absY: abs_y,
+            }))
+            store.ungroupRFNodes(entry.groupRfId, memberUpdates)
+            socket.emit('group:deleted', { project_id: entry.projectId, group_rf_id: entry.groupRfId, group_id: entry.groupId, released_members: result.released_members })
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          } else if (entry.action === 'ungroup') {
+            // Undo ungroup: recreate the group
+            const members = entry.memberUpdates.map(u => {
+              const parts = u.rfNodeId.split('-')
+              return { node_type: RF_PREFIX_TO_TYPE[parts[0]], node_id: parseInt(parts[parts.length - 1]), rel_x: u.relX, rel_y: u.relY }
+            })
+            const { x: gx, y: gy } = entry.groupRFNode.position
+            const { width: gw, height: gh } = entry.groupRFNode.style
+            const result = await createGroup(entry.projectId, { label: entry.groupRFNode.data.label || '', x: gx, y: gy, width: gw, height: gh, members })
+            const newGroup = result.group
+            const newRfId = `group-${newGroup.id}`
+            const newGroupRFNode = { ...entry.groupRFNode, id: newRfId, data: { ...entry.groupRFNode.data, groupId: newGroup.id } }
+            store.groupRFNodes(newGroupRFNode, entry.memberUpdates)
+            store.updateHistoryEntry(moveHistoryIndex, { groupRfId: newRfId, groupId: newGroup.id, groupRFNode: newGroupRFNode })
+            socket.emit('group:created', { project_id: entry.projectId, group: newGroup, group_rf_node: newGroupRFNode, member_updates: entry.memberUpdates })
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           }
         } catch (err) { console.error('Undo failed:', err) }
         return
@@ -675,6 +798,32 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             await deleteNode(entry.projectId, entry.nodeType, entry.nodeId)
             store.removeRFNode(entry.rfId)
             socket.emit('node:deleted', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId })
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          } else if (entry.action === 'group') {
+            // Redo group creation: recreate the group
+            const members = entry.memberUpdates.map(u => {
+              const parts = u.rfNodeId.split('-')
+              return { node_type: RF_PREFIX_TO_TYPE[parts[0]], node_id: parseInt(parts[parts.length - 1]), rel_x: u.relX, rel_y: u.relY }
+            })
+            const { x: gx, y: gy } = entry.groupRFNode.position
+            const { width: gw, height: gh } = entry.groupRFNode.style
+            const result = await createGroup(entry.projectId, { label: entry.groupRFNode.data.label || '', x: gx, y: gy, width: gw, height: gh, members })
+            const newGroup = result.group
+            const newRfId = `group-${newGroup.id}`
+            const newGroupRFNode = { ...entry.groupRFNode, id: newRfId, data: { ...entry.groupRFNode.data, groupId: newGroup.id } }
+            store.groupRFNodes(newGroupRFNode, entry.memberUpdates)
+            store.updateHistoryEntry(moveHistoryIndex + 1, { groupRfId: newRfId, groupId: newGroup.id, groupRFNode: newGroupRFNode })
+            socket.emit('group:created', { project_id: entry.projectId, group: newGroup, group_rf_node: newGroupRFNode, member_updates: entry.memberUpdates })
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          } else if (entry.action === 'ungroup') {
+            // Redo ungroup: delete the group
+            const result = await deleteGroup(entry.projectId, entry.groupId)
+            const memberUpdates = result.released_members.map(({ node_type, node_id, abs_x, abs_y }) => ({
+              rfNodeId: node_type === 'group' ? `group-${node_id}` : `${nodeTypeToPrefix(node_type)}-${node_id}`,
+              absX: abs_x, absY: abs_y,
+            }))
+            store.ungroupRFNodes(entry.groupRfId, memberUpdates)
+            socket.emit('group:deleted', { project_id: entry.projectId, group_rf_id: entry.groupRfId, group_id: entry.groupId, released_members: result.released_members })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           }
         } catch (err) { console.error('Redo failed:', err) }
@@ -883,25 +1032,41 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
   async function handleGroup() {
     if (isExporting) return
-    const selected = reactFlow.getNodes().filter(n => n.selected && n.type !== 'rootNode' && !n.data?.hidden)
-    if (selected.length < 2) return
     const GROUP_PAD = 24
     const getNodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
     const getNodeH = n => n.type === 'groupNode' ? (n.style?.height ?? 200) : (n.measured?.height ?? 40)
-    const minX = Math.min(...selected.map(n => n.position.x))
-    const minY = Math.min(...selected.map(n => n.position.y))
-    const maxX = Math.max(...selected.map(n => n.position.x + getNodeW(n)))
-    const maxY = Math.max(...selected.map(n => n.position.y + getNodeH(n)))
+    const getAbsPos = n => ({
+      x: n.internals?.positionAbsolute?.x ?? n.position.x,
+      y: n.internals?.positionAbsolute?.y ?? n.position.y,
+    })
+
+    const allSelected = reactFlow.getNodes().filter(n => n.selected && n.type !== 'rootNode' && !n.data?.hidden)
+    const selectedGroups = allSelected.filter(n => n.type === 'groupNode')
+    const selectedGroupIds = new Set(selectedGroups.map(n => n.id))
+    // Exclude children of selected groups — they're already contained in the group unit
+    const standaloneNodes = allSelected.filter(n => n.type !== 'groupNode' && !selectedGroupIds.has(n.parentId))
+
+    // Need at least 2 effective items to form a group
+    const effective = [...standaloneNodes, ...selectedGroups]
+    if (effective.length < 2) return
+
+    const minX = Math.min(...effective.map(n => getAbsPos(n).x))
+    const minY = Math.min(...effective.map(n => getAbsPos(n).y))
+    const maxX = Math.max(...effective.map(n => getAbsPos(n).x + getNodeW(n)))
+    const maxY = Math.max(...effective.map(n => getAbsPos(n).y + getNodeH(n)))
     const groupX = minX - GROUP_PAD
     const groupY = minY - GROUP_PAD
     const groupW = (maxX - minX) + 2 * GROUP_PAD
     const groupH = (maxY - minY) + 2 * GROUP_PAD
-    const members = selected.map(n => {
+
+    const members = effective.map(n => {
+      const abs = getAbsPos(n)
       const parts = n.id.split('-')
       const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
       const nodeId = parseInt(parts[parts.length - 1])
-      return { node_type: nodeType, node_id: nodeId, rel_x: n.position.x - groupX, rel_y: n.position.y - groupY }
+      return { node_type: nodeType, node_id: nodeId, rel_x: abs.x - groupX, rel_y: abs.y - groupY }
     })
+
     try {
       const result = await createGroup(projectId, { label: '', x: groupX, y: groupY, width: groupW, height: groupH, members })
       const group = result.group
@@ -914,16 +1079,79 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         data: { label: '', nodeType: 'group', groupId: group.id },
         zIndex: -1,
       }
-      const memberUpdates = selected.map(n => ({
-        rfNodeId: n.id,
-        relX: n.position.x - groupX,
-        relY: n.position.y - groupY,
-      }))
+      const memberUpdates = effective.map(n => {
+        const abs = getAbsPos(n)
+        return { rfNodeId: n.id, relX: abs.x - groupX, relY: abs.y - groupY }
+      })
       useCanvasStore.getState().groupRFNodes(groupRFNode, memberUpdates)
+      useCanvasStore.getState().pushHistory({ action: 'group', groupRfId: rfGroupId, groupId: group.id, projectId, groupRFNode, memberUpdates })
+      socket.emit('group:created', { project_id: projectId, group: result.group, group_rf_node: groupRFNode, member_updates: memberUpdates })
     } catch (err) {
       console.error('Group failed:', err)
       // eslint-disable-next-line no-alert
       window.alert('Failed to create group: ' + err.message)
+    }
+  }
+
+  async function resizeGroupAfterDelete(groupRfId, remainingChildren) {
+    const GROUP_PAD = 24
+    const getNodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
+    const getNodeH = n => n.type === 'groupNode' ? (n.style?.height ?? 200) : (n.measured?.height ?? 40)
+    // Find group in current RF state (group node is not deleted)
+    const groupNode = reactFlow.getNodes().find(n => n.id === groupRfId)
+    if (!groupNode) return
+    const groupId = groupNode.data.groupId
+
+    if (remainingChildren.length === 0) {
+      try {
+        await deleteGroup(projectId, groupId)
+        useCanvasStore.getState().removeRFNode(groupRfId)
+        socket.emit('group:deleted', { project_id: projectId, group_rf_id: groupRfId, group_id: groupId, released_members: [] })
+      } catch (err) {
+        console.error('Failed to auto-delete empty group:', err)
+      }
+      return
+    }
+
+    // Compute tight bounding box from remaining children (positions are relative to group)
+    const relMinX = Math.min(...remainingChildren.map(n => n.position.x))
+    const relMinY = Math.min(...remainingChildren.map(n => n.position.y))
+    const relMaxX = Math.max(...remainingChildren.map(n => n.position.x + getNodeW(n)))
+    const relMaxY = Math.max(...remainingChildren.map(n => n.position.y + getNodeH(n)))
+
+    const offsetX = relMinX - GROUP_PAD
+    const offsetY = relMinY - GROUP_PAD
+    const newGroupW = (relMaxX - relMinX) + 2 * GROUP_PAD
+    const newGroupH = (relMaxY - relMinY) + 2 * GROUP_PAD
+    const newGroupX = groupNode.position.x + offsetX
+    const newGroupY = groupNode.position.y + offsetY
+
+    const childUpdates = remainingChildren.map(n => ({
+      rfNodeId: n.id,
+      relX: n.position.x - offsetX,
+      relY: n.position.y - offsetY,
+    }))
+
+    useCanvasStore.getState().resizeGroupRF(groupRfId, newGroupX, newGroupY, newGroupW, newGroupH, childUpdates)
+    socket.emit('group:resized', { project_id: projectId, group_rf_id: groupRfId, group_id: groupId, x: newGroupX, y: newGroupY, width: newGroupW, height: newGroupH, child_updates: childUpdates })
+
+    try {
+      await updateGroup(projectId, groupId, { x: newGroupX, y: newGroupY, width: newGroupW, height: newGroupH })
+      if (offsetX !== 0 || offsetY !== 0) {
+        await Promise.all(childUpdates.map(async cu => {
+          const parts = cu.rfNodeId.split('-')
+          const nodeType = RF_PREFIX_TO_TYPE[parts[0]]
+          const nodeId = parseInt(parts[parts.length - 1])
+          if (!nodeType) return
+          if (nodeType === 'group') {
+            await updateGroup(projectId, nodeId, { x: cu.relX, y: cu.relY })
+          } else {
+            await updateNode(projectId, nodeType, nodeId, { x: cu.relX, y: cu.relY })
+          }
+        }))
+      }
+    } catch (err) {
+      console.error('Failed to resize group after delete:', err)
     }
   }
 
@@ -940,6 +1168,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         absY: abs_y,
       }))
       useCanvasStore.getState().ungroupRFNodes(`group-${groupId}`, memberUpdates)
+      socket.emit('group:deleted', { project_id: projectId, group_rf_id: `group-${groupId}`, group_id: groupId, released_members: result.released_members })
     } catch (err) {
       console.error('Ungroup failed:', err)
       // eslint-disable-next-line no-alert
