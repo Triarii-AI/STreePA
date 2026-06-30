@@ -1043,11 +1043,15 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     const allSelected = reactFlow.getNodes().filter(n => n.selected && n.type !== 'rootNode' && !n.data?.hidden)
     const selectedGroups = allSelected.filter(n => n.type === 'groupNode')
     const selectedGroupIds = new Set(selectedGroups.map(n => n.id))
-    // Exclude children of selected groups — they're already contained in the group unit
+    // Exclude non-group nodes already inside a selected group (at any depth via direct parent check)
     const standaloneNodes = allSelected.filter(n => n.type !== 'groupNode' && !selectedGroupIds.has(n.parentId))
+    // Exclude nested groups that are already inside another selected group — keep only outermost ones.
+    // When drag-selecting an outer group RF auto-selects all its children including inner groups;
+    // without this filter, inner groups would be reparented to the new group instead of staying nested.
+    const topLevelGroups = selectedGroups.filter(n => !selectedGroupIds.has(n.parentId))
 
     // Need at least 2 effective items to form a group
-    const effective = [...standaloneNodes, ...selectedGroups]
+    const effective = [...standaloneNodes, ...topLevelGroups]
     if (effective.length < 2) return
 
     const minX = Math.min(...effective.map(n => getAbsPos(n).x))
