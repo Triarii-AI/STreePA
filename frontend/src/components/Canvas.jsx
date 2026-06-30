@@ -1486,7 +1486,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                   ? 'bg-streepa-600 border-streepa-600 text-white'
                   : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-600 text-gray-500 dark:text-neutral-400 hover:border-streepa-300 hover:text-streepa-600'
               }`}
-              title={showCrossRefs ? 'Hide cross-reference arrows' : 'Show cross-reference arrows'}
+              title={showCrossRefs ? 'Hide cross-reference arrows' : 'Show cross-reference arrows (will cause lag on large projects)'}
             >
               <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="1" y1="8" x2="12" y2="8" strokeDasharray="3,2.5" />
