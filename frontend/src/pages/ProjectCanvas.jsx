@@ -144,7 +144,8 @@ export default function ProjectCanvas() {
     const prefix = nodeTypePrefix(node_type)
     // Solid structural edges
     if (node_type === 'loss') {
-      addRFEdge(makeRFEdge(`root-${project_id}`, `loss-${id}`, false))
+      const src = node_data.parent_loss_id ? `loss-${node_data.parent_loss_id}` : `root-${project_id}`
+      addRFEdge(makeRFEdge(src, `loss-${id}`, false))
     } else if (node_type === 'hazard' && node_data.parent_hazard_id) {
       addRFEdge(makeRFEdge(`hazard-${node_data.parent_hazard_id}`, `hazard-${id}`, false))
     } else if (node_type === 'uca' && node_data.control_action_id) {
@@ -165,8 +166,11 @@ export default function ProjectCanvas() {
 
   const handleNodeUpdated = useCallback((data) => {
     const rfId = nodeTypeId(data)
-    if (rfId) updateRFNode(rfId, data.changed_fields || data.node_data || {})
-  }, [updateRFNode])
+    if (!rfId) return
+    updateRFNode(rfId, data.changed_fields || data.node_data || {})
+    if (data.old_parent_rf_id) removeRFEdge(`e-${data.old_parent_rf_id}-${rfId}`)
+    if (data.new_parent_rf_id) addRFEdge(makeRFEdge(data.new_parent_rf_id, rfId, false))
+  }, [updateRFNode, addRFEdge, removeRFEdge])
 
   const handleNodeMoved = useCallback((data) => {
     const rfId = nodeTypeId(data)

@@ -252,7 +252,7 @@ const useCanvasStore = create((set, get) => ({
   moveHistory: [],
   moveHistoryIndex: -1,
   // Copy/paste
-  copiedNode: null,
+  copiedNodes: [],
   // View-only mode
   viewOnly: false,
   // Dark mode
@@ -418,8 +418,8 @@ const useCanvasStore = create((set, get) => ({
     set({ activeUsers: users })
   },
 
-  setCopiedNode(node) {
-    set({ copiedNode: node })
+  setCopiedNodes(nodes) {
+    set({ copiedNodes: nodes })
   },
 
   setViewOnly(val) {

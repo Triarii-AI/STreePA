@@ -9,6 +9,10 @@ function isMainHazard(h) {
   return h.label && !h.label.includes('.')
 }
 
+function isMainLoss(l) {
+  return l.label && !l.label.includes('.')
+}
+
 const LAYER_LABELS = {
   root: 'Root',
   loss: 'Loss',
@@ -69,7 +73,7 @@ export default function NodePanel({ projectId }) {
     if (!nodeData) return
     setFormData({ ...nodeData })
     setLinkError('')
-  }, [selectedNode?.id])
+  }, [selectedNode])
 
   if (!selectedNode || !nodeType) return null
 
@@ -104,7 +108,7 @@ export default function NodePanel({ projectId }) {
 
   // Check if node has children (for collapse toggle)
   function handleFieldChange(field, value) {
-    const numericParentFields = ['parent_hazard_id', 'control_action_id', 'uca_id', 'linked_hazard_id']
+    const numericParentFields = ['parent_loss_id', 'parent_hazard_id', 'control_action_id', 'uca_id', 'linked_hazard_id']
     const parsed = numericParentFields.includes(field)
       ? (value === '' ? null : parseInt(value, 10))
       : value
@@ -122,8 +126,19 @@ export default function NodePanel({ projectId }) {
           }
         })
         if (Object.keys(changedFields).length === 0) { setSaving(false); return }
+        const prevProjectFields = Object.fromEntries(Object.keys(changedFields).map(k => [k, nodeData[k] ?? null]))
         await updateProject(projectId, changedFields)
         updateRFNode(rfNodeId, changedFields)
+        useCanvasStore.getState().pushHistory({
+          action: 'fieldEdit',
+          rfId: rfNodeId,
+          nodeType: 'root',
+          nodeId: null,
+          projectId,
+          isProject: true,
+          changedFields: { ...changedFields },
+          previousFields: prevProjectFields,
+        })
         setSaving(false)
         return
       }
@@ -153,28 +168,45 @@ export default function NodePanel({ projectId }) {
       ;(result?.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
         updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
       })
-      // Update parent edges when structural parent fields change
+      // Update parent edges when structural parent fields change; compute old/new RF IDs for remote sync
+      let oldParentRfId, newParentRfId
+      if ('parent_loss_id' in changedFields) {
+        const oldPid = nodeData.parent_loss_id
+        const newPid = changedFields.parent_loss_id
+        oldParentRfId = oldPid ? `loss-${oldPid}` : `root-${projectId}`
+        newParentRfId = newPid ? `loss-${newPid}` : `root-${projectId}`
+        removeRFEdge(`e-${oldParentRfId}-loss-${nodeId}`)
+        addRFEdge(makeRFEdge(newParentRfId, rfNodeId, false))
+      }
       if ('parent_hazard_id' in changedFields) {
         const oldPid = nodeData.parent_hazard_id
         const newPid = changedFields.parent_hazard_id
+        oldParentRfId = oldPid ? `hazard-${oldPid}` : null
+        newParentRfId = newPid ? `hazard-${newPid}` : null
         if (oldPid) removeRFEdge(`e-hazard-${oldPid}-hazard-${nodeId}`)
         if (newPid) addRFEdge(makeRFEdge(`hazard-${newPid}`, rfNodeId, false))
       }
       if ('control_action_id' in changedFields) {
         const oldCid = nodeData.control_action_id
         const newCid = changedFields.control_action_id
+        oldParentRfId = oldCid ? `ca-${oldCid}` : null
+        newParentRfId = newCid ? `ca-${newCid}` : null
         if (oldCid) removeRFEdge(`e-ca-${oldCid}-uca-${nodeId}`)
         if (newCid) addRFEdge(makeRFEdge(`ca-${newCid}`, rfNodeId, false))
       }
       if ('uca_id' in changedFields) {
         const oldUid = nodeData.uca_id
         const newUid = changedFields.uca_id
+        oldParentRfId = oldUid ? `uca-${oldUid}` : null
+        newParentRfId = newUid ? `uca-${newUid}` : null
         if (oldUid) removeRFEdge(`e-uca-${oldUid}-ls-${nodeId}`)
         if (newUid) addRFEdge(makeRFEdge(`uca-${newUid}`, rfNodeId, false))
       }
       if ('linked_hazard_id' in changedFields) {
         const oldHid = nodeData.linked_hazard_id
         const newHid = changedFields.linked_hazard_id
+        oldParentRfId = oldHid ? `hazard-${oldHid}` : null
+        newParentRfId = newHid ? `hazard-${newHid}` : null
         if (oldHid) removeRFEdge(`e-hazard-${oldHid}-sc-${nodeId}`)
         if (newHid) addRFEdge(makeRFEdge(`hazard-${newHid}`, `sc-${nodeId}`, false))
       }
@@ -182,8 +214,45 @@ export default function NodePanel({ projectId }) {
         project_id: projectId,
         node_type: nodeType,
         node_id: nodeId,
-        changed_fields: changedFields,
+        changed_fields: mergedUpdate,
+        ...(oldParentRfId !== undefined ? { old_parent_rf_id: oldParentRfId } : {}),
+        ...(newParentRfId !== undefined ? { new_parent_rf_id: newParentRfId } : {}),
       })
+      ;(result?.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
+        socket.emit('node:updated', { project_id: projectId, node_type: nt, node_id: id, changed_fields: { label } })
+      })
+      const STRUCT_PARENT_FIELDS = ['parent_loss_id', 'parent_hazard_id', 'control_action_id', 'uca_id', 'linked_hazard_id']
+      const reparentField = STRUCT_PARENT_FIELDS.find(f => f in changedFields)
+      if (reparentField) {
+        useCanvasStore.getState().pushHistory({
+          action: 'reparent',
+          rfId: rfNodeId,
+          nodeType,
+          nodeId,
+          projectId,
+          fkField: reparentField,
+          oldValue: nodeData[reparentField] ?? null,
+          newValue: changedFields[reparentField] ?? null,
+          oldLabel: nodeData.label,
+          newLabel: mergedUpdate.label || nodeData.label,
+          oldParentRfId,
+          newParentRfId,
+        })
+      }
+      const nonReparentChanged = Object.fromEntries(
+        Object.entries(changedFields).filter(([k]) => !STRUCT_PARENT_FIELDS.includes(k))
+      )
+      if (Object.keys(nonReparentChanged).length > 0) {
+        useCanvasStore.getState().pushHistory({
+          action: 'fieldEdit',
+          rfId: rfNodeId,
+          nodeType,
+          nodeId,
+          projectId,
+          changedFields: nonReparentChanged,
+          previousFields: Object.fromEntries(Object.keys(nonReparentChanged).map(k => [k, nodeData[k] ?? null])),
+        })
+      }
     } catch (err) {
       alert(err.message || 'Failed to save changes.')
     } finally {
@@ -212,6 +281,7 @@ export default function NodePanel({ projectId }) {
         },
       })
       const ORPHAN_NULL_FIELD = {
+        loss: 'parent_loss_id',
         hazard: 'parent_hazard_id',
         system_constraint: 'linked_hazard_id',
         uca: 'control_action_id',
@@ -220,10 +290,9 @@ export default function NodePanel({ projectId }) {
       ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
         const nullField = ORPHAN_NULL_FIELD[nt]
         const prefix = nodeTypeToPrefix(nt)
-        useCanvasStore.getState().updateRFNode(`${prefix}-${id}`, {
-          label,
-          ...(nullField ? { [nullField]: null } : {}),
-        })
+        const changed = { label, ...(nullField ? { [nullField]: null } : {}) }
+        useCanvasStore.getState().updateRFNode(`${prefix}-${id}`, changed)
+        socket.emit('node:updated', { project_id: projectId, node_type: nt, node_id: id, changed_fields: changed })
       })
     } catch (err) {
       alert(err.message || 'Failed to delete node.')
@@ -366,15 +435,36 @@ export default function NodePanel({ projectId }) {
         )}
 
         {nodeType === 'loss' && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
-            <textarea
-              value={formData.description || ''}
-              onChange={e => handleFieldChange('description', e.target.value)}
-              rows={3}
-              className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
-            />
-          </div>
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
+              <textarea
+                value={formData.description || ''}
+                onChange={e => handleFieldChange('description', e.target.value)}
+                rows={3}
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Parent Loss</label>
+              <SearchableSelect
+                value={formData.parent_loss_id || ''}
+                onChange={v => handleFieldChange('parent_loss_id', v)}
+                options={[...allLosses].sort((a, b) => {
+                  const pa = (a.label || '').replace(/^L-/, '').split('.').map(n => parseInt(n) || 0)
+                  const pb = (b.label || '').replace(/^L-/, '').split('.').map(n => parseInt(n) || 0)
+                  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                    const d = (pa[i] || 0) - (pb[i] || 0)
+                    if (d !== 0) return d
+                  }
+                  return 0
+                }).filter(l => l.id !== nodeId)}
+                placeholder="None (top-level)"
+                focusRingClass="focus:ring-red-400"
+                isMainFn={isMainLoss}
+              />
+            </div>
+          </>
         )}
 
         {nodeType === 'hazard' && (

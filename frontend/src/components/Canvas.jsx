@@ -84,6 +84,11 @@ const RF_PREFIX_TO_TYPE = {
   group: 'group',
 }
 
+const RF_TYPE_MAP = {
+  loss: 'lossNode', hazard: 'hazardNode', system_constraint: 'scNode',
+  control_action: 'caNode', uca: 'ucaNode', loss_scenario: 'lsNode',
+}
+
 function AlignLeftIcon() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15">
@@ -279,11 +284,20 @@ async function recreateNode(entry) {
     try {
       const res = await updateNode(projectId, childType, childId, { [fkField]: newNodeId })
       const updatedChild = res[childType] || res.node || res
-      store.updateRFNode(childRfId, { [fkField]: newNodeId, ...(updatedChild.label ? { label: updatedChild.label } : {}) })
+      const childChanged = { [fkField]: newNodeId, ...(updatedChild.label ? { label: updatedChild.label } : {}) }
+      store.updateRFNode(childRfId, childChanged)
       store.addRFEdge(makeRFEdge(newRfId, childRfId, false))
+      socket.emit('node:updated', {
+        project_id: projectId,
+        node_type: childType,
+        node_id: childId,
+        changed_fields: childChanged,
+        new_parent_rf_id: newRfId,
+      })
       // Propagate any label cascade to descendants
       ;(updatedChild.relabeled || []).forEach(({ nodeType: rnt, id: rid, label: rlabel }) => {
         store.updateRFNode(`${nodeTypeToPrefix(rnt)}-${rid}`, { label: rlabel })
+        socket.emit('node:updated', { project_id: projectId, node_type: rnt, node_id: rid, changed_fields: { label: rlabel } })
       })
     } catch (_) {}
   }
@@ -586,11 +600,6 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
   // Keyboard shortcuts: Delete, Ctrl+C/V, Ctrl+Z/Y
   useEffect(() => {
-    const RF_TYPE_MAP = {
-      loss: 'lossNode', hazard: 'hazardNode', system_constraint: 'scNode',
-      control_action: 'caNode', uca: 'ucaNode', loss_scenario: 'lsNode',
-    }
-
     async function onKeyDown(e) {
       const tag = e.target.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -665,7 +674,9 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
                 const nullField = ORPHAN_NULL_FIELD[nt]
                 const prefix = nodeTypeToPrefix(nt)
-                store.updateRFNode(`${prefix}-${id}`, { label, ...(nullField ? { [nullField]: null } : {}) })
+                const changed = { label, ...(nullField ? { [nullField]: null } : {}) }
+                store.updateRFNode(`${prefix}-${id}`, changed)
+                socket.emit('node:updated', { project_id: projectId, node_type: nt, node_id: id, changed_fields: changed })
               })
             } catch (err) { console.error('Delete failed:', err) }
           }
@@ -740,6 +751,35 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             store.updateHistoryEntry(moveHistoryIndex, { groupRfId: newRfId, groupId: newGroup.id, groupRFNode: newGroupRFNode })
             socket.emit('group:created', { project_id: entry.projectId, group: newGroup, group_rf_node: newGroupRFNode, member_updates: entry.memberUpdates })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          } else if (entry.action === 'reparent') {
+            const res = await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { [entry.fkField]: entry.oldValue })
+            const updatedNode = res[entry.nodeType] || res.node || res
+            const restoredLabel = updatedNode.label || entry.oldLabel
+            store.updateRFNode(entry.rfId, { [entry.fkField]: entry.oldValue, label: restoredLabel })
+            if (entry.newParentRfId) store.removeRFEdge(`e-${entry.newParentRfId}-${entry.rfId}`)
+            if (entry.oldParentRfId) store.addRFEdge(makeRFEdge(entry.oldParentRfId, entry.rfId, false))
+            ;(updatedNode.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
+              store.updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
+              socket.emit('node:updated', { project_id: entry.projectId, node_type: nt, node_id: id, changed_fields: { label } })
+            })
+            socket.emit('node:updated', {
+              project_id: entry.projectId,
+              node_type: entry.nodeType,
+              node_id: entry.nodeId,
+              changed_fields: { [entry.fkField]: entry.oldValue, label: restoredLabel },
+              old_parent_rf_id: entry.newParentRfId,
+              new_parent_rf_id: entry.oldParentRfId,
+            })
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          } else if (entry.action === 'fieldEdit') {
+            if (entry.isProject) {
+              await updateProject(entry.projectId, entry.previousFields)
+            } else {
+              await updateNode(entry.projectId, entry.nodeType, entry.nodeId, entry.previousFields)
+              socket.emit('node:updated', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, changed_fields: entry.previousFields })
+            }
+            store.updateRFNode(entry.rfId, entry.previousFields)
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           }
         } catch (err) { console.error('Undo failed:', err) }
         return
@@ -807,6 +847,35 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             store.ungroupRFNodes(entry.groupRfId, memberUpdates)
             socket.emit('group:deleted', { project_id: entry.projectId, group_rf_id: entry.groupRfId, group_id: entry.groupId, released_members: result.released_members })
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          } else if (entry.action === 'reparent') {
+            const res = await updateNode(entry.projectId, entry.nodeType, entry.nodeId, { [entry.fkField]: entry.newValue })
+            const updatedNode = res[entry.nodeType] || res.node || res
+            const reappliedLabel = updatedNode.label || entry.newLabel
+            store.updateRFNode(entry.rfId, { [entry.fkField]: entry.newValue, label: reappliedLabel })
+            if (entry.oldParentRfId) store.removeRFEdge(`e-${entry.oldParentRfId}-${entry.rfId}`)
+            if (entry.newParentRfId) store.addRFEdge(makeRFEdge(entry.newParentRfId, entry.rfId, false))
+            ;(updatedNode.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
+              store.updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
+              socket.emit('node:updated', { project_id: entry.projectId, node_type: nt, node_id: id, changed_fields: { label } })
+            })
+            socket.emit('node:updated', {
+              project_id: entry.projectId,
+              node_type: entry.nodeType,
+              node_id: entry.nodeId,
+              changed_fields: { [entry.fkField]: entry.newValue, label: reappliedLabel },
+              old_parent_rf_id: entry.oldParentRfId,
+              new_parent_rf_id: entry.newParentRfId,
+            })
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          } else if (entry.action === 'fieldEdit') {
+            if (entry.isProject) {
+              await updateProject(entry.projectId, entry.changedFields)
+            } else {
+              await updateNode(entry.projectId, entry.nodeType, entry.nodeId, entry.changedFields)
+              socket.emit('node:updated', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, changed_fields: entry.changedFields })
+            }
+            store.updateRFNode(entry.rfId, entry.changedFields)
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           }
         } catch (err) { console.error('Redo failed:', err) }
         return
@@ -843,65 +912,77 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         return
       }
 
-      // ── Copy selected node (Ctrl+C) ────────────────────────────────────
+      // ── Copy selected node(s) (Ctrl+C) ──────────────────────────────────
       if (ctrl && e.key === 'c') {
-        const { selectedNode } = store
-        if (!selectedNode || selectedNode.data.nodeType === 'root' || selectedNode.type === 'groupNode') return
-        store.setCopiedNode(selectedNode)
+        const selected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && n.type !== 'groupNode')
+        if (selected.length === 0) return
+        store.setCopiedNodes(selected.map(n => ({
+          id: n.id,
+          type: n.type,
+          position: { ...n.position },
+          data: { ...n.data, loss_ids: [...(n.data.loss_ids || [])], hazard_ids: [...(n.data.hazard_ids || [])] },
+        })))
         return
       }
 
-      // ── Paste node (Ctrl+V) ────────────────────────────────────────────
+      // ── Paste node(s) (Ctrl+V) ──────────────────────────────────────────
       if (ctrl && e.key === 'v') {
-        const { copiedNode, currentProject } = store
-        if (!copiedNode) return
+        const { copiedNodes } = store
+        if (!copiedNodes || copiedNodes.length === 0) return
         e.preventDefault()
-        const nodeType = copiedNode.data.nodeType
-        const nodeData = copiedNode.data
-        const position = { x: copiedNode.position.x + 40, y: copiedNode.position.y + 40 }
+        const offset = { x: 40, y: 40 }
 
-        const payload = {}
-        if (nodeData.description) payload.description = nodeData.description
-        if (nodeData.name) payload.name = nodeData.name
-        if (nodeData.uca_type) payload.uca_type = nodeData.uca_type
-        if (nodeData.control_action_id) payload.control_action_id = parseInt(nodeData.control_action_id)
-        if (nodeData.uca_id) payload.uca_id = parseInt(nodeData.uca_id)
-        if (nodeData.parent_loss_id) payload.parent_loss_id = parseInt(nodeData.parent_loss_id)
-        if (nodeData.parent_hazard_id) payload.parent_hazard_id = parseInt(nodeData.parent_hazard_id)
-        if (nodeData.linked_hazard_id) payload.linked_hazard_id = parseInt(nodeData.linked_hazard_id)
-
-        try {
-          const result = await createNode(projectId, nodeType, payload)
-          const newData = result[nodeType] || result.node || result
-          const prefix = nodeTypeToPrefix(nodeType)
-          const rfNode = {
-            id: `${prefix}-${newData.id}`,
-            type: RF_TYPE_MAP[nodeType] || 'lossNode',
-            position,
-            data: { ...newData, nodeType },
+        // Topologically order the copy batch so a parent (if also copied) is
+        // created before its child, allowing the child's FK to be remapped
+        // onto the newly-created parent's id instead of the original tree.
+        const idxByKey = new Map(copiedNodes.map((cn, i) => [`${cn.data.nodeType}:${cn.data.id}`, i]))
+        const order = []
+        const visitState = new Array(copiedNodes.length).fill(0)
+        const visit = (i) => {
+          if (visitState[i] !== 0) return
+          visitState[i] = 1
+          const fkField = ORPHAN_NULL_FIELD[copiedNodes[i].data.nodeType]
+          const fkVal = fkField ? copiedNodes[i].data[fkField] : null
+          if (fkVal != null) {
+            const depIdx = idxByKey.get(`${FK_PARENT_TYPE[fkField]}:${fkVal}`)
+            if (depIdx !== undefined && depIdx !== i) visit(depIdx)
           }
-          store.addRFNode(rfNode)
-          if (nodeType === 'loss') {
-            if (payload.parent_loss_id)
-              store.addRFEdge(makeRFEdge(`loss-${payload.parent_loss_id}`, `loss-${newData.id}`, false))
-            else if (currentProject?.id)
-              store.addRFEdge(makeRFEdge(`root-${currentProject.id}`, `loss-${newData.id}`, false))
-          } else if (nodeType === 'hazard' && payload.parent_hazard_id)
-            store.addRFEdge(makeRFEdge(`hazard-${payload.parent_hazard_id}`, `hazard-${newData.id}`, false))
-          else if (nodeType === 'uca' && payload.control_action_id)
-            store.addRFEdge(makeRFEdge(`ca-${payload.control_action_id}`, `uca-${newData.id}`, false))
-          else if (nodeType === 'loss_scenario' && payload.uca_id)
-            store.addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, `ls-${newData.id}`, false))
-          store.setCopiedNode({ ...copiedNode, position })
-          store.pushHistory({
-            action: 'create',
-            rfId: rfNode.id,
-            nodeType,
-            nodeId: newData.id,
-            projectId,
-            snapshot: { nodeData: { ...newData, nodeType }, position, rfNodeType: rfNode.type },
-          })
-        } catch (err) { console.error('Paste failed:', err) }
+          visitState[i] = 2
+          order.push(i)
+        }
+        copiedNodes.forEach((_, i) => visit(i))
+
+        const created = new Array(copiedNodes.length).fill(null)
+        const newCopiedNodes = []
+        for (const i of order) {
+          const cn = copiedNodes[i]
+          const nodeType = cn.data.nodeType
+          const fkField = ORPHAN_NULL_FIELD[nodeType]
+          const remappedData = { ...cn.data }
+          if (fkField && remappedData[fkField] != null) {
+            const depIdx = idxByKey.get(`${FK_PARENT_TYPE[fkField]}:${remappedData[fkField]}`)
+            if (depIdx !== undefined && created[depIdx]) remappedData[fkField] = created[depIdx].newNodeId
+          }
+          const newPos = { x: cn.position.x + offset.x, y: cn.position.y + offset.y }
+          try {
+            const result = await recreateNode({ projectId, snapshot: { nodeData: remappedData, position: newPos, rfNodeType: cn.type } })
+            created[i] = result
+            const finalNode = useCanvasStore.getState().nodes.find(n => n.id === result.newRfId)
+            const nodeDataForEmit = finalNode ? finalNode.data : result.newNodeData
+            socket.emit('node:added', { project_id: projectId, node_type: nodeType, node_data: nodeDataForEmit, position: newPos })
+            useCanvasStore.getState().pushHistory({
+              action: 'create',
+              rfId: result.newRfId,
+              nodeType,
+              nodeId: result.newNodeId,
+              projectId,
+              snapshot: { nodeData: nodeDataForEmit, position: newPos, rfNodeType: cn.type },
+            })
+            newCopiedNodes.push({ id: result.newRfId, type: cn.type, position: newPos, data: nodeDataForEmit })
+          } catch (err) { console.error('Paste failed:', err) }
+        }
+        if (newCopiedNodes.length > 0) store.setCopiedNodes(newCopiedNodes)
+        return
       }
     }
 
@@ -1431,7 +1512,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                       { keys: 'Shift+click', desc: 'Add to selection' },
                       { keys: 'Space+drag', desc: 'Pan canvas' },
                       { keys: 'Del / Backspace', desc: 'Delete node(s)' },
-                      { keys: 'Ctrl+C', desc: 'Copy node' },
+                      { keys: 'Ctrl+C', desc: 'Copy node(s)' },
                       { keys: 'Ctrl+V', desc: 'Paste / duplicate' },
                       { keys: 'Ctrl+Z', desc: 'Undo last move' },
                       { keys: 'Ctrl+Y / Ctrl+Shift+Z', desc: 'Redo last move' },
