@@ -177,6 +177,20 @@ const FK_PARENT_TYPE = {
   uca_id: 'uca',
 }
 
+// Walk the parentId chain to the top-most ancestor group (the one with no parentId).
+// Returns null if the node is not inside any group.
+function findRootAncestor(nodeId, nodes) {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+  let current = nodeMap.get(nodeId)
+  if (!current?.parentId) return null
+  while (current.parentId) {
+    const parent = nodeMap.get(current.parentId)
+    if (!parent) break
+    current = parent
+  }
+  return current
+}
+
 async function recreateNode(entry) {
   const { snapshot, projectId } = entry
   const { nodeData, position, rfNodeType } = snapshot
@@ -294,6 +308,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   // { [userId]: { x, y, username, avatarColor } }
   const [remoteCursors, setRemoteCursors] = useState({})
   const dragStartPos = useRef({})
+  const pendingChildRestore = useRef(new Map())
   const containerRef = useRef(null)
   const cursorThrottleRef = useRef(null)
 
@@ -469,7 +484,20 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   // once and never recreated. Stable references prevent React Flow from re-reconciling
   // on every state change, which is critical during fast drag events.
   const onNodesChange = useCallback((changes) => {
-    const newNodes = applyNodeChanges(changes, useCanvasStore.getState().nodes)
+    // Intercept the final position update RF fires after drag-end for children whose drag
+    // was redirected to move the root ancestor — restore them to their original relative pos.
+    const restore = pendingChildRestore.current
+    const mapped = restore.size > 0
+      ? changes.map(c => {
+          if (c.type === 'position' && restore.has(c.id)) {
+            const orig = restore.get(c.id)
+            restore.delete(c.id)
+            return { ...c, position: orig }
+          }
+          return c
+        })
+      : changes
+    const newNodes = applyNodeChanges(mapped, useCanvasStore.getState().nodes)
     useCanvasStore.setState({ nodes: newNodes })
   }, [])
 
@@ -507,60 +535,111 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
   const onNodeDragStart = useCallback((e, node, draggedNodes) => {
     const all = draggedNodes?.length > 1 ? draggedNodes : [node]
-    all.forEach(n => { dragStartPos.current[n.id] = { ...n.position } })
+    const allNodes = useCanvasStore.getState().nodes
+    all.forEach(n => {
+      dragStartPos.current[n.id] = { ...n.position }
+      // Also capture the root ancestor's position so onNodeDrag can move it in real-time
+      if (n.parentId) {
+        const root = findRootAncestor(n.id, allNodes)
+        if (root && !dragStartPos.current[root.id]) {
+          dragStartPos.current[root.id] = { ...root.position }
+        }
+      }
+    })
   }, [])
+
+  // Called every frame during drag. For children of groups, move the root ancestor in
+  // real-time and snap the child back via reactFlow.setNodes so the whole group moves
+  // as a unit instead of the child drifting within its parent.
+  const onNodeDrag = useCallback((e, node, draggedNodes) => {
+    const all = draggedNodes?.length > 1 ? draggedNodes : [node]
+    const draggedIds = new Set(all.map(n => n.id))
+    const childrenMovingRoot = all.filter(n => n.parentId && !draggedIds.has(n.parentId))
+    if (childrenMovingRoot.length === 0) return
+
+    const allNodes = useCanvasStore.getState().nodes
+    const rootMoves = new Map() // rootId → newPos
+    const childrenToSnap = []
+
+    for (const child of childrenMovingRoot) {
+      const startPos = dragStartPos.current[child.id]
+      if (!startPos) continue
+      // RF always reports position as startPos + totalMouseDelta regardless of setNodes calls
+      const delta = { x: child.position.x - startPos.x, y: child.position.y - startPos.y }
+
+      const root = findRootAncestor(child.id, allNodes)
+      if (!root) continue
+      const rootStartPos = dragStartPos.current[root.id]
+      if (!rootStartPos || rootMoves.has(root.id)) continue
+
+      rootMoves.set(root.id, { x: rootStartPos.x + delta.x, y: rootStartPos.y + delta.y })
+      childrenToSnap.push({ id: child.id, pos: startPos })
+    }
+
+    if (rootMoves.size === 0) return
+
+    // Snap children in RF's internal store (bypasses onNodesChange, prevents double-movement)
+    reactFlow.setNodes(nodes => nodes.map(n => {
+      const snap = childrenToSnap.find(c => c.id === n.id)
+      return snap ? { ...n, position: snap.pos } : n
+    }))
+
+    // Move root ancestors in Zustand (triggers re-render → group frame slides in real-time)
+    useCanvasStore.setState(state => ({
+      nodes: state.nodes.map(n => {
+        const newPos = rootMoves.get(n.id)
+        return newPos ? { ...n, position: newPos } : n
+      }),
+    }))
+  }, [reactFlow])
 
   const onNodeDragStop = useCallback(async (e, node, draggedNodes) => {
     const all = draggedNodes?.length > 1 ? draggedNodes : [node]
+    const allNodes = useCanvasStore.getState().nodes
 
-    // Snapshot and clear start positions before any async work
+    // Snapshot and clear start positions before any async work (including root ancestors)
     const startPositions = {}
     all.forEach(n => {
       startPositions[n.id] = dragStartPos.current[n.id]
       delete dragStartPos.current[n.id]
+      if (n.parentId) {
+        const root = findRootAncestor(n.id, allNodes)
+        if (root && !startPositions[root.id]) {
+          startPositions[root.id] = dragStartPos.current[root.id]
+          delete dragStartPos.current[root.id]
+        }
+      }
     })
 
     const historyMoves = []
     const draggedIds = new Set(all.map(n => n.id))
 
-    // Children whose parent group is NOT also being dragged → they should move the parent group
-    const childrenMovingParent = all.filter(n => n.parentId && !draggedIds.has(n.parentId))
-    const normalNodes = all.filter(n => !childrenMovingParent.includes(n))
+    // Children whose root ancestor is NOT also being dragged → onNodeDrag already moved the root
+    const childrenMovingRoot = all.filter(n => n.parentId && !draggedIds.has(n.parentId))
+    const normalNodes = all.filter(n => !childrenMovingRoot.includes(n))
 
-    // For each unique parent: move the parent by the drag delta, restore children's relative positions
-    const processedParents = new Set()
-    for (const child of childrenMovingParent) {
-      if (processedParents.has(child.parentId)) continue
-      processedParents.add(child.parentId)
-
+    // Mark children so the final RF onNodesChange (dragging:false) restores their relative positions
+    childrenMovingRoot.forEach(child => {
       const startPos = startPositions[child.id]
-      if (!startPos) continue
-      const delta = { x: child.position.x - startPos.x, y: child.position.y - startPos.y }
-      if (Math.abs(delta.x) < 0.5 && Math.abs(delta.y) < 0.5) continue
+      if (startPos) pendingChildRestore.current.set(child.id, startPos)
+    })
 
-      const parentNode = useCanvasStore.getState().nodes.find(n => n.id === child.parentId)
-      if (!parentNode) continue
-      const groupId = parentNode.data.groupId
-      const oldParentPos = { x: parentNode.position.x, y: parentNode.position.y }
-      const newParentPos = { x: oldParentPos.x + delta.x, y: oldParentPos.y + delta.y }
+    // Persist each unique root ancestor's position (already updated in real-time by onNodeDrag)
+    const processedRoots = new Set()
+    for (const child of childrenMovingRoot) {
+      const root = findRootAncestor(child.id, allNodes)
+      if (!root || processedRoots.has(root.id)) continue
+      processedRoots.add(root.id)
 
-      // Restore all dragged siblings to original relative positions (parent absorbs the delta)
-      const movedSiblings = all.filter(n => n.parentId === child.parentId)
-      const siblingOriginals = new Map(movedSiblings.map(s => [s.id, startPositions[s.id]]))
+      const rootCurrentPos = { x: root.position.x, y: root.position.y }
+      const rootStartPos = startPositions[root.id]
+      if (!rootStartPos) continue
+      if (Math.abs(rootCurrentPos.x - rootStartPos.x) < 0.5 && Math.abs(rootCurrentPos.y - rootStartPos.y) < 0.5) continue
 
-      useCanvasStore.setState(state => ({
-        nodes: state.nodes.map(n => {
-          if (n.id === child.parentId) return { ...n, position: newParentPos }
-          const orig = siblingOriginals.get(n.id)
-          if (orig) return { ...n, position: orig }
-          return n
-        }),
-      }))
-
-      historyMoves.push({ rfId: child.parentId, nodeType: 'group', nodeId: groupId, projectId, oldPos: oldParentPos, newPos: newParentPos })
+      historyMoves.push({ rfId: root.id, nodeType: 'group', nodeId: root.data.groupId, projectId, oldPos: rootStartPos, newPos: rootCurrentPos })
       try {
-        await updateGroup(projectId, groupId, { x: newParentPos.x, y: newParentPos.y })
-        socket.emit('group:moved', { project_id: projectId, group_rf_id: child.parentId, x: newParentPos.x, y: newParentPos.y })
+        await updateGroup(projectId, root.data.groupId, { x: rootCurrentPos.x, y: rootCurrentPos.y })
+        socket.emit('group:moved', { project_id: projectId, group_rf_id: root.id, x: rootCurrentPos.x, y: rootCurrentPos.y })
       } catch (err) {
         console.error('Failed to persist group position after child drag:', err)
       }
@@ -1227,6 +1306,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onNodeDragStart={viewOnly ? undefined : onNodeDragStart}
+        onNodeDrag={viewOnly ? undefined : onNodeDrag}
         onNodeDragStop={viewOnly ? undefined : onNodeDragStop}
         onSelectionChange={onSelectionChange}
         nodesDraggable={!viewOnly}
