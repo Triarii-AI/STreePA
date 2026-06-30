@@ -116,6 +116,12 @@ export default function ProjectCanvas() {
   }, [searchParams])
 
   const currentProject = useCanvasStore(s => s.currentProject)
+
+  useEffect(() => {
+    const name = currentProject?.title || currentProject?.name
+    document.title = name ? `${name} - STreePA` : 'STreePA'
+    return () => { document.title = 'STreePA' }
+  }, [currentProject])
   const loadProject = useCanvasStore(s => s.loadProject)
   const addRFNode = useCanvasStore(s => s.addRFNode)
   const updateRFNode = useCanvasStore(s => s.updateRFNode)
