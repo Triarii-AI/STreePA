@@ -164,6 +164,7 @@ function DistributeVIcon() {
 }
 
 const ORPHAN_NULL_FIELD = {
+  loss: 'parent_loss_id',
   hazard: 'parent_hazard_id',
   system_constraint: 'linked_hazard_id',
   uca: 'control_action_id',
@@ -171,6 +172,7 @@ const ORPHAN_NULL_FIELD = {
 }
 // Maps each FK field to the node type it references (used to skip cascaded relabels)
 const FK_PARENT_TYPE = {
+  parent_loss_id: 'loss',
   parent_hazard_id: 'hazard',
   linked_hazard_id: 'hazard',
   control_action_id: 'control_action',
@@ -202,6 +204,7 @@ async function recreateNode(entry) {
   if (nodeData.uca_type) payload.uca_type = nodeData.uca_type
   if (nodeData.control_action_id) payload.control_action_id = parseInt(nodeData.control_action_id)
   if (nodeData.uca_id) payload.uca_id = parseInt(nodeData.uca_id)
+  if (nodeData.parent_loss_id) payload.parent_loss_id = parseInt(nodeData.parent_loss_id)
   if (nodeData.parent_hazard_id) payload.parent_hazard_id = parseInt(nodeData.parent_hazard_id)
   if (nodeData.linked_hazard_id) payload.linked_hazard_id = parseInt(nodeData.linked_hazard_id)
 
@@ -220,8 +223,12 @@ async function recreateNode(entry) {
   })
 
   if (nodeType === 'loss') {
-    const project = store.currentProject
-    if (project) store.addRFEdge(makeRFEdge(`root-${project.id}`, newRfId, false))
+    if (payload.parent_loss_id) {
+      store.addRFEdge(makeRFEdge(`loss-${payload.parent_loss_id}`, newRfId, false))
+    } else {
+      const project = store.currentProject
+      if (project) store.addRFEdge(makeRFEdge(`root-${project.id}`, newRfId, false))
+    }
   } else if (nodeType === 'hazard' && payload.parent_hazard_id) {
     store.addRFEdge(makeRFEdge(`hazard-${payload.parent_hazard_id}`, newRfId, false))
   } else if (nodeType === 'uca' && payload.control_action_id) {
@@ -859,6 +866,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         if (nodeData.uca_type) payload.uca_type = nodeData.uca_type
         if (nodeData.control_action_id) payload.control_action_id = parseInt(nodeData.control_action_id)
         if (nodeData.uca_id) payload.uca_id = parseInt(nodeData.uca_id)
+        if (nodeData.parent_loss_id) payload.parent_loss_id = parseInt(nodeData.parent_loss_id)
         if (nodeData.parent_hazard_id) payload.parent_hazard_id = parseInt(nodeData.parent_hazard_id)
         if (nodeData.linked_hazard_id) payload.linked_hazard_id = parseInt(nodeData.linked_hazard_id)
 
@@ -873,9 +881,12 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             data: { ...newData, nodeType },
           }
           store.addRFNode(rfNode)
-          if (nodeType === 'loss' && currentProject?.id)
-            store.addRFEdge(makeRFEdge(`root-${currentProject.id}`, `loss-${newData.id}`, false))
-          else if (nodeType === 'hazard' && payload.parent_hazard_id)
+          if (nodeType === 'loss') {
+            if (payload.parent_loss_id)
+              store.addRFEdge(makeRFEdge(`loss-${payload.parent_loss_id}`, `loss-${newData.id}`, false))
+            else if (currentProject?.id)
+              store.addRFEdge(makeRFEdge(`root-${currentProject.id}`, `loss-${newData.id}`, false))
+          } else if (nodeType === 'hazard' && payload.parent_hazard_id)
             store.addRFEdge(makeRFEdge(`hazard-${payload.parent_hazard_id}`, `hazard-${newData.id}`, false))
           else if (nodeType === 'uca' && payload.control_action_id)
             store.addRFEdge(makeRFEdge(`ca-${payload.control_action_id}`, `uca-${newData.id}`, false))

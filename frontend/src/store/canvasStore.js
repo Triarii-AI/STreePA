@@ -59,8 +59,11 @@ function buildNodesAndEdges(data) {
     data: { ...project, nodeType: 'root', label: 'ROOT' },
   })
 
-  // Loss nodes
-  losses.forEach((l, idx) => {
+  // Loss nodes — top-level connect to root; sub-losses connect to their parent loss
+  const topLosses = losses.filter(l => !l.parent_loss_id)
+  const subLosses = losses.filter(l => l.parent_loss_id)
+
+  topLosses.forEach((l, idx) => {
     const rfNode = {
       id: `loss-${l.id}`,
       type: 'lossNode',
@@ -70,6 +73,21 @@ function buildNodesAndEdges(data) {
     if (l.group_id) rfNode.parentId = `group-${l.group_id}`
     nodes.push(rfNode)
     edges.push(makeEdge(`root-${project.id}`, `loss-${l.id}`, false))
+  })
+
+  subLosses.forEach((l, idx) => {
+    const parentNode = nodes.find(n => n.id === `loss-${l.parent_loss_id}`)
+    const parentX = parentNode ? parentNode.position.x : 100
+    const parentY = parentNode ? parentNode.position.y : LAYER_Y_POSITIONS.loss
+    const rfNode = {
+      id: `loss-${l.id}`,
+      type: 'lossNode',
+      position: { x: (l.x && l.x !== 0) ? l.x : parentX + (idx % 2 === 0 ? 0 : NODE_HORIZONTAL_SPACING), y: (l.y && l.y !== 0) ? l.y : parentY + 150 },
+      data: { ...l, nodeType: 'loss' },
+    }
+    if (l.group_id) rfNode.parentId = `group-${l.group_id}`
+    nodes.push(rfNode)
+    edges.push(makeEdge(`loss-${l.parent_loss_id}`, `loss-${l.id}`, false))
   })
 
   // Hazard nodes

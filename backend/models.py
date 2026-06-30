@@ -115,9 +115,12 @@ class Loss(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
     label = db.Column(db.String(20), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    parent_loss_id = db.Column(db.Integer, db.ForeignKey('losses.id', ondelete='CASCADE'), nullable=True)
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
     group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
+
+    sub_losses = db.relationship('Loss', backref=db.backref('parent', remote_side='Loss.id'), lazy=True)
 
     def to_dict(self):
         return {
@@ -125,6 +128,7 @@ class Loss(db.Model):
             'project_id': self.project_id,
             'label': self.label,
             'description': self.description,
+            'parent_loss_id': self.parent_loss_id,
             'x': self.x,
             'y': self.y,
             'group_id': self.group_id,

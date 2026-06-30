@@ -67,7 +67,17 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
     return nodes.filter(n => n.data?.nodeType === nt).map(n => n.data)
   }
 
-  const allLosses = useMemo(() => getNodesByType('loss'), [nodes])
+  const allLosses = useMemo(() => {
+    return getNodesByType('loss').sort((a, b) => {
+      const nums = s => (s || '').replace(/[^\d.]/g, '').split('.').map(n => parseInt(n) || 0)
+      const pa = nums(a.label), pb = nums(b.label)
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const d = (pa[i] || 0) - (pb[i] || 0)
+        if (d !== 0) return d
+      }
+      return 0
+    })
+  }, [nodes])
   const allHazards = useMemo(() => {
     return getNodesByType('hazard').sort((a, b) => {
       const pa = (a.label || '').replace(/^H-/, '').split('.').map(n => parseInt(n) || 0)
@@ -151,6 +161,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
     setLoading(true)
     try {
       const payload = { ...formData }
+      if (payload.parent_loss_id) payload.parent_loss_id = parseInt(payload.parent_loss_id)
       if (payload.parent_hazard_id) payload.parent_hazard_id = parseInt(payload.parent_hazard_id)
       if (payload.linked_hazard_id) payload.linked_hazard_id = parseInt(payload.linked_hazard_id)
       if (payload.control_action_id) payload.control_action_id = parseInt(payload.control_action_id)
@@ -164,8 +175,12 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
       addRFNode(rfNode)
 
       // Auto-add parent-child solid edges
-      if (nodeType === 'loss' && currentProject?.id) {
-        addRFEdge(makeRFEdge(`root-${currentProject.id}`, `loss-${nodeData.id}`, false))
+      if (nodeType === 'loss') {
+        if (payload.parent_loss_id) {
+          addRFEdge(makeRFEdge(`loss-${payload.parent_loss_id}`, `loss-${nodeData.id}`, false))
+        } else if (currentProject?.id) {
+          addRFEdge(makeRFEdge(`root-${currentProject.id}`, `loss-${nodeData.id}`, false))
+        }
       }
       if (nodeType === 'hazard' && payload.parent_hazard_id) {
         addRFEdge(makeRFEdge(`hazard-${payload.parent_hazard_id}`, `hazard-${nodeData.id}`, false))
@@ -276,17 +291,32 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
       <form onSubmit={handleSubmit} className="space-y-3">
         {/* Loss */}
         {nodeType === 'loss' && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description <span className="text-red-500">*</span></label>
-            <textarea
-              value={formData.description || ''}
-              onChange={e => handleChange('description', e.target.value)}
-              rows={3}
-              placeholder="Describe the loss event..."
-              className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
-              required
-            />
-          </div>
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description <span className="text-red-500">*</span></label>
+              <textarea
+                value={formData.description || ''}
+                onChange={e => handleChange('description', e.target.value)}
+                rows={3}
+                placeholder="Describe the loss event..."
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-red-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+                required
+              />
+            </div>
+            {allLosses.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Parent Loss (optional)</label>
+                <SearchableSelect
+                  value={formData.parent_loss_id || ''}
+                  onChange={v => handleChange('parent_loss_id', v)}
+                  options={allLosses}
+                  placeholder="None (top-level)"
+                  focusRingClass="focus:ring-red-400"
+                  isMainFn={l => l.label && !l.label.includes('.')}
+                />
+              </div>
+            )}
+          </>
         )}
 
         {/* Hazard */}

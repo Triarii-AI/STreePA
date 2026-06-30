@@ -27,9 +27,33 @@ LAYER_Y = {
 # Label helpers
 # ─────────────────────────────────────────────
 
-def _next_loss_label(project_id):
-    count = Loss.query.filter_by(project_id=project_id).count()
-    return f'L-{count + 1}'
+def _next_loss_label(project_id, parent_loss_id=None):
+    if parent_loss_id is None:
+        count = Loss.query.filter_by(project_id=project_id, parent_loss_id=None)\
+            .filter(~Loss.label.like('L-x%')).count()
+        return f'L-{count + 1}'
+    parent = Loss.query.get(parent_loss_id)
+    parent_label = parent.label if parent else 'L-?'
+    count = Loss.query.filter_by(project_id=project_id, parent_loss_id=parent_loss_id).count()
+    return f'{parent_label}.{count + 1}'
+
+
+def _relabel_loss_tree(project_id, loss_id):
+    """Recursively relabel all descendants of a loss to reflect its new label."""
+    parent = Loss.query.get(loss_id)
+    if not parent:
+        return []
+    updated = []
+    children = Loss.query.filter_by(project_id=project_id, parent_loss_id=loss_id).all()
+    for child in children:
+        parts = child.label.rsplit('.', 1)
+        self_num = parts[1] if len(parts) == 2 else '1'
+        new_label = f'{parent.label}.{self_num}'
+        if new_label != child.label:
+            child.label = new_label
+            updated.append({'nodeType': 'loss', 'id': child.id, 'label': child.label})
+            updated.extend(_relabel_loss_tree(project_id, child.id))
+    return updated
 
 
 def _next_hazard_label(project_id, parent_hazard_id=None):
@@ -149,12 +173,17 @@ def _relabel_ca_children(project_id, ca_id):
 def create_loss(project_id):
     check_project_access(project_id, require_editor=True)
     data = request.get_json() or {}
-    label = _next_loss_label(project_id)
-    idx_x = _index_x(project_id, Loss)
+    parent_loss_id = data.get('parent_loss_id', None)
+    label = _next_loss_label(project_id, parent_loss_id)
+    if parent_loss_id is not None:
+        idx_x = _index_x(project_id, Loss, parent_loss_id=parent_loss_id)
+    else:
+        idx_x = _index_x(project_id, Loss, parent_loss_id=None)
     node = Loss(
         project_id=project_id,
         label=label,
         description=data.get('description', ''),
+        parent_loss_id=parent_loss_id,
         x=data.get('x', idx_x),
         y=data.get('y', LAYER_Y['loss'])
     )
@@ -171,14 +200,32 @@ def update_loss(project_id, node_id):
     data = request.get_json() or {}
     if 'description' in data:
         node.description = data['description']
+    if 'parent_loss_id' in data:
+        new_parent = data['parent_loss_id']
+        if new_parent != node.parent_loss_id:
+            node.parent_loss_id = new_parent
+            if new_parent is None:
+                top_count = Loss.query.filter_by(project_id=project_id, parent_loss_id=None)\
+                    .filter(Loss.id != node_id).filter(~Loss.label.like('L-x%')).count()
+                node.label = f'L-{top_count + 1}'
+            else:
+                parent = Loss.query.get(new_parent)
+                parent_label = parent.label if parent else 'L-?'
+                sibling_count = Loss.query.filter_by(project_id=project_id, parent_loss_id=new_parent)\
+                    .filter(Loss.id != node_id).count()
+                node.label = f'{parent_label}.{sibling_count + 1}'
     if 'x' in data:
         node.x = data['x']
     if 'y' in data:
         node.y = data['y']
     if 'label' in data:
         node.label = data['label']
+    db.session.flush()
+    relabeled = _relabel_loss_tree(project_id, node_id)
     db.session.commit()
-    return jsonify(node.to_dict())
+    result = node.to_dict()
+    result['relabeled'] = relabeled
+    return jsonify(result)
 
 
 @api_bp.route('/projects/<int:project_id>/losses/<int:node_id>', methods=['DELETE'])
@@ -186,9 +233,20 @@ def update_loss(project_id, node_id):
 def delete_loss(project_id, node_id):
     check_project_access(project_id, require_editor=True)
     node = Loss.query.filter_by(id=node_id, project_id=project_id).first_or_404()
+    orphaned = []
+    children = Loss.query.filter_by(project_id=project_id, parent_loss_id=node_id).all()
+    for child in children:
+        child.parent_loss_id = None
+        parts = child.label.rsplit('.', 1)
+        child.label = f'L-x.{parts[1]}' if len(parts) == 2 else 'L-x'
+        orphaned.append({'nodeType': 'loss', 'id': child.id, 'label': child.label})
+    db.session.flush()
+    for o in list(orphaned):
+        orphaned.extend(_relabel_loss_tree(project_id, o['id']))
+    db.session.flush()
     db.session.delete(node)
     db.session.commit()
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'orphaned': orphaned})
 
 
 # ─────────────────────────────────────────────
