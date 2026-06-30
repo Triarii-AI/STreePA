@@ -14,6 +14,24 @@ FRONTEND="$ROOT/frontend"
 # ── Port configuration ────────────────────────────────────────────────────────
 BACKEND_PORT=5000
 FRONTEND_PORT=5173
+VITE_HOST=""
+
+# Parse optional --host argument
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host)
+      VITE_HOST="${2:?'--host requires an IP address'}"
+      shift 2
+      ;;
+    --host=*)
+      VITE_HOST="${1#--host=}"
+      shift
+      ;;
+    *)
+      die "Unknown argument: $1"
+      ;;
+  esac
+done
 
 echo ""
 echo "  STreePA — STPA Tree Planning Application"
@@ -61,15 +79,18 @@ success "Backend running (PID $BACKEND_PID) → http://localhost:$BACKEND_PORT"
 
 info "Starting frontend..."
 cd "$FRONTEND"
-npm run dev -- --port "$FRONTEND_PORT" &
+VITE_ARGS="--port $FRONTEND_PORT"
+[[ -n "$VITE_HOST" ]] && VITE_ARGS="$VITE_ARGS --host $VITE_HOST"
+npm run dev -- $VITE_ARGS &
 FRONTEND_PID=$!
 cd "$ROOT"
-success "Frontend running (PID $FRONTEND_PID) → http://localhost:$FRONTEND_PORT"
+FRONTEND_ADDR="${VITE_HOST:-localhost}:$FRONTEND_PORT"
+success "Frontend running (PID $FRONTEND_PID) → http://$FRONTEND_ADDR"
 
 # ── Ready ─────────────────────────────────────────────────────────────────────
 
 echo ""
-echo -e "  ${GREEN}App is up!${NC} Open ${CYAN}http://localhost:$FRONTEND_PORT${NC}"
+echo -e "  ${GREEN}App is up!${NC} Open ${CYAN}http://$FRONTEND_ADDR${NC}"
 echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop."
 echo ""
 
