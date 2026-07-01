@@ -28,15 +28,32 @@ LAYER_Y = {
 # Label helpers
 # ─────────────────────────────────────────────
 
+def _first_free_number(existing_labels, prefix):
+    """Smallest positive integer not already used as a sibling's own index,
+    so a gap left by a deleted node (e.g. L-1, L-2, L-4) gets filled (L-3)
+    instead of always appending after the highest number in use."""
+    used = set()
+    for label in existing_labels:
+        if not label or not label.startswith(prefix):
+            continue
+        tail = label[len(prefix):].rsplit('.', 1)[-1]
+        if tail.isdigit():
+            used.add(int(tail))
+    n = 1
+    while n in used:
+        n += 1
+    return n
+
+
 def _next_loss_label(project_id, parent_loss_id=None):
     if parent_loss_id is None:
-        count = Loss.query.filter_by(project_id=project_id, parent_loss_id=None)\
-            .filter(~Loss.label.like('L-x%')).count()
-        return f'L-{count + 1}'
+        siblings = Loss.query.filter_by(project_id=project_id, parent_loss_id=None)\
+            .filter(~Loss.label.like('L-x%')).all()
+        return f'L-{_first_free_number([s.label for s in siblings], "L-")}'
     parent = Loss.query.get(parent_loss_id)
     parent_label = parent.label if parent else 'L-?'
-    count = Loss.query.filter_by(project_id=project_id, parent_loss_id=parent_loss_id).count()
-    return f'{parent_label}.{count + 1}'
+    siblings = Loss.query.filter_by(project_id=project_id, parent_loss_id=parent_loss_id).all()
+    return f'{parent_label}.{_first_free_number([s.label for s in siblings], "L-")}'
 
 
 def _relabel_loss_tree(project_id, loss_id):
@@ -59,42 +76,42 @@ def _relabel_loss_tree(project_id, loss_id):
 
 def _next_hazard_label(project_id, parent_hazard_id=None):
     if parent_hazard_id is None:
-        count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None)\
-            .filter(~Hazard.label.like('H-x%')).count()
-        return f'H-{count + 1}'
+        siblings = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None)\
+            .filter(~Hazard.label.like('H-x%')).all()
+        return f'H-{_first_free_number([s.label for s in siblings], "H-")}'
     parent = Hazard.query.get(parent_hazard_id)
     parent_label = parent.label if parent else 'H-?'
-    count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=parent_hazard_id).count()
-    return f'{parent_label}.{count + 1}'
+    siblings = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=parent_hazard_id).all()
+    return f'{parent_label}.{_first_free_number([s.label for s in siblings], "H-")}'
 
 
 def _next_sc_label(project_id, hazard_id=None):
     if not hazard_id:
-        count = SystemConstraint.query.filter_by(project_id=project_id).count()
-        return f'SC-{count + 1}'
+        siblings = SystemConstraint.query.filter_by(project_id=project_id).all()
+        return f'SC-{_first_free_number([s.label for s in siblings], "SC-")}'
     hazard = Hazard.query.get(hazard_id)
     if not hazard:
-        count = SystemConstraint.query.filter_by(project_id=project_id).count()
-        return f'SC-{count + 1}'
+        siblings = SystemConstraint.query.filter_by(project_id=project_id).all()
+        return f'SC-{_first_free_number([s.label for s in siblings], "SC-")}'
     h_num = hazard.label[2:] if hazard.label.startswith('H-') else str(hazard_id)
     return f'SC-{h_num}'
 
 
 def _next_cc_label(project_id, uca_id=None):
     if not uca_id:
-        count = ControllerConstraint.query.filter_by(project_id=project_id).count()
-        return f'CC-{count + 1}'
+        siblings = ControllerConstraint.query.filter_by(project_id=project_id).all()
+        return f'CC-{_first_free_number([s.label for s in siblings], "CC-")}'
     uca = UCA.query.get(uca_id)
     if not uca:
-        count = ControllerConstraint.query.filter_by(project_id=project_id).count()
-        return f'CC-{count + 1}'
+        siblings = ControllerConstraint.query.filter_by(project_id=project_id).all()
+        return f'CC-{_first_free_number([s.label for s in siblings], "CC-")}'
     uca_num = uca.label[4:] if uca.label.startswith('UCA-') else str(uca_id)
     return f'CC-{uca_num}'
 
 
 def _next_ca_label(project_id):
-    count = ControlAction.query.filter_by(project_id=project_id).count()
-    return f'R-{count + 1}'
+    siblings = ControlAction.query.filter_by(project_id=project_id).all()
+    return f'R-{_first_free_number([s.label for s in siblings], "R-")}'
 
 
 def _next_uca_label(project_id, control_action_id):
@@ -104,8 +121,8 @@ def _next_uca_label(project_id, control_action_id):
         ca_num = ca.label[2:]
     else:
         ca_num = str(control_action_id)
-    count = UCA.query.filter_by(project_id=project_id, control_action_id=control_action_id).count()
-    return f'UCA-{ca_num}.{count + 1}'
+    siblings = UCA.query.filter_by(project_id=project_id, control_action_id=control_action_id).all()
+    return f'UCA-{ca_num}.{_first_free_number([s.label for s in siblings], "UCA-")}'
 
 
 def _next_ls_label(project_id, uca_id):
@@ -115,8 +132,8 @@ def _next_ls_label(project_id, uca_id):
         uca_num = uca.label[4:]
     else:
         uca_num = str(uca_id)
-    count = LossScenario.query.filter_by(project_id=project_id, uca_id=uca_id).count()
-    return f'LS-{uca_num}.{count + 1}'
+    siblings = LossScenario.query.filter_by(project_id=project_id, uca_id=uca_id).all()
+    return f'LS-{uca_num}.{_first_free_number([s.label for s in siblings], "LS-")}'
 
 
 def _index_x(project_id, model, **filters):
@@ -223,15 +240,15 @@ def update_loss(project_id, node_id):
         if new_parent != node.parent_loss_id:
             node.parent_loss_id = new_parent
             if new_parent is None:
-                top_count = Loss.query.filter_by(project_id=project_id, parent_loss_id=None)\
-                    .filter(Loss.id != node_id).filter(~Loss.label.like('L-x%')).count()
-                node.label = f'L-{top_count + 1}'
+                siblings = Loss.query.filter_by(project_id=project_id, parent_loss_id=None)\
+                    .filter(Loss.id != node_id).filter(~Loss.label.like('L-x%')).all()
+                node.label = f'L-{_first_free_number([s.label for s in siblings], "L-")}'
             else:
                 parent = Loss.query.get(new_parent)
                 parent_label = parent.label if parent else 'L-?'
-                sibling_count = Loss.query.filter_by(project_id=project_id, parent_loss_id=new_parent)\
-                    .filter(Loss.id != node_id).count()
-                node.label = f'{parent_label}.{sibling_count + 1}'
+                siblings = Loss.query.filter_by(project_id=project_id, parent_loss_id=new_parent)\
+                    .filter(Loss.id != node_id).all()
+                node.label = f'{parent_label}.{_first_free_number([s.label for s in siblings], "L-")}'
     if 'x' in data:
         node.x = data['x']
     if 'y' in data:
@@ -308,13 +325,13 @@ def update_hazard(project_id, node_id):
         if new_parent != node.parent_hazard_id:
             node.parent_hazard_id = new_parent
             if new_parent is None:
-                top_count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).filter(Hazard.id != node_id).filter(~Hazard.label.like('H-x%')).count()
-                node.label = f'H-{top_count + 1}'
+                siblings = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).filter(Hazard.id != node_id).filter(~Hazard.label.like('H-x%')).all()
+                node.label = f'H-{_first_free_number([s.label for s in siblings], "H-")}'
             else:
                 parent = Hazard.query.get(new_parent)
                 parent_label = parent.label if parent else 'H-?'
-                sibling_count = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=new_parent).filter(Hazard.id != node_id).count()
-                node.label = f'{parent_label}.{sibling_count + 1}'
+                siblings = Hazard.query.filter_by(project_id=project_id, parent_hazard_id=new_parent).filter(Hazard.id != node_id).all()
+                node.label = f'{parent_label}.{_first_free_number([s.label for s in siblings], "H-")}'
         else:
             node.parent_hazard_id = new_parent
     if 'x' in data:
@@ -539,8 +556,8 @@ def update_uca(project_id, node_id):
             node.control_action_id = new_ca_id
             ca = ControlAction.query.get(new_ca_id)
             ca_num = ca.label[2:] if ca and ca.label.startswith('R-') else str(new_ca_id)
-            sibling_count = UCA.query.filter_by(project_id=project_id, control_action_id=new_ca_id).filter(UCA.id != node_id).count()
-            node.label = f'UCA-{ca_num}.{sibling_count + 1}'
+            siblings = UCA.query.filter_by(project_id=project_id, control_action_id=new_ca_id).filter(UCA.id != node_id).all()
+            node.label = f'UCA-{ca_num}.{_first_free_number([s.label for s in siblings], "UCA-")}'
         else:
             node.control_action_id = new_ca_id
     if 'x' in data:
@@ -695,8 +712,8 @@ def update_loss_scenario(project_id, node_id):
             node.uca_id = new_uca_id
             uca = UCA.query.get(new_uca_id)
             uca_num = uca.label[4:] if uca and uca.label.startswith('UCA-') else str(new_uca_id)
-            sibling_count = LossScenario.query.filter_by(project_id=project_id, uca_id=new_uca_id).filter(LossScenario.id != node_id).count()
-            node.label = f'LS-{uca_num}.{sibling_count + 1}'
+            siblings = LossScenario.query.filter_by(project_id=project_id, uca_id=new_uca_id).filter(LossScenario.id != node_id).all()
+            node.label = f'LS-{uca_num}.{_first_free_number([s.label for s in siblings], "LS-")}'
             # Replace hazard links with those of the new parent UCA
             db.session.execute(ls_hazard_links.delete().where(ls_hazard_links.c.ls_id == node_id))
             for row in db.session.execute(

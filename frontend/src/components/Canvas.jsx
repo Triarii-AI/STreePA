@@ -205,7 +205,31 @@ function findRootAncestor(nodeId, nodes) {
   return current
 }
 
-async function recreateNode(entry) {
+// Resolve a node's absolute canvas position by walking up its parentId chain
+// and summing each ancestor's (parent-relative) position. Needed because
+// reactFlow.getNodes() doesn't populate internals.positionAbsolute on the
+// objects it returns — a node's own `.position` is only absolute when it has
+// no parent; for a group member it's relative to that group's origin.
+function resolveAbsPos(node, nodes) {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+  let x = node.position.x
+  let y = node.position.y
+  let current = node
+  while (current.parentId) {
+    const parent = nodeMap.get(current.parentId)
+    if (!parent) break
+    x += parent.position.x
+    y += parent.position.y
+    current = parent
+  }
+  return { x, y }
+}
+
+// storeOverride lets batch callers (multi-node paste) collect the resulting
+// nodes/edges into a local sink instead of writing straight to the canvas
+// store, so the whole batch can be applied in a single render instead of
+// popping in one node at a time as each network round-trip resolves.
+async function recreateNode(entry, storeOverride) {
   const { snapshot, projectId } = entry
   const { nodeData, position, rfNodeType } = snapshot
   const nodeType = nodeData.nodeType
@@ -229,7 +253,7 @@ async function recreateNode(entry) {
   const prefix = nodeTypeToPrefix(nodeType)
   const newRfId = `${prefix}-${newNodeId}`
 
-  const store = useCanvasStore.getState()
+  const store = storeOverride || useCanvasStore.getState()
   store.addRFNode({
     id: newRfId,
     type: rfNodeType,
@@ -330,6 +354,23 @@ async function recreateNode(entry) {
   return { newRfId, newNodeId, newNodeData }
 }
 
+// Minimal store-shaped sink that recreateNode can write into instead of the
+// real canvas store, so a batch of pasted nodes can be applied to the store
+// in one shot instead of one render per node as each network call resolves.
+function createBatchSink(currentProject) {
+  return {
+    nodes: [],
+    edges: [],
+    currentProject,
+    addRFNode(n) { this.nodes.push(n) },
+    addRFEdge(e) { this.edges.push(e) },
+    updateRFNode(id, changes) {
+      const idx = this.nodes.findIndex(n => n.id === id)
+      if (idx !== -1) this.nodes[idx] = { ...this.nodes[idx], data: { ...this.nodes[idx].data, ...changes } }
+    },
+  }
+}
+
 function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }) {
   const reactFlow = useReactFlow()
   const nodesInitialized = useNodesInitialized()
@@ -351,6 +392,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   const [selectedGroupCount, setSelectedGroupCount] = useState(0)
   const [selectedNodeCount, setSelectedNodeCount] = useState(0)
   const [selectionBoundsFlow, setSelectionBoundsFlow] = useState(null)
+  const [canGroup, setCanGroup] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [showCrossRefs, setShowCrossRefs] = useState(initialCrossRefs)
   // { [userId]: { rfNodeId, username, avatarColor } }
@@ -548,9 +590,22 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   }, [])
 
   const onNodeClick = useCallback((e, node) => {
+    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      const currentlySelected = reactFlow.getNodes().filter(n => n.selected)
+      if (currentlySelected.length > 1) {
+        // A plain click on a node that's already part of a multi-selection is a
+        // no-op internally (React Flow can't tell yet whether you're about to
+        // drag the whole group, so it deliberately leaves everyone selected).
+        // Collapse down to just the clicked node instead, matching the usual
+        // click-to-select-only-this convention.
+        useCanvasStore.setState(state => ({
+          nodes: state.nodes.map(n => ({ ...n, selected: n.id === node.id })),
+        }))
+      }
+    }
     setSelectedNode(node)
     socket.emit('user:select', { project_id: projectId, rf_node_id: node.id })
-  }, [setSelectedNode, projectId])
+  }, [setSelectedNode, projectId, reactFlow])
 
   const onPaneClick = useCallback(() => {
     setSelectedNode(null)
@@ -577,16 +632,45 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     setHasLabelableSelection(visible.some(n => n.type !== 'groupNode' && n.type !== 'rootNode'))
     setSelectedGroupCount(visible.filter(n => n.type === 'groupNode').length)
     setSelectedNodeCount(visible.filter(n => n.type !== 'groupNode' && n.type !== 'rootNode').length)
+    // A selection is groupable only if none of its non-group members already
+    // belong to a DIFFERENT, unselected group — grouping those would nest a
+    // redundant wrapper around part of an existing group and corrupt it.
+    // To nest, select the existing group node itself alongside other items.
+    const hasForeignGroupedMember = effective.some(n => n.type !== 'groupNode' && n.parentId && !selectedGroupIds.has(n.parentId))
+    setCanGroup(effective.length >= 2 && !hasForeignGroupedMember)
     // Bounding box (in flow coords) around everything currently selected, shown
     // whenever 2+ nodes are selected regardless of how (drag-box or one-by-one
     // shift-click). RemoteOverlays converts this to screen space every frame.
     if (visible.length >= 2) {
-      const b = getNodesBounds(visible)
+      // Use the hook-bound getNodesBounds (not the bare import) — it supplies
+      // nodeLookup so children of a selected group resolve to absolute
+      // position instead of their parent-relative `.position`, which would
+      // otherwise blow the union box out way beyond the group's own bounds.
+      const b = reactFlow.getNodesBounds(visible)
       setSelectionBoundsFlow({ x: b.x, y: b.y, width: b.width, height: b.height })
     } else {
       setSelectionBoundsFlow(null)
     }
-  }, [])
+  }, [reactFlow])
+
+  // Recompute the selection bounding box after something moves the currently
+  // selected nodes (arrow keys, undo/redo, align/distribute, drag stop) rather
+  // than leaving it stale. Deferred a frame so it reads post-render positions
+  // — the store update that triggered this hasn't necessarily been reflected
+  // in reactFlow.getNodes() yet at the point this is called.
+  const recomputeSelectionBounds = useCallback(() => {
+    requestAnimationFrame(() => {
+      const selected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
+      if (selected.length >= 2) {
+        // reactFlow.getNodesBounds (not the bare import) resolves children of
+        // a selected group to absolute position via nodeLookup.
+        const b = reactFlow.getNodesBounds(selected)
+        setSelectionBoundsFlow({ x: b.x, y: b.y, width: b.width, height: b.height })
+      } else {
+        setSelectionBoundsFlow(null)
+      }
+    })
+  }, [reactFlow])
 
   const onNodeDragStart = useCallback((e, node, draggedNodes) => {
     const all = draggedNodes?.length > 1 ? draggedNodes : [node]
@@ -643,13 +727,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
       useCanvasStore.getState().pushHistory({ action: 'batchMove', moves: historyMoves })
     }
 
-    // Snap the selection bounding box back to the post-drag positions.
-    const stillSelected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
-    if (stillSelected.length >= 2) {
-      const b = getNodesBounds(stillSelected)
-      setSelectionBoundsFlow({ x: b.x, y: b.y, width: b.width, height: b.height })
-    }
-  }, [projectId])
+    recomputeSelectionBounds()
+  }, [projectId, recomputeSelectionBounds])
 
   // Keyboard shortcuts: Delete, Ctrl+C/V, Ctrl+Z/Y
   useEffect(() => {
@@ -849,6 +928,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           }
         } catch (err) { console.error('Undo failed:', err) }
+        recomputeSelectionBounds()
         return
       }
 
@@ -959,6 +1039,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           }
         } catch (err) { console.error('Redo failed:', err) }
+        recomputeSelectionBounds()
         return
       }
 
@@ -997,6 +1078,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
           ? { action: 'move', ...historyMoves[0] }
           : { action: 'batchMove', moves: historyMoves }
         )
+        recomputeSelectionBounds()
         await Promise.all(historyMoves.map(m =>
           (m.nodeType === 'group'
             ? updateGroup(m.projectId, m.nodeId, { x: m.newPos.x, y: m.newPos.y })
@@ -1009,35 +1091,76 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
       // ── Copy selected node(s) (Ctrl+C) ──────────────────────────────────
       if (ctrl && e.key === 'c') {
-        const selected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && n.type !== 'groupNode')
-        if (selected.length === 0) return
-        store.setCopiedNodes(selected.map(n => ({
-          id: n.id,
-          type: n.type,
-          position: { ...n.position },
-          data: { ...n.data, loss_ids: [...(n.data.loss_ids || [])], hazard_ids: [...(n.data.hazard_ids || [])], uca_ids: [...(n.data.uca_ids || [])] },
-        })))
+        const allSelected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root')
+        if (allSelected.length === 0) return
+        const allNodes = reactFlow.getNodes()
+        const getAbsPos = n => resolveAbsPos(n, allNodes)
+        const cloneRefs = data => ({ ...data, loss_ids: [...(data.loss_ids || [])], hazard_ids: [...(data.hazard_ids || [])], uca_ids: [...(data.uca_ids || [])] })
+
+        const selectedGroups = allSelected.filter(n => n.type === 'groupNode')
+        const selectedGroupIds = new Set(selectedGroups.map(g => g.id))
+
+        const groups = selectedGroups.map(g => ({
+          id: g.id,
+          label: g.data.label || '',
+          position: getAbsPos(g),
+          style: { width: g.style?.width ?? 200, height: g.style?.height ?? 200 },
+        }))
+
+        // Members of a copied group keep their existing group-relative position
+        // — it's reproduced verbatim under the new group on paste. Gathered from
+        // the group's actual current membership (not just whatever happens to
+        // be individually flagged .selected), so copying a group is complete
+        // regardless of whether you selected it by clicking its frame or by
+        // drag-selecting over it and its contents. Nested sub-groups aren't
+        // supported for copy/paste yet, so any group-type children are skipped.
+        const members = []
+        selectedGroups.forEach(g => {
+          allNodes.filter(n => n.parentId === g.id && n.type !== 'groupNode' && !n.data?.hidden).forEach(m => {
+            members.push({ id: m.id, type: m.type, groupId: g.id, position: { ...m.position }, data: cloneRefs(m.data) })
+          })
+        })
+
+        // Standalone: selected, not a group, and not already captured above as
+        // a member of a selected group. Absolute position is resolved here (not
+        // the raw parent-relative .position) so a node copied out of a group
+        // pastes where it visually is, not near the canvas origin.
+        const standalone = allSelected
+          .filter(n => n.type !== 'groupNode' && !selectedGroupIds.has(n.parentId))
+          .map(n => ({ id: n.id, type: n.type, groupId: null, position: getAbsPos(n), data: cloneRefs(n.data) }))
+
+        if (groups.length === 0 && standalone.length === 0) return
+        store.setCopiedNodes({ groups, members, standalone })
         return
       }
 
       // ── Paste node(s) (Ctrl+V) ──────────────────────────────────────────
       if (ctrl && e.key === 'v') {
-        const { copiedNodes } = store
-        if (!copiedNodes || copiedNodes.length === 0) return
+        const raw = store.copiedNodes
+        if (!raw) return
+        // Backward-compat with the old flat-array shape.
+        const { groups = [], members = [], standalone = [] } = Array.isArray(raw) ? { standalone: raw } : raw
+        if (groups.length === 0 && standalone.length === 0) return
         e.preventDefault()
         const offset = { x: 40, y: 40 }
+        // All network calls funnel their resulting nodes/edges into this sink
+        // instead of the real store, so the whole batch renders in one shot
+        // instead of popping in one node at a time as each await resolves.
+        const sink = createBatchSink(store.currentProject)
+        const historyEntries = []
+        const newCopiedGroups = []
+        const newCopiedMembers = []
+        const newCopiedStandalone = []
 
-        // Topologically order the copy batch so a parent (if also copied) is
-        // created before its child, allowing the child's FK to be remapped
-        // onto the newly-created parent's id instead of the original tree.
-        const idxByKey = new Map(copiedNodes.map((cn, i) => [`${cn.data.nodeType}:${cn.data.id}`, i]))
+        // ---- Standalone nodes: existing FK-remap + topological order logic ----
+        const idxByKey = new Map(standalone.map((cn, i) => [`${cn.data.nodeType}:${cn.data.id}`, i]))
         const order = []
-        const visitState = new Array(copiedNodes.length).fill(0)
+        const visitState = new Array(standalone.length).fill(0)
         const visit = (i) => {
           if (visitState[i] !== 0) return
           visitState[i] = 1
-          const fkField = ORPHAN_NULL_FIELD[copiedNodes[i].data.nodeType]
-          const fkVal = fkField ? copiedNodes[i].data[fkField] : null
+          const fkField = ORPHAN_NULL_FIELD[standalone[i].data.nodeType]
+          const fkVal = fkField ? standalone[i].data[fkField] : null
           if (fkVal != null) {
             const depIdx = idxByKey.get(`${FK_PARENT_TYPE[fkField]}:${fkVal}`)
             if (depIdx !== undefined && depIdx !== i) visit(depIdx)
@@ -1045,12 +1168,11 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
           visitState[i] = 2
           order.push(i)
         }
-        copiedNodes.forEach((_, i) => visit(i))
+        standalone.forEach((_, i) => visit(i))
 
-        const created = new Array(copiedNodes.length).fill(null)
-        const newCopiedNodes = []
+        const created = new Array(standalone.length).fill(null)
         for (const i of order) {
-          const cn = copiedNodes[i]
+          const cn = standalone[i]
           const nodeType = cn.data.nodeType
           const fkField = ORPHAN_NULL_FIELD[nodeType]
           const remappedData = { ...cn.data }
@@ -1060,23 +1182,102 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
           }
           const newPos = { x: cn.position.x + offset.x, y: cn.position.y + offset.y }
           try {
-            const result = await recreateNode({ projectId, snapshot: { nodeData: remappedData, position: newPos, rfNodeType: cn.type } })
+            const result = await recreateNode({ projectId, snapshot: { nodeData: remappedData, position: newPos, rfNodeType: cn.type } }, sink)
             created[i] = result
-            const finalNode = useCanvasStore.getState().nodes.find(n => n.id === result.newRfId)
+            const finalNode = sink.nodes.find(n => n.id === result.newRfId)
             const nodeDataForEmit = finalNode ? finalNode.data : result.newNodeData
             socket.emit('node:added', { project_id: projectId, node_type: nodeType, node_data: nodeDataForEmit, position: newPos })
-            useCanvasStore.getState().pushHistory({
-              action: 'create',
-              rfId: result.newRfId,
-              nodeType,
-              nodeId: result.newNodeId,
-              projectId,
+            historyEntries.push({
+              action: 'create', rfId: result.newRfId, nodeType, nodeId: result.newNodeId, projectId,
               snapshot: { nodeData: nodeDataForEmit, position: newPos, rfNodeType: cn.type },
             })
-            newCopiedNodes.push({ id: result.newRfId, type: cn.type, position: newPos, data: nodeDataForEmit })
+            newCopiedStandalone.push({ id: result.newRfId, type: cn.type, groupId: null, position: newPos, data: nodeDataForEmit })
           } catch (err) { console.error('Paste failed:', err) }
         }
-        if (newCopiedNodes.length > 0) store.setCopiedNodes(newCopiedNodes)
+
+        // ---- Grouped members: recreate the member nodes first, then create
+        // the group referencing their new ids (mirrors handleGroup, which
+        // also needs real ids to exist before it can attach them to a group). ----
+        for (const g of groups) {
+          const groupMembers = members.filter(m => m.groupId === g.id)
+          const newGroupAbsPos = { x: g.position.x + offset.x, y: g.position.y + offset.y }
+          const createdMemberRefs = []
+          for (const cn of groupMembers) {
+            const nodeType = cn.data.nodeType
+            // cn.position is relative to the OLD group; resolve to absolute, then offset.
+            const absPos = { x: g.position.x + cn.position.x, y: g.position.y + cn.position.y }
+            const newPos = { x: absPos.x + offset.x, y: absPos.y + offset.y }
+            try {
+              const result = await recreateNode({ projectId, snapshot: { nodeData: { ...cn.data }, position: newPos, rfNodeType: cn.type } }, sink)
+              const finalNode = sink.nodes.find(n => n.id === result.newRfId)
+              const nodeDataForEmit = finalNode ? finalNode.data : result.newNodeData
+              socket.emit('node:added', { project_id: projectId, node_type: nodeType, node_data: nodeDataForEmit, position: newPos })
+              historyEntries.push({
+                action: 'create', rfId: result.newRfId, nodeType, nodeId: result.newNodeId, projectId,
+                snapshot: { nodeData: nodeDataForEmit, position: newPos, rfNodeType: cn.type },
+              })
+              createdMemberRefs.push({
+                rfId: result.newRfId, nodeType, nodeId: result.newNodeId, type: cn.type, data: nodeDataForEmit,
+                relX: newPos.x - newGroupAbsPos.x, relY: newPos.y - newGroupAbsPos.y,
+              })
+            } catch (err) { console.error('Paste (group member) failed:', err) }
+          }
+          if (createdMemberRefs.length === 0) continue // nothing recreated — skip creating an empty group
+
+          try {
+            const groupResult = await createGroup(projectId, {
+              label: g.label,
+              x: newGroupAbsPos.x, y: newGroupAbsPos.y,
+              width: g.style.width, height: g.style.height,
+              members: createdMemberRefs.map(m => ({ node_type: m.nodeType, node_id: m.nodeId, rel_x: m.relX, rel_y: m.relY })),
+            })
+            const newGroup = groupResult.group
+            const newGroupRfId = `group-${newGroup.id}`
+            const groupRFNode = {
+              id: newGroupRfId, type: 'groupNode', position: newGroupAbsPos,
+              style: { width: g.style.width, height: g.style.height },
+              data: { label: g.label, nodeType: 'group', groupId: newGroup.id }, zIndex: -1,
+            }
+            sink.addRFNode(groupRFNode)
+            const memberUpdates = createdMemberRefs.map(m => ({ rfNodeId: m.rfId, relX: m.relX, relY: m.relY }))
+            memberUpdates.forEach(u => {
+              const idx = sink.nodes.findIndex(n => n.id === u.rfNodeId)
+              if (idx !== -1) sink.nodes[idx] = { ...sink.nodes[idx], parentId: newGroupRfId, position: { x: u.relX, y: u.relY } }
+            })
+            socket.emit('group:created', { project_id: projectId, group: newGroup, group_rf_node: groupRFNode, member_updates: memberUpdates })
+            historyEntries.push({ action: 'group', groupRfId: newGroupRfId, groupId: newGroup.id, projectId, groupRFNode, memberUpdates })
+            newCopiedGroups.push({ id: newGroupRfId, label: g.label, position: newGroupAbsPos, style: { width: g.style.width, height: g.style.height } })
+            createdMemberRefs.forEach(m => newCopiedMembers.push({ id: m.rfId, type: m.type, groupId: newGroupRfId, position: { x: m.relX, y: m.relY }, data: m.data }))
+          } catch (err) { console.error('Paste (group) failed:', err) }
+        }
+
+        // ---- Apply the whole batch to the store in one shot ----
+        // Group nodes must precede their children in the array for React Flow
+        // to resolve parentId correctly; every group in this batch is top-level
+        // (no nested groups), so putting them all first is sufficient.
+        const orderedNewNodes = [...sink.nodes.filter(n => n.type === 'groupNode'), ...sink.nodes.filter(n => n.type !== 'groupNode')]
+        if (orderedNewNodes.length > 0 || sink.edges.length > 0) {
+          useCanvasStore.setState(state => ({
+            nodes: [...state.nodes, ...orderedNewNodes],
+            edges: [...state.edges, ...sink.edges],
+          }))
+        }
+        historyEntries.forEach(h => useCanvasStore.getState().pushHistory(h))
+
+        const allNewIds = [...newCopiedStandalone, ...newCopiedMembers, ...newCopiedGroups].map(n => n.id)
+        if (allNewIds.length > 0) {
+          store.setCopiedNodes({ groups: newCopiedGroups, members: newCopiedMembers, standalone: newCopiedStandalone })
+          // The pasted node(s) become the selection, replacing whatever was
+          // selected before — matches the behavior for freshly created nodes.
+          const newIdSet = new Set(allNewIds)
+          useCanvasStore.setState(state => ({
+            nodes: state.nodes.map(n => ({ ...n, selected: newIdSet.has(n.id) })),
+          }))
+          const lastId = allNewIds[allNewIds.length - 1]
+          const lastFullNode = useCanvasStore.getState().nodes.find(n => n.id === lastId)
+          if (lastFullNode) store.setSelectedNode(lastFullNode)
+          socket.emit('user:select', { project_id: projectId, rf_node_id: lastId })
+        }
         return
       }
     }
@@ -1118,6 +1319,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     if (historyMoves.length > 0) {
       store.pushHistory({ action: 'batchMove', moves: historyMoves })
     }
+    recomputeSelectionBounds()
     // Refocus canvas so arrow keys work immediately after align
     containerRef.current?.focus()
     // Persist to DB in parallel
@@ -1264,10 +1466,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     const GROUP_PAD = 24
     const getNodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
     const getNodeH = n => n.type === 'groupNode' ? (n.style?.height ?? 200) : (n.measured?.height ?? 40)
-    const getAbsPos = n => ({
-      x: n.internals?.positionAbsolute?.x ?? n.position.x,
-      y: n.internals?.positionAbsolute?.y ?? n.position.y,
-    })
+    const getAbsPos = n => resolveAbsPos(n, reactFlow.getNodes())
 
     const allSelected = reactFlow.getNodes().filter(n => n.selected && n.type !== 'rootNode' && !n.data?.hidden)
     const selectedGroups = allSelected.filter(n => n.type === 'groupNode')
@@ -1278,6 +1477,13 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     // When drag-selecting an outer group RF auto-selects all its children including inner groups;
     // without this filter, inner groups would be reparented to the new group instead of staying nested.
     const topLevelGroups = selectedGroups.filter(n => !selectedGroupIds.has(n.parentId))
+
+    // Refuse to group members that already belong to an existing group that
+    // isn't itself part of the selection — nesting a brand-new group around
+    // a subset of an existing group's members corrupts the existing group's
+    // membership and jumps the nodes to a stale position. To nest, select the
+    // group node itself alongside other nodes/groups instead.
+    if (standaloneNodes.some(n => n.parentId)) return
 
     // Need at least 2 effective items to form a group
     const effective = [...standaloneNodes, ...topLevelGroups]
@@ -1311,6 +1517,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         style: { width: groupW, height: groupH },
         data: { label: '', nodeType: 'group', groupId: group.id },
         zIndex: -1,
+        selected: true,
       }
       const memberUpdates = effective.map(n => {
         const abs = getAbsPos(n)
@@ -1319,6 +1526,10 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
       useCanvasStore.getState().groupRFNodes(groupRFNode, memberUpdates)
       useCanvasStore.getState().pushHistory({ action: 'group', groupRfId: rfGroupId, groupId: group.id, projectId, groupRFNode, memberUpdates })
       socket.emit('group:created', { project_id: projectId, group: result.group, group_rf_node: groupRFNode, member_updates: memberUpdates })
+      // The member nodes were already selected before grouping, so the selected-id
+      // set doesn't change from React Flow's point of view and onSelectionChange
+      // never fires on its own — sync the toolbar state directly.
+      onSelectionChange({ nodes: [groupRFNode] })
     } catch (err) {
       console.error('Group failed:', err)
       // eslint-disable-next-line no-alert
@@ -1454,6 +1665,12 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
   function handleNodeCreated(newNode) {
     setAddFormType(null)
+    const store = useCanvasStore.getState()
+    useCanvasStore.setState(state => ({
+      nodes: state.nodes.map(n => ({ ...n, selected: n.id === newNode.id })),
+    }))
+    store.setSelectedNode(newNode)
+    socket.emit('user:select', { project_id: projectId, rf_node_id: newNode.id })
   }
 
   return (
@@ -1568,14 +1785,18 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                       ))}
                     </>
                   )}
-                  <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
-                  <button
-                    onClick={handleGroup}
-                    title="Group selected nodes"
-                    className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
-                  >
-                    Group
-                  </button>
+                  {canGroup && (
+                    <>
+                      <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
+                      <button
+                        onClick={handleGroup}
+                        title="Group selected nodes"
+                        className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
+                      >
+                        Group
+                      </button>
+                    </>
+                  )}
                 </>
               )}
               {singleGroupSelected && (

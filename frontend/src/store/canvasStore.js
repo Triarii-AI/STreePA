@@ -364,7 +364,11 @@ const useCanvasStore = create((set, get) => ({
       const updatedNodes = state.nodes.map(n => {
         const u = memberUpdates.find(m => m.rfNodeId === n.id)
         if (!u) return n
-        return { ...n, parentId: groupRFNode.id, position: { x: u.relX, y: u.relY } }
+        // Deselect members — the new group node becomes the selected item,
+        // matching how a fresh drag-select/group looks. Without this the
+        // selected-id set is unchanged (members were already selected), so
+        // React Flow never fires onSelectionChange and the toolbar goes stale.
+        return { ...n, parentId: groupRFNode.id, position: { x: u.relX, y: u.relY }, selected: false }
       })
       updatedNodes.splice(insertAt, 0, groupRFNode)
       return { nodes: updatedNodes }

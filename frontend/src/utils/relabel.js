@@ -151,11 +151,29 @@ export function computeRelabelChanges(selected, allNodes, mode, delta = 0) {
 
     if (mode === 'auto') {
       const allInScope = allNodes.filter(n => n.data?.nodeType === group.nodeType && scopeKeyOf(group.nodeType, n.data) === group.scopeKey)
-      const nonBatchCount = allInScope.length - group.members.length
+      const batchIds = new Set(group.members.map(n => n.id))
+      // Numbers already spoken for by siblings NOT in this batch — the batch
+      // must dodge these, not just append after however many of them there
+      // are. Otherwise a batch member can get reassigned onto a number an
+      // untouched sibling still holds (e.g. siblings 1,2,4,5 with only 5
+      // selected: appending after "3 others" gives 4, colliding with the
+      // existing 4, when 3 is the actual free slot).
+      const usedByOthers = new Set(
+        allInScope
+          .filter(n => !batchIds.has(n.id))
+          .map(n => ownIndex(group.nodeType, n.data.label))
+          .filter(n => n !== Infinity)
+      )
       const sorted = [...group.members].sort((a, b) =>
         ownIndex(group.nodeType, a.data.label) - ownIndex(group.nodeType, b.data.label) || a.data.id - b.data.id
       )
-      sorted.forEach((n, i) => overrides.set(n.id, buildLabel(group.nodeType, nonBatchCount + i + 1, parentLabel)))
+      let candidate = 1
+      sorted.forEach(n => {
+        while (usedByOthers.has(candidate)) candidate++
+        overrides.set(n.id, buildLabel(group.nodeType, candidate, parentLabel))
+        usedByOthers.add(candidate)
+        candidate++
+      })
     } else if (mode === 'shift') {
       group.members.forEach(n => {
         const idx = ownIndex(group.nodeType, getLabel(n.id))

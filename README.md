@@ -47,9 +47,9 @@ STreePA models all seven layers as connected nodes on a live canvas, preserving 
 - **Controller Constraints** — a child node type under UCAs (mirrors System Constraints) for constraining the controller's behavior
 - **Controller field on Control Actions** — optionally tag a Control Action with the controller that issues it; the value is inherited and displayed on its UCAs, Controller Constraints, and Loss Scenarios, and propagates live if changed
 - **Node grouping** — group nodes into labeled, resizable containers that nest, auto-dissolve when down to one member, and move/align/distribute as a unit
-- **Multi-node copy/paste** — select multiple nodes and Ctrl+C/Ctrl+V to duplicate them together, preserving fields, links, and internal parent-child structure
+- **Multi-node copy/paste** — select multiple nodes (and groups) and Ctrl+C/Ctrl+V to duplicate them together in one shot, preserving fields, links, internal parent-child structure, and group membership
 - **Node reparenting** — change a node's structural parent from its detail panel; edges and labels update live for all collaborators and support undo/redo
-- **Bulk relabeling** — auto-label selected nodes as if freshly created (closing gaps/duplicates), or shift their label numbers en masse with +1/−1, with full undo/redo
+- **Bulk relabeling** — auto-label selected nodes as if freshly created, dropping into the lowest free numbering gap left by deletions, or shift their label numbers en masse with +1/−1, with full undo/redo
 - **Real-time collaboration** — all canvas changes sync instantly to every connected user via WebSocket, including group operations
 - **Presence indicators** — see which teammates are currently viewing a project
 - **Project sharing** — share projects with other users on the instance
@@ -243,7 +243,7 @@ Each layer has its own node type, color, and label format. Nodes at lower layers
 
 ### Adding Nodes
 
-Each layer has a **+ Add [type]** button visible near that layer on the canvas. Clicking it opens a small inline form — fill in the description and submit. The label is auto-generated. The new node appears on the canvas immediately, no page reload needed.
+Each layer has a **+ Add [type]** button visible near that layer on the canvas. Clicking it opens a small inline form — fill in the description and submit. The label is auto-generated — it fills the lowest available gap in the numbering left by a prior deletion (e.g. `L-1, L-2, L-4` → next new Loss is `L-3`) rather than always appending after the highest number in use. The new node appears on the canvas immediately, no page reload needed, and becomes the current selection.
 
 ### Edges
 
@@ -270,7 +270,7 @@ Nodes can be placed inside labeled group containers for visual organization. Sel
 
 When one or more nodes are selected, a toolbar appears with three relabeling actions:
 
-- **Auto-label** — relabels the selected node(s) as if they had just been created. Siblings of the same type sharing the same parent are renumbered together in their existing relative order, closing any gaps or resolving duplicate numbers left behind by deletions or manual edits.
+- **Auto-label** — relabels the selected node(s) as if they had just been created. Siblings of the same type sharing the same parent are renumbered together in their existing relative order, dodging whatever numbers are already in use by their non-selected siblings — so it correctly drops into the lowest free gap (e.g. with `L-1, L-2, L-4, L-5`, auto-labeling just `L-5` gives `L-3`, not `L-4`) rather than naively appending after however many other siblings there are.
 - **+1 / −1** — increments or decrements the selected node(s)' own label number directly, independent of siblings. This is a manual override with no collision checking, so it can create a duplicate label if the target number is already taken.
 
 Both actions cascade to any descendants whose labels are derived from the relabeled node (e.g. relabeling a Hazard also updates its System Constraint and sub-hazards), and fully support undo/redo. If a group is selected, the toolbar (and these actions) apply to its contents rather than the group itself — the toolbar hides these three buttons when only group(s) with no labelable contents are selected.
@@ -279,13 +279,16 @@ Both actions cascade to any descendants whose labels are derived from the relabe
 
 | Shortcut | Action |
 |---|---|
-| Drag on empty canvas | Select |
-| Shift+click | Add to selection |
+| Click a node | Select only that node, replacing any existing selection |
+| Drag on empty canvas | Select (multiple nodes) |
+| Shift+click | Add to / toggle a node in the selection |
 | Space+drag | Pan |
 | Del / Backspace | Delete |
-| Ctrl+C / Ctrl+V | Copy / paste (supports multiple selected nodes at once) |
+| Ctrl+C / Ctrl+V | Copy / paste — supports multiple nodes and groups at once (a copied group is recreated with its members intact); the pasted result becomes the new selection |
 | Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / redo |
 | Ctrl+G / Ctrl+Shift+G | Group / ungroup |
+
+Whenever 2 or more nodes are selected — however the selection was built — a dashed bounding box is drawn around all of them as a visual aid; it's purely visual and never intercepts clicks.
 
 A reference card for these is also available in-app via the shortcuts guide toggle on the canvas.
 
