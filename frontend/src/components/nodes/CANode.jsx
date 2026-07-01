@@ -11,6 +11,9 @@ function CANode({ data, selected }) {
         <span className="font-bold text-green-800 dark:text-green-200 text-sm leading-tight break-words flex-1">{data.label || data.name || 'Control Action'}</span>
         <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 flex-shrink-0 whitespace-nowrap">R</span>
       </div>
+      {data.controller && (
+        <p className="text-xs font-medium text-green-600 dark:text-green-400 leading-snug break-words mt-0.5">{data.controller}</p>
+      )}
       {data.name && data.label && data.name !== data.label && (
         <p className="text-xs text-green-700 dark:text-green-300 leading-snug break-words mt-1">{data.name}</p>
       )}

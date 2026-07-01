@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 from extensions import db, socketio
 from models import (
     Project, ProjectShare, User, Loss, Hazard, SystemConstraint,
-    ControlAction, UCA, LossScenario, CanvasEdge, NodeGroup
+    ControlAction, UCA, LossScenario, ControllerConstraint, CanvasEdge, NodeGroup
 )
 from routes.utils import check_project_access, get_user_role
 
@@ -127,6 +127,7 @@ def get_project(project_id):
     scs = SystemConstraint.query.filter_by(project_id=project_id).all()
     cas = ControlAction.query.filter_by(project_id=project_id).all()
     ucas = UCA.query.filter_by(project_id=project_id).all()
+    ccs = ControllerConstraint.query.filter_by(project_id=project_id).all()
     lss = LossScenario.query.filter_by(project_id=project_id).all()
     edges = CanvasEdge.query.filter_by(project_id=project_id).all()
     groups = NodeGroup.query.filter_by(project_id=project_id).all()
@@ -139,6 +140,7 @@ def get_project(project_id):
         'system_constraints': [sc.to_dict() for sc in scs],
         'control_actions': [ca.to_dict() for ca in cas],
         'ucas': [u.to_dict() for u in ucas],
+        'controller_constraints': [cc.to_dict() for cc in ccs],
         'loss_scenarios': [ls.to_dict() for ls in lss],
         'canvas_edges': [e.to_dict() for e in edges],
         'groups': [g.to_dict() for g in groups],
@@ -196,7 +198,7 @@ def duplicate_project(project_id):
     db.session.add(copy)
     db.session.flush()
 
-    loss_map, hazard_map, sc_map, ca_map, uca_map = {}, {}, {}, {}, {}
+    loss_map, hazard_map, sc_map, ca_map, uca_map, cc_map = {}, {}, {}, {}, {}, {}
 
     for l in Loss.query.filter_by(project_id=project_id).all():
         n = Loss(project_id=copy.id, label=l.label, description=l.description, x=l.x, y=l.y)
@@ -229,7 +231,7 @@ def duplicate_project(project_id):
             if nh: n.linked_hazards.append(nh)
 
     for ca in ControlAction.query.filter_by(project_id=project_id).all():
-        n = ControlAction(project_id=copy.id, label=ca.label, name=ca.name, x=ca.x, y=ca.y)
+        n = ControlAction(project_id=copy.id, label=ca.label, name=ca.name, controller=ca.controller, x=ca.x, y=ca.y)
         db.session.add(n); db.session.flush(); ca_map[ca.id] = n.id
 
     for u in UCA.query.filter_by(project_id=project_id).all():
@@ -240,6 +242,14 @@ def duplicate_project(project_id):
             nh = Hazard.query.get(hazard_map.get(h.id))
             if nh: n.linked_hazards.append(nh)
 
+    for cc in ControllerConstraint.query.filter_by(project_id=project_id).all():
+        n = ControllerConstraint(project_id=copy.id, label=cc.label, description=cc.description,
+                                 linked_uca_id=uca_map.get(cc.linked_uca_id), x=cc.x, y=cc.y)
+        db.session.add(n); db.session.flush(); cc_map[cc.id] = n.id
+        for u in cc.linked_ucas:
+            nu = UCA.query.get(uca_map.get(u.id))
+            if nu: n.linked_ucas.append(nu)
+
     for ls in LossScenario.query.filter_by(project_id=project_id).all():
         n = LossScenario(project_id=copy.id, label=ls.label, description=ls.description,
                          uca_id=uca_map.get(ls.uca_id), x=ls.x, y=ls.y)
@@ -249,7 +259,7 @@ def duplicate_project(project_id):
             if nh: n.linked_hazards.append(nh)
 
     type_map = {'loss': loss_map, 'hazard': hazard_map, 'system_constraint': sc_map,
-                'control_action': ca_map, 'uca': uca_map}
+                'control_action': ca_map, 'uca': uca_map, 'controller_constraint': cc_map}
     for ce in CanvasEdge.query.filter_by(project_id=project_id).all():
         fm = type_map.get(ce.from_node_type, {}); tm = type_map.get(ce.to_node_type, {})
         nf = fm.get(ce.from_node_id); nt = tm.get(ce.to_node_id)
@@ -272,14 +282,22 @@ def export_project_json(project_id):
     project = check_project_access(project_id)
     data = {
         'version': '1.0',
-        'project': {'title': project.title, 'purpose_statement': project.purpose_statement or ''},
+        'project': {
+            'title': project.title,
+            'purpose_statement': project.purpose_statement or '',
+            'root_x': project.root_x if project.root_x is not None else 500.0,
+            'root_y': project.root_y if project.root_y is not None else 50.0,
+            'icon_color': project.icon_color or 'indigo',
+        },
         'losses':             [l.to_dict()  for l  in Loss.query.filter_by(project_id=project_id).all()],
         'hazards':            [h.to_dict()  for h  in Hazard.query.filter_by(project_id=project_id).all()],
         'system_constraints': [sc.to_dict() for sc in SystemConstraint.query.filter_by(project_id=project_id).all()],
         'control_actions':    [ca.to_dict() for ca in ControlAction.query.filter_by(project_id=project_id).all()],
         'ucas':               [u.to_dict()  for u  in UCA.query.filter_by(project_id=project_id).all()],
+        'controller_constraints': [cc.to_dict() for cc in ControllerConstraint.query.filter_by(project_id=project_id).all()],
         'loss_scenarios':     [ls.to_dict() for ls in LossScenario.query.filter_by(project_id=project_id).all()],
         'canvas_edges':       [ce.to_dict() for ce in CanvasEdge.query.filter_by(project_id=project_id).all()],
+        'groups':             [g.to_dict()  for g  in NodeGroup.query.filter_by(project_id=project_id).all()],
     }
     safe_title = ''.join(c if c.isalnum() or c in ' _-' else '_' for c in project.title).strip()
     filename = f"{safe_title or 'project'}.stpa.json"
@@ -307,6 +325,7 @@ def export_project_excel(project_id):
     scs             = SystemConstraint.query.filter_by(project_id=project_id).all()
     cas             = ControlAction.query.filter_by(project_id=project_id).all()
     ucas            = UCA.query.filter_by(project_id=project_id).all()
+    ccs             = ControllerConstraint.query.filter_by(project_id=project_id).all()
     loss_scenarios  = LossScenario.query.filter_by(project_id=project_id).all()
 
     # Label lookup helpers
@@ -387,28 +406,40 @@ def export_project_excel(project_id):
 
     # ── Control Actions ──
     ws = make_sheet(wb, 'Control Actions', 'BBF7D0')
-    style_headers(ws, ['Label', 'Name'], 'BBF7D0')
+    style_headers(ws, ['Label', 'Name', 'Controller'], 'BBF7D0')
     for ca in cas:
-        ws.append([ca.label, ca.name or ''])
+        ws.append([ca.label, ca.name or '', ca.controller or ''])
     autofit(ws)
 
     # ── UCAs ──
     ws = make_sheet(wb, 'UCAs', 'BFDBFE')
-    style_headers(ws, ['Label', 'Description', 'Control Action', 'UCA Type', 'Associated Hazards'], 'BFDBFE')
+    style_headers(ws, ['Label', 'Description', 'Control Action', 'Controller', 'UCA Type', 'Associated Hazards'], 'BFDBFE')
     for u in ucas:
         u_data     = u.to_dict()
         ca_label   = ca_labels.get(u.control_action_id, '') if u.control_action_id else ''
         type_label = UCA_TYPE_LABELS.get(u.uca_type, u.uca_type or '')
         assoc_haz  = ', '.join(hazard_labels[hid] for hid in u_data.get('hazard_ids', []) if hid in hazard_labels)
-        ws.append([u.label, u.description or '', ca_label, type_label, assoc_haz])
+        ws.append([u.label, u.description or '', ca_label, u_data.get('controller') or '', type_label, assoc_haz])
+    autofit(ws)
+
+    # ── Controller Constraints ──
+    ws = make_sheet(wb, 'Controller Constraints', '99F6E4')
+    style_headers(ws, ['Label', 'Description', 'Parent UCA', 'Controller', 'Additional UCAs'], '99F6E4')
+    for cc in ccs:
+        cc_data   = cc.to_dict()
+        primary   = uca_labels.get(cc.linked_uca_id, '') if cc.linked_uca_id else ''
+        extra_ids = [uid for uid in cc_data.get('uca_ids', []) if uid != cc.linked_uca_id]
+        extra     = ', '.join(uca_labels[uid] for uid in extra_ids if uid in uca_labels)
+        ws.append([cc.label, cc.description or '', primary, cc_data.get('controller') or '', extra])
     autofit(ws)
 
     # ── Loss Scenarios ──
     ws = make_sheet(wb, 'Loss Scenarios', 'E9D5FF')
-    style_headers(ws, ['Label', 'Description', 'UCA'], 'E9D5FF')
+    style_headers(ws, ['Label', 'Description', 'UCA', 'Controller'], 'E9D5FF')
     for ls in loss_scenarios:
+        ls_data   = ls.to_dict()
         uca_label = uca_labels.get(ls.uca_id, '') if ls.uca_id else ''
-        ws.append([ls.label, ls.description or '', uca_label])
+        ws.append([ls.label, ls.description or '', uca_label, ls_data.get('controller') or ''])
     autofit(ws)
 
     buf = io.BytesIO()
@@ -435,6 +466,9 @@ def import_project():
     project = Project(
         title=proj_data.get('title', 'Imported Project'),
         purpose_statement=proj_data.get('purpose_statement', ''),
+        root_x=proj_data.get('root_x', 500.0),
+        root_y=proj_data.get('root_y', 50.0),
+        icon_color=proj_data.get('icon_color', 'indigo'),
         owner_id=current_user.id
     )
     db.session.add(project)
@@ -445,12 +479,36 @@ def import_project():
     sc_map      = {}
     ca_map      = {}
     uca_map     = {}
+    cc_map      = {}
     ls_map      = {}
+    group_map   = {}
+
+    # Node Groups — BFS so parents exist before nested child groups
+    pending = list(data.get('groups', []))
+    max_passes = len(pending) + 1
+    for _ in range(max_passes):
+        if not pending:
+            break
+        still_pending = []
+        for g in pending:
+            old_parent = g.get('parent_group_id')
+            if old_parent is not None and old_parent not in group_map:
+                still_pending.append(g)
+                continue
+            node = NodeGroup(project_id=project.id, label=g.get('label') or '',
+                             x=g.get('x', 0), y=g.get('y', 0),
+                             width=g.get('width', 200), height=g.get('height', 200),
+                             parent_group_id=group_map.get(old_parent))
+            db.session.add(node)
+            db.session.flush()
+            group_map[g['id']] = node.id
+        pending = still_pending
 
     # Losses
     for l in data.get('losses', []):
         node = Loss(project_id=project.id, label=l['label'],
                     description=l.get('description') or '',
+                    group_id=group_map.get(l.get('group_id')),
                     x=l.get('x', 0), y=l.get('y', 0))
         db.session.add(node)
         db.session.flush()
@@ -471,6 +529,7 @@ def import_project():
             node = Hazard(project_id=project.id, label=h['label'],
                           description=h.get('description') or '',
                           parent_hazard_id=hazard_map.get(old_parent),
+                          group_id=group_map.get(h.get('group_id')),
                           x=h.get('x', 0), y=h.get('y', 0))
             db.session.add(node)
             db.session.flush()
@@ -496,6 +555,7 @@ def import_project():
         node = SystemConstraint(project_id=project.id, label=sc['label'],
                                 description=sc.get('description') or '',
                                 linked_hazard_id=new_linked,
+                                group_id=group_map.get(sc.get('group_id')),
                                 x=sc.get('x', 0), y=sc.get('y', 0))
         db.session.add(node)
         db.session.flush()
@@ -511,6 +571,8 @@ def import_project():
     for ca in data.get('control_actions', []):
         node = ControlAction(project_id=project.id, label=ca['label'],
                              name=ca.get('name') or '',
+                             controller=ca.get('controller') or '',
+                             group_id=group_map.get(ca.get('group_id')),
                              x=ca.get('x', 0), y=ca.get('y', 0))
         db.session.add(node)
         db.session.flush()
@@ -523,6 +585,7 @@ def import_project():
                    description=u.get('description') or '',
                    control_action_id=new_ca,
                    uca_type=u['uca_type'],
+                   group_id=group_map.get(u.get('group_id')),
                    x=u.get('x', 0), y=u.get('y', 0))
         db.session.add(node)
         db.session.flush()
@@ -534,12 +597,31 @@ def import_project():
                 if h_obj and h_obj not in node.linked_hazards:
                     node.linked_hazards.append(h_obj)
 
+    # Controller Constraints
+    for cc in data.get('controller_constraints', []):
+        new_linked = uca_map.get(cc.get('linked_uca_id'))
+        node = ControllerConstraint(project_id=project.id, label=cc['label'],
+                                    description=cc.get('description') or '',
+                                    linked_uca_id=new_linked,
+                                    group_id=group_map.get(cc.get('group_id')),
+                                    x=cc.get('x', 0), y=cc.get('y', 0))
+        db.session.add(node)
+        db.session.flush()
+        cc_map[cc['id']] = node.id
+        for old_uid in cc.get('uca_ids', []):
+            new_uid = uca_map.get(old_uid)
+            if new_uid and new_uid != new_linked:
+                u_obj = UCA.query.get(new_uid)
+                if u_obj and u_obj not in node.linked_ucas:
+                    node.linked_ucas.append(u_obj)
+
     # Loss Scenarios
     for ls in data.get('loss_scenarios', []):
         new_uca = uca_map.get(ls.get('uca_id'))
         node = LossScenario(project_id=project.id, label=ls['label'],
                             description=ls.get('description') or '',
                             uca_id=new_uca,
+                            group_id=group_map.get(ls.get('group_id')),
                             x=ls.get('x', 0), y=ls.get('y', 0))
         db.session.add(node)
         db.session.flush()
@@ -553,7 +635,8 @@ def import_project():
 
     # Canvas Edges
     type_map = {'loss': loss_map, 'hazard': hazard_map, 'system_constraint': sc_map,
-                'control_action': ca_map, 'uca': uca_map, 'loss_scenario': ls_map}
+                'control_action': ca_map, 'uca': uca_map, 'controller_constraint': cc_map,
+                'loss_scenario': ls_map}
     for ce in data.get('canvas_edges', []):
         from_map = type_map.get(ce['from_node_type'], {})
         to_map   = type_map.get(ce['to_node_type'], {})

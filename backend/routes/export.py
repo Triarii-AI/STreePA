@@ -12,7 +12,7 @@ from flask import Blueprint, request, Response
 from flask_login import login_required
 from models import (
     Project, Loss, Hazard, SystemConstraint, ControlAction,
-    UCA, LossScenario, CanvasEdge, db,
+    UCA, ControllerConstraint, LossScenario, CanvasEdge, db,
 )
 from routes.utils import check_project_access
 
@@ -87,7 +87,7 @@ def _chromium_png(project_id, base_url, cookie_value, *, dark, hidden_ids):
                 pass
 
 
-def _draw_cross_refs_on_png(png_bytes, project, losses, hazards, scs, cas, ucas, lss, cedges,
+def _draw_cross_refs_on_png(png_bytes, project, losses, hazards, scs, cas, ucas, ccs, lss, cedges,
                              hidden_ids, node_zoom=1.0, max_css=12000, pad=40, scale_i=2,
                              meta=None):
     """
@@ -170,6 +170,10 @@ def _draw_cross_refs_on_png(png_bytes, project, losses, hazards, scs, cas, ucas,
                 d = n.to_dict()
                 add_node(f'uca-{d["id"]}', 'uca', d['x'], d['y'], d['label'],
                          d.get('description'), uca_type=d.get('uca_type'))
+            for n in ccs:
+                d = n.to_dict()
+                add_node(f'cc-{d["id"]}', 'controller_constraint', d['x'], d['y'],
+                         d['label'], d.get('description'))
             for n in lss:
                 d = n.to_dict()
                 add_node(f'ls-{d["id"]}', 'loss_scenario', d['x'], d['y'],
@@ -213,6 +217,11 @@ def _draw_cross_refs_on_png(png_bytes, project, losses, hazards, scs, cas, ucas,
             d = n.to_dict()
             for hid in d.get('hazard_ids', []):
                 try_edge(f'uca-{d["id"]}', f'hazard-{hid}')
+        for n in ccs:
+            d = n.to_dict()
+            for uid in d.get('uca_ids', []):
+                if uid != d.get('linked_uca_id'):
+                    try_edge(f'cc-{d["id"]}', f'uca-{uid}')
         for n in lss:
             d = n.to_dict()
             for hid in d.get('hazard_ids', []):
@@ -348,6 +357,7 @@ LIGHT = {
     'system_constraint': {'fill': '#fefce8', 'stroke': '#facc15', 'text': '#854d0e'},
     'control_action':    {'fill': '#f0fdf4', 'stroke': '#4ade80', 'text': '#166534'},
     'uca':               {'fill': '#eff6ff', 'stroke': '#60a5fa', 'text': '#1e40af'},
+    'controller_constraint': {'fill': '#f0fdfa', 'stroke': '#2dd4bf', 'text': '#115e59'},
     'loss_scenario':     {'fill': '#faf5ff', 'stroke': '#c084fc', 'text': '#6b21a8'},
 }
 DARK = {
@@ -357,6 +367,7 @@ DARK = {
     'system_constraint': {'fill': '#422006', 'stroke': '#ca8a04', 'text': '#fef08a'},
     'control_action':    {'fill': '#052e16', 'stroke': '#16a34a', 'text': '#bbf7d0'},
     'uca':               {'fill': '#172554', 'stroke': '#2563eb', 'text': '#bfdbfe'},
+    'controller_constraint': {'fill': '#042f2e', 'stroke': '#0d9488', 'text': '#99f6e4'},
     'loss_scenario':     {'fill': '#3b0764', 'stroke': '#9333ea', 'text': '#e9d5ff'},
 }
 
@@ -367,6 +378,7 @@ BADGE_LIGHT = {
     'system_constraint': ('#fef9c3', '#a16207'),
     'control_action':    ('#dcfce7', '#15803d'),
     'uca':               ('#dbeafe', '#1d4ed8'),
+    'controller_constraint': ('#ccfbf1', '#0f766e'),
     'loss_scenario':     ('#f3e8ff', '#7e22ce'),
 }
 BADGE_DARK = {
@@ -375,11 +387,12 @@ BADGE_DARK = {
     'system_constraint': ('#713f12', '#fde047'),
     'control_action':    ('#14532d', '#86efac'),
     'uca':               ('#1e3a8a', '#93c5fd'),
+    'controller_constraint': ('#134e4a', '#5eead4'),
     'loss_scenario':     ('#581c87', '#d8b4fe'),
 }
 BADGE_LABEL = {
     'loss': 'LOSS', 'hazard': 'HAZ', 'system_constraint': 'SC',
-    'control_action': 'R', 'uca': 'UCA', 'loss_scenario': 'LS',
+    'control_action': 'R', 'uca': 'UCA', 'controller_constraint': 'CC', 'loss_scenario': 'LS',
 }
 UCA_TYPE_LABELS = {
     'not_providing':           'Not Providing',
@@ -395,7 +408,7 @@ UCA_TYPE_COLORS = {
 }
 NODE_PREFIX = {
     'loss': 'loss', 'hazard': 'hazard', 'system_constraint': 'sc',
-    'control_action': 'ca', 'uca': 'uca', 'loss_scenario': 'ls',
+    'control_action': 'ca', 'uca': 'uca', 'controller_constraint': 'cc', 'loss_scenario': 'ls',
 }
 
 SOLID_STROKE  = '#64748b'
@@ -662,7 +675,7 @@ def _draw_edge(e, nodes, out):
 
 # ── Main SVG generator ────────────────────────────────────────────────────────
 
-def _generate_svg(project, losses, hazards, scs, cas, ucas, lss, c_edges,
+def _generate_svg(project, losses, hazards, scs, cas, ucas, ccs, lss, c_edges,
                   dark=False, show_cross_refs=True, hidden_ids=None):
     bg         = BG_DARK if dark else BG_LIGHT
     hidden_set = set(hidden_ids or [])
@@ -713,6 +726,10 @@ def _generate_svg(project, losses, hazards, scs, cas, ucas, lss, c_edges,
         add(f'uca-{d["id"]}', 'uca', d['x'], d['y'], d['label'], d.get('description'),
             uca_type=d.get('uca_type'))
 
+    for n in ccs:
+        d = n.to_dict()
+        add(f'cc-{d["id"]}', 'controller_constraint', d['x'], d['y'], d['label'], d.get('description'))
+
     for n in lss:
         d = n.to_dict()
         add(f'ls-{d["id"]}', 'loss_scenario', d['x'], d['y'], d['label'], d.get('description'))
@@ -747,6 +764,13 @@ def _generate_svg(project, losses, hazards, scs, cas, ucas, lss, c_edges,
             edge(f'ca-{d["control_action_id"]}', f'uca-{d["id"]}', False)
         for hid in d.get('hazard_ids', []):
             edge(f'uca-{d["id"]}', f'hazard-{hid}', True)
+    for n in ccs:
+        d = n.to_dict()
+        if d.get('linked_uca_id'):
+            edge(f'uca-{d["linked_uca_id"]}', f'cc-{d["id"]}', False)
+        for uid in d.get('uca_ids', []):
+            if uid != d.get('linked_uca_id'):
+                edge(f'cc-{d["id"]}', f'uca-{uid}', True)
     for n in lss:
         d = n.to_dict()
         if d.get('uca_id'):
@@ -834,6 +858,7 @@ def export_project(project_id):
     scs     = SystemConstraint.query.filter_by(project_id=project_id).all()
     cas     = ControlAction.query.filter_by(project_id=project_id).all()
     ucas    = UCA.query.filter_by(project_id=project_id).all()
+    ccs     = ControllerConstraint.query.filter_by(project_id=project_id).all()
     lss     = LossScenario.query.filter_by(project_id=project_id).all()
     cedges  = CanvasEdge.query.filter_by(project_id=project_id).all()
 
@@ -857,7 +882,7 @@ def export_project(project_id):
                 if show_cross_refs:
                     try:
                         png = _draw_cross_refs_on_png(
-                            png, project, losses, hazards, scs, cas, ucas, lss, cedges,
+                            png, project, losses, hazards, scs, cas, ucas, ccs, lss, cedges,
                             hidden_ids=hidden_ids, meta=meta,
                         )
                     except Exception:
@@ -874,7 +899,7 @@ def export_project(project_id):
         try:
             import cairosvg
             svg_fallback = _generate_svg(
-                project, losses, hazards, scs, cas, ucas, lss, cedges,
+                project, losses, hazards, scs, cas, ucas, ccs, lss, cedges,
                 dark=dark, show_cross_refs=show_cross_refs, hidden_ids=hidden_ids,
             )
             png = cairosvg.svg2png(bytestring=svg_fallback.encode('utf-8'))
@@ -888,7 +913,7 @@ def export_project(project_id):
 
     # SVG: true vector output from the Python generator — scalable, editable, small file.
     svg = _generate_svg(
-        project, losses, hazards, scs, cas, ucas, lss, cedges,
+        project, losses, hazards, scs, cas, ucas, ccs, lss, cedges,
         dark=dark, show_cross_refs=show_cross_refs, hidden_ids=hidden_ids,
     )
     return Response(

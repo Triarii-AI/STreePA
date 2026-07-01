@@ -29,6 +29,12 @@ sc_hazard_links = db.Table(
     db.Column('hazard_id', db.Integer, db.ForeignKey('hazards.id', ondelete='CASCADE'), primary_key=True)
 )
 
+cc_uca_links = db.Table(
+    'cc_uca_links',
+    db.Column('cc_id', db.Integer, db.ForeignKey('controller_constraints.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('uca_id', db.Integer, db.ForeignKey('ucas.id', ondelete='CASCADE'), primary_key=True)
+)
+
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -77,6 +83,7 @@ class Project(db.Model):
     hazards = db.relationship('Hazard', backref='project', cascade='all, delete-orphan', lazy=True)
     system_constraints = db.relationship('SystemConstraint', backref='project', cascade='all, delete-orphan', lazy=True)
     control_actions = db.relationship('ControlAction', backref='project', cascade='all, delete-orphan', lazy=True)
+    controller_constraints = db.relationship('ControllerConstraint', backref='project', cascade='all, delete-orphan', lazy=True)
     ucas = db.relationship('UCA', backref='project', cascade='all, delete-orphan', lazy=True)
     loss_scenarios = db.relationship('LossScenario', backref='project', cascade='all, delete-orphan', lazy=True)
     canvas_edges = db.relationship('CanvasEdge', backref='project', cascade='all, delete-orphan', lazy=True)
@@ -207,6 +214,7 @@ class ControlAction(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
     label = db.Column(db.String(20), nullable=False)
     name = db.Column(db.String(255), nullable=True)
+    controller = db.Column(db.String(255), nullable=True)
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
     group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
@@ -219,6 +227,7 @@ class ControlAction(db.Model):
             'project_id': self.project_id,
             'label': self.label,
             'name': self.name,
+            'controller': self.controller,
             'x': self.x,
             'y': self.y,
             'group_id': self.group_id,
@@ -243,11 +252,13 @@ class UCA(db.Model):
 
     linked_hazards = db.relationship('Hazard', secondary=uca_hazard_links, lazy=True)
     loss_scenarios = db.relationship('LossScenario', backref='uca', cascade='save-update, merge', lazy=True)
+    controller_constraints = db.relationship('ControllerConstraint', backref='uca', cascade='save-update, merge', lazy=True)
 
     def to_dict(self):
         hazard_ids = [row.hazard_id for row in db.session.execute(
             db.select(uca_hazard_links.c.hazard_id).where(uca_hazard_links.c.uca_id == self.id)
         ).fetchall()]
+        ca = ControlAction.query.get(self.control_action_id) if self.control_action_id else None
         return {
             'id': self.id,
             'project_id': self.project_id,
@@ -259,6 +270,46 @@ class UCA(db.Model):
             'y': self.y,
             'hazard_ids': hazard_ids,
             'group_id': self.group_id,
+            'controller': ca.controller if ca else None,
+        }
+
+
+class ControllerConstraint(db.Model):
+    __tablename__ = 'controller_constraints'
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
+    label = db.Column(db.String(20), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    linked_uca_id = db.Column(db.Integer, db.ForeignKey('ucas.id', ondelete='SET NULL'), nullable=True)
+    x = db.Column(db.Float, default=0.0)
+    y = db.Column(db.Float, default=0.0)
+    group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
+
+    linked_ucas = db.relationship('UCA', secondary=cc_uca_links, lazy=True)
+
+    def to_dict(self):
+        uca_ids = [row.uca_id for row in db.session.execute(
+            db.select(cc_uca_links.c.uca_id).where(cc_uca_links.c.cc_id == self.id)
+        ).fetchall()]
+        if self.linked_uca_id and self.linked_uca_id not in uca_ids:
+            uca_ids.append(self.linked_uca_id)
+        parent_uca = UCA.query.get(self.linked_uca_id) if self.linked_uca_id else None
+        controller = None
+        if parent_uca and parent_uca.control_action_id:
+            ca = ControlAction.query.get(parent_uca.control_action_id)
+            controller = ca.controller if ca else None
+        return {
+            'id': self.id,
+            'project_id': self.project_id,
+            'label': self.label,
+            'description': self.description,
+            'linked_uca_id': self.linked_uca_id,
+            'uca_ids': uca_ids,
+            'x': self.x,
+            'y': self.y,
+            'group_id': self.group_id,
+            'controller': controller,
         }
 
 
@@ -280,6 +331,11 @@ class LossScenario(db.Model):
         hazard_ids = [row.hazard_id for row in db.session.execute(
             db.select(ls_hazard_links.c.hazard_id).where(ls_hazard_links.c.ls_id == self.id)
         ).fetchall()]
+        uca = UCA.query.get(self.uca_id) if self.uca_id else None
+        controller = None
+        if uca and uca.control_action_id:
+            ca = ControlAction.query.get(uca.control_action_id)
+            controller = ca.controller if ca else None
         return {
             'id': self.id,
             'project_id': self.project_id,
@@ -290,6 +346,7 @@ class LossScenario(db.Model):
             'y': self.y,
             'hazard_ids': hazard_ids,
             'group_id': self.group_id,
+            'controller': controller,
         }
 
 

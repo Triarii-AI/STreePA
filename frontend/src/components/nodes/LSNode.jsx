@@ -12,6 +12,13 @@ function LSNode({ data, selected }) {
         <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 flex-shrink-0 whitespace-nowrap">LS</span>
       </div>
       {data.description && <p className="text-xs text-purple-700 dark:text-purple-300 leading-snug break-words mt-1">{data.description}</p>}
+      {data.controller && (
+        <div className="mt-2">
+          <span className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-neutral-400">
+            Controller: {data.controller}
+          </span>
+        </div>
+      )}
       <Handle type="source" position={Position.Bottom} style={H} isConnectable={false} />
       <Handle type="target" position={Position.Top} style={H} isConnectable={false} />
     </div>

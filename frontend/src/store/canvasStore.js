@@ -20,13 +20,14 @@ function makeEdge(source, target, dashed = false) {
 function nodeTypeToPrefix(nodeType) {
   const map = {
     loss: 'loss', hazard: 'hazard', system_constraint: 'sc',
-    control_action: 'ca', uca: 'uca', loss_scenario: 'ls', root: 'root',
+    control_action: 'ca', uca: 'uca', controller_constraint: 'cc',
+    loss_scenario: 'ls', root: 'root',
   }
   return map[nodeType] || nodeType
 }
 
 function buildNodesAndEdges(data) {
-  const { project, losses = [], hazards = [], system_constraints = [], control_actions = [], ucas = [], loss_scenarios = [], canvas_edges = [], groups = [] } = data
+  const { project, losses = [], hazards = [], system_constraints = [], control_actions = [], ucas = [], controller_constraints = [], loss_scenarios = [], canvas_edges = [], groups = [] } = data
 
   const nodes = []
   const edges = []
@@ -178,6 +179,25 @@ function buildNodesAndEdges(data) {
         edges.push(makeEdge(`uca-${u.id}`, `hazard-${hid}`, true))
       })
     }
+  })
+
+  // Controller constraint nodes
+  controller_constraints.forEach((cc, idx) => {
+    const rfNode = {
+      id: `cc-${cc.id}`,
+      type: 'ccNode',
+      position: { x: (cc.x && cc.x !== 0) ? cc.x : idx * NODE_HORIZONTAL_SPACING + 100, y: (cc.y && cc.y !== 0) ? cc.y : LAYER_Y_POSITIONS.controller_constraint },
+      data: { ...cc, nodeType: 'controller_constraint' },
+    }
+    if (cc.group_id) rfNode.parentId = `group-${cc.group_id}`
+    nodes.push(rfNode)
+    if (cc.linked_uca_id) {
+      edges.push(makeEdge(`uca-${cc.linked_uca_id}`, `cc-${cc.id}`, false))
+    }
+    const ccUcaIds = cc.uca_ids && Array.isArray(cc.uca_ids) ? cc.uca_ids : []
+    ccUcaIds.filter(uid => uid !== cc.linked_uca_id).forEach(uid => {
+      edges.push(makeEdge(`cc-${cc.id}`, `uca-${uid}`, true))
+    })
   })
 
   // Loss scenario nodes

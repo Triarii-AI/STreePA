@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required
 from extensions import db
-from models import NodeGroup, Loss, Hazard, SystemConstraint, ControlAction, UCA, LossScenario
+from models import NodeGroup, Loss, Hazard, SystemConstraint, ControlAction, UCA, ControllerConstraint, LossScenario
 from routes.utils import check_project_access
 
 groups_bp = Blueprint('groups', __name__)
@@ -12,6 +12,7 @@ NODE_MODEL_MAP = {
     'system_constraint': SystemConstraint,
     'control_action': ControlAction,
     'uca': UCA,
+    'controller_constraint': ControllerConstraint,
     'loss_scenario': LossScenario,
 }
 

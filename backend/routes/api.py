@@ -3,8 +3,8 @@ from flask_login import login_required
 from extensions import db
 from models import (
     Project, Loss, Hazard, SystemConstraint, ControlAction,
-    UCA, LossScenario, CanvasEdge,
-    hazard_loss_links, uca_hazard_links, ls_hazard_links, sc_hazard_links
+    UCA, LossScenario, ControllerConstraint, CanvasEdge,
+    hazard_loss_links, uca_hazard_links, ls_hazard_links, sc_hazard_links, cc_uca_links
 )
 from routes.utils import check_project_access
 
@@ -19,7 +19,8 @@ LAYER_Y = {
     'system_constraint': 550,
     'control_action': 800,
     'uca': 1050,
-    'loss_scenario': 1300,
+    'controller_constraint': 1300,
+    'loss_scenario': 1550,
 }
 
 
@@ -79,6 +80,18 @@ def _next_sc_label(project_id, hazard_id=None):
     return f'SC-{h_num}'
 
 
+def _next_cc_label(project_id, uca_id=None):
+    if not uca_id:
+        count = ControllerConstraint.query.filter_by(project_id=project_id).count()
+        return f'CC-{count + 1}'
+    uca = UCA.query.get(uca_id)
+    if not uca:
+        count = ControllerConstraint.query.filter_by(project_id=project_id).count()
+        return f'CC-{count + 1}'
+    uca_num = uca.label[4:] if uca.label.startswith('UCA-') else str(uca_id)
+    return f'CC-{uca_num}'
+
+
 def _next_ca_label(project_id):
     count = ControlAction.query.filter_by(project_id=project_id).count()
     return f'R-{count + 1}'
@@ -130,7 +143,7 @@ def _relabel_hazard_tree(project_id, hazard_id):
 
 
 def _relabel_uca_children(project_id, uca_id):
-    """Relabel all LSs under a UCA to reflect its new label."""
+    """Relabel all LSs and Controller Constraints under a UCA to reflect its new label."""
     uca = UCA.query.get(uca_id)
     if not uca:
         return []
@@ -143,6 +156,11 @@ def _relabel_uca_children(project_id, uca_id):
         if new_label != child.label:
             child.label = new_label
             updated.append({'nodeType': 'loss_scenario', 'id': child.id, 'label': child.label})
+    for child in ControllerConstraint.query.filter_by(project_id=project_id, linked_uca_id=uca_id).all():
+        new_label = f'CC-{uca_num}'
+        if new_label != child.label:
+            child.label = new_label
+            updated.append({'nodeType': 'controller_constraint', 'id': child.id, 'label': child.label})
     return updated
 
 
@@ -419,6 +437,7 @@ def create_control_action(project_id):
         project_id=project_id,
         label=label,
         name=data.get('name', ''),
+        controller=data.get('controller', ''),
         x=data.get('x', idx_x),
         y=data.get('y', LAYER_Y['control_action'])
     )
@@ -435,6 +454,8 @@ def update_control_action(project_id, node_id):
     data = request.get_json() or {}
     if 'name' in data:
         node.name = data['name']
+    if 'controller' in data:
+        node.controller = data['controller']
     if 'x' in data:
         node.x = data['x']
     if 'y' in data:
@@ -548,10 +569,76 @@ def delete_uca(project_id, node_id):
         parts = child.label.rsplit('.', 1)
         child.label = f'LS-x.{parts[1]}' if len(parts) == 2 else 'LS-x'
         orphaned.append({'nodeType': 'loss_scenario', 'id': child.id, 'label': child.label})
+    cc_children = ControllerConstraint.query.filter_by(project_id=project_id, linked_uca_id=node_id).all()
+    for cc in cc_children:
+        cc.linked_uca_id = None
+        cc.label = 'CC-x'
+        orphaned.append({'nodeType': 'controller_constraint', 'id': cc.id, 'label': cc.label})
     db.session.flush()
     db.session.delete(node)
     db.session.commit()
     return jsonify({'success': True, 'orphaned': orphaned})
+
+
+# ─────────────────────────────────────────────
+# CONTROLLER CONSTRAINTS
+# ─────────────────────────────────────────────
+
+@api_bp.route('/projects/<int:project_id>/controller_constraints', methods=['POST'])
+@login_required
+def create_controller_constraint(project_id):
+    check_project_access(project_id, require_editor=True)
+    data = request.get_json() or {}
+    linked_uca_id = data.get('linked_uca_id', None)
+    label = _next_cc_label(project_id, linked_uca_id)
+    idx_x = _index_x(project_id, ControllerConstraint)
+    node = ControllerConstraint(
+        project_id=project_id,
+        label=label,
+        description=data.get('description', ''),
+        linked_uca_id=linked_uca_id,
+        x=data.get('x', idx_x),
+        y=data.get('y', LAYER_Y['controller_constraint'])
+    )
+    db.session.add(node)
+    db.session.commit()
+    return jsonify(node.to_dict()), 201
+
+
+@api_bp.route('/projects/<int:project_id>/controller_constraints/<int:node_id>', methods=['PUT'])
+@login_required
+def update_controller_constraint(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
+    node = ControllerConstraint.query.filter_by(id=node_id, project_id=project_id).first_or_404()
+    data = request.get_json() or {}
+    if 'description' in data:
+        node.description = data['description']
+    if 'linked_uca_id' in data:
+        new_uid = data['linked_uca_id']
+        if new_uid != node.linked_uca_id:
+            node.linked_uca_id = new_uid
+            if new_uid:
+                node.label = _next_cc_label(project_id, new_uid)
+            else:
+                node.label = 'CC-x'
+    if 'x' in data:
+        node.x = data['x']
+    if 'y' in data:
+        node.y = data['y']
+    if 'label' in data:
+        node.label = data['label']
+    db.session.commit()
+    return jsonify(node.to_dict())
+
+
+@api_bp.route('/projects/<int:project_id>/controller_constraints/<int:node_id>', methods=['DELETE'])
+@login_required
+def delete_controller_constraint(project_id, node_id):
+    check_project_access(project_id, require_editor=True)
+    node = ControllerConstraint.query.filter_by(id=node_id, project_id=project_id).first_or_404()
+    db.session.delete(node)
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 # ─────────────────────────────────────────────
@@ -699,6 +786,16 @@ def create_link(project_id):
         if not existing:
             db.session.execute(sc_hazard_links.insert().values(sc_id=from_id, hazard_id=to_id))
             db.session.commit()
+    elif from_type == 'controller_constraint' and to_type == 'uca':
+        existing = db.session.execute(
+            db.select(cc_uca_links).where(
+                cc_uca_links.c.cc_id == from_id,
+                cc_uca_links.c.uca_id == to_id
+            )
+        ).first()
+        if not existing:
+            db.session.execute(cc_uca_links.insert().values(cc_id=from_id, uca_id=to_id))
+            db.session.commit()
     else:
         return jsonify({'error': 'Unsupported link type combination'}), 400
 
@@ -760,6 +857,14 @@ def delete_link(project_id):
             sc_hazard_links.delete().where(
                 sc_hazard_links.c.sc_id == from_id,
                 sc_hazard_links.c.hazard_id == to_id
+            )
+        )
+        db.session.commit()
+    elif from_type == 'controller_constraint' and to_type == 'uca':
+        db.session.execute(
+            cc_uca_links.delete().where(
+                cc_uca_links.c.cc_id == from_id,
+                cc_uca_links.c.uca_id == to_id
             )
         )
         db.session.commit()

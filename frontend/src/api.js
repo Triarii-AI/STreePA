@@ -5,6 +5,7 @@ export function pluralize(nodeType) {
     system_constraint: 'system_constraints',
     control_action: 'control_actions',
     uca: 'ucas',
+    controller_constraint: 'controller_constraints',
     loss_scenario: 'loss_scenarios',
   }
   return map[nodeType] || nodeType + 's'

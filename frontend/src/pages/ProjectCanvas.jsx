@@ -17,6 +17,7 @@ function nodeTypePrefix(nodeType) {
     system_constraint: 'sc',
     control_action: 'ca',
     uca: 'uca',
+    controller_constraint: 'cc',
     loss_scenario: 'ls',
     root: 'root',
   }
@@ -41,6 +42,7 @@ function convertToRFNode(data) {
     system_constraint: 'scNode',
     control_action: 'caNode',
     uca: 'ucaNode',
+    controller_constraint: 'ccNode',
     loss_scenario: 'lsNode',
   }
   return {
@@ -150,6 +152,8 @@ export default function ProjectCanvas() {
       addRFEdge(makeRFEdge(`hazard-${node_data.parent_hazard_id}`, `hazard-${id}`, false))
     } else if (node_type === 'uca' && node_data.control_action_id) {
       addRFEdge(makeRFEdge(`ca-${node_data.control_action_id}`, `uca-${id}`, false))
+    } else if (node_type === 'controller_constraint' && node_data.linked_uca_id) {
+      addRFEdge(makeRFEdge(`uca-${node_data.linked_uca_id}`, `cc-${id}`, false))
     } else if (node_type === 'loss_scenario' && node_data.uca_id) {
       addRFEdge(makeRFEdge(`uca-${node_data.uca_id}`, `ls-${id}`, false))
     } else if (node_type === 'system_constraint' && node_data.linked_hazard_id) {
@@ -161,6 +165,9 @@ export default function ProjectCanvas() {
     })
     ;(node_data.hazard_ids || []).forEach(hid => {
       addRFEdge(makeRFEdge(`${prefix}-${id}`, `hazard-${hid}`, true))
+    })
+    ;(node_data.uca_ids || []).forEach(uid => {
+      if (uid !== node_data.linked_uca_id) addRFEdge(makeRFEdge(`${prefix}-${id}`, `uca-${uid}`, true))
     })
   }, [addRFNode, addRFEdge])
 

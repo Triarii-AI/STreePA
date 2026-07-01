@@ -20,6 +20,7 @@ const LAYER_LABELS = {
   system_constraint: 'System Constraint',
   control_action: 'Control Action',
   uca: 'UCA',
+  controller_constraint: 'Controller Constraint',
   loss_scenario: 'Loss Scenario',
 }
 
@@ -30,6 +31,7 @@ const LAYER_BADGE_COLORS = {
   system_constraint: 'bg-yellow-100 text-yellow-700',
   control_action: 'bg-green-100 text-green-700',
   uca: 'bg-blue-100 text-blue-700',
+  controller_constraint: 'bg-teal-100 text-teal-700',
   loss_scenario: 'bg-purple-100 text-purple-700',
 }
 
@@ -108,7 +110,7 @@ export default function NodePanel({ projectId }) {
 
   // Check if node has children (for collapse toggle)
   function handleFieldChange(field, value) {
-    const numericParentFields = ['parent_loss_id', 'parent_hazard_id', 'control_action_id', 'uca_id', 'linked_hazard_id']
+    const numericParentFields = ['parent_loss_id', 'parent_hazard_id', 'control_action_id', 'uca_id', 'linked_hazard_id', 'linked_uca_id']
     const parsed = numericParentFields.includes(field)
       ? (value === '' ? null : parseInt(value, 10))
       : value
@@ -164,10 +166,47 @@ export default function NodePanel({ projectId }) {
         for (const hid of oldHazardIds) removeRFEdge(`e-ls-${nodeId}-hazard-${hid}`)
         for (const hid of newHazardIds) addRFEdge(makeRFEdge(rfNodeId, `hazard-${hid}`, true))
       }
+      // Re-parenting onto a new ancestor changes the inherited Controller value
+      if (
+        ((nodeType === 'uca' && 'control_action_id' in changedFields) ||
+         (nodeType === 'loss_scenario' && 'uca_id' in changedFields) ||
+         (nodeType === 'controller_constraint' && 'linked_uca_id' in changedFields)) &&
+        result?.controller !== undefined
+      ) {
+        mergedUpdate.controller = result.controller
+      }
       updateRFNode(rfNodeId, mergedUpdate)
       ;(result?.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
         updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
       })
+      // Propagate Controller changes live to descendant UCAs, Controller Constraints, and Loss Scenarios
+      if (nodeType === 'control_action' && 'controller' in changedFields) {
+        const newController = changedFields.controller
+        nodes.filter(n => n.data?.nodeType === 'uca' && n.data.control_action_id === nodeId).forEach(u => {
+          updateRFNode(u.id, { controller: newController })
+          socket.emit('node:updated', { project_id: projectId, node_type: 'uca', node_id: u.data.id, changed_fields: { controller: newController } })
+          nodes.filter(n => n.data?.nodeType === 'loss_scenario' && n.data.uca_id === u.data.id).forEach(ls => {
+            updateRFNode(ls.id, { controller: newController })
+            socket.emit('node:updated', { project_id: projectId, node_type: 'loss_scenario', node_id: ls.data.id, changed_fields: { controller: newController } })
+          })
+          nodes.filter(n => n.data?.nodeType === 'controller_constraint' && n.data.linked_uca_id === u.data.id).forEach(cc => {
+            updateRFNode(cc.id, { controller: newController })
+            socket.emit('node:updated', { project_id: projectId, node_type: 'controller_constraint', node_id: cc.data.id, changed_fields: { controller: newController } })
+          })
+        })
+      }
+      // When a UCA is re-parented onto a different Control Action, cascade its new Controller to its own children
+      if (nodeType === 'uca' && 'control_action_id' in changedFields && result?.controller !== undefined) {
+        const newController = result.controller
+        nodes.filter(n => n.data?.nodeType === 'loss_scenario' && n.data.uca_id === nodeId).forEach(ls => {
+          updateRFNode(ls.id, { controller: newController })
+          socket.emit('node:updated', { project_id: projectId, node_type: 'loss_scenario', node_id: ls.data.id, changed_fields: { controller: newController } })
+        })
+        nodes.filter(n => n.data?.nodeType === 'controller_constraint' && n.data.linked_uca_id === nodeId).forEach(cc => {
+          updateRFNode(cc.id, { controller: newController })
+          socket.emit('node:updated', { project_id: projectId, node_type: 'controller_constraint', node_id: cc.data.id, changed_fields: { controller: newController } })
+        })
+      }
       // Update parent edges when structural parent fields change; compute old/new RF IDs for remote sync
       let oldParentRfId, newParentRfId
       if ('parent_loss_id' in changedFields) {
@@ -210,6 +249,14 @@ export default function NodePanel({ projectId }) {
         if (oldHid) removeRFEdge(`e-hazard-${oldHid}-sc-${nodeId}`)
         if (newHid) addRFEdge(makeRFEdge(`hazard-${newHid}`, `sc-${nodeId}`, false))
       }
+      if ('linked_uca_id' in changedFields) {
+        const oldUid = nodeData.linked_uca_id
+        const newUid = changedFields.linked_uca_id
+        oldParentRfId = oldUid ? `uca-${oldUid}` : null
+        newParentRfId = newUid ? `uca-${newUid}` : null
+        if (oldUid) removeRFEdge(`e-uca-${oldUid}-cc-${nodeId}`)
+        if (newUid) addRFEdge(makeRFEdge(`uca-${newUid}`, `cc-${nodeId}`, false))
+      }
       socket.emit('node:updated', {
         project_id: projectId,
         node_type: nodeType,
@@ -221,7 +268,7 @@ export default function NodePanel({ projectId }) {
       ;(result?.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
         socket.emit('node:updated', { project_id: projectId, node_type: nt, node_id: id, changed_fields: { label } })
       })
-      const STRUCT_PARENT_FIELDS = ['parent_loss_id', 'parent_hazard_id', 'control_action_id', 'uca_id', 'linked_hazard_id']
+      const STRUCT_PARENT_FIELDS = ['parent_loss_id', 'parent_hazard_id', 'control_action_id', 'uca_id', 'linked_hazard_id', 'linked_uca_id']
       const reparentField = STRUCT_PARENT_FIELDS.find(f => f in changedFields)
       if (reparentField) {
         useCanvasStore.getState().pushHistory({
@@ -285,6 +332,7 @@ export default function NodePanel({ projectId }) {
         hazard: 'parent_hazard_id',
         system_constraint: 'linked_hazard_id',
         uca: 'control_action_id',
+        controller_constraint: 'linked_uca_id',
         loss_scenario: 'uca_id',
       }
       ;(result?.orphaned || []).forEach(({ nodeType: nt, id, label }) => {
@@ -375,6 +423,7 @@ export default function NodePanel({ projectId }) {
 
   const currentLossIds = formData.loss_ids || nodeData.loss_ids || []
   const currentHazardIds = formData.hazard_ids || nodeData.hazard_ids || []
+  const currentUcaIds = formData.uca_ids || nodeData.uca_ids || []
   const linkedHazardId = formData.linked_hazard_id || nodeData.linked_hazard_id
 
   return (
@@ -520,6 +569,15 @@ export default function NodePanel({ projectId }) {
         {nodeType === 'control_action' && (
           <>
             <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Controller</label>
+              <input
+                type="text"
+                value={formData.controller || ''}
+                onChange={e => handleFieldChange('controller', e.target.value)}
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+              />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Name</label>
               <input
                 type="text"
@@ -565,6 +623,44 @@ export default function NodePanel({ projectId }) {
                 focusRingClass="focus:ring-blue-400"
               />
             </div>
+            {nodeData.controller && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1">Controller</label>
+                <p className="text-xs text-gray-400 dark:text-neutral-500 italic mb-1">Automatically inherited from parent Control Action</p>
+                <p className="text-xs text-gray-600 dark:text-neutral-300">{nodeData.controller}</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {nodeType === 'controller_constraint' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description</label>
+              <textarea
+                value={formData.description || ''}
+                onChange={e => handleFieldChange('description', e.target.value)}
+                rows={3}
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Parent UCA</label>
+              <SearchableSelect
+                value={formData.linked_uca_id || ''}
+                onChange={v => handleFieldChange('linked_uca_id', v)}
+                options={allUCAs}
+                placeholder="None"
+                focusRingClass="focus:ring-teal-400"
+              />
+            </div>
+            {nodeData.controller && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1">Controller</label>
+                <p className="text-xs text-gray-400 dark:text-neutral-500 italic mb-1">Automatically inherited from parent Control Action</p>
+                <p className="text-xs text-gray-600 dark:text-neutral-300">{nodeData.controller}</p>
+              </div>
+            )}
           </>
         )}
 
@@ -589,6 +685,13 @@ export default function NodePanel({ projectId }) {
                 focusRingClass="focus:ring-purple-400"
               />
             </div>
+            {nodeData.controller && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-neutral-400 mb-1">Controller</label>
+                <p className="text-xs text-gray-400 dark:text-neutral-500 italic mb-1">Automatically inherited from parent Control Action</p>
+                <p className="text-xs text-gray-600 dark:text-neutral-300">{nodeData.controller}</p>
+              </div>
+            )}
           </>
         )}
 
@@ -703,6 +806,27 @@ export default function NodePanel({ projectId }) {
                   }}
                   accentClass="accent-yellow-500"
                   isMainFn={isMainHazard}
+                />
+              )
+            }
+          </div>
+        )}
+
+        {/* Controller Constraint → UCAs (multi-select checkboxes) */}
+        {nodeType === 'controller_constraint' && (
+          <div className="border-t border-gray-100 dark:border-neutral-700 pt-3">
+            <p className="text-xs font-semibold text-gray-600 dark:text-neutral-400 mb-2">Linked UCAs</p>
+            {allUCAs.length === 0
+              ? <p className="text-xs text-gray-400 dark:text-neutral-500">No UCAs exist yet.</p>
+              : (
+                <SearchableCheckboxList
+                  items={allUCAs}
+                  selectedIds={currentUcaIds}
+                  onToggle={(id, checked) => {
+                    if (checked) handleAddLink('controller_constraint', nodeId, 'uca', id)
+                    else handleRemoveLink('controller_constraint', nodeId, 'uca', id)
+                  }}
+                  accentClass="accent-teal-500"
                 />
               )
             }

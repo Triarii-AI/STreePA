@@ -3,7 +3,7 @@ from flask_login import current_user
 from flask import request
 from flask_socketio import join_room, emit
 from extensions import db
-from models import Loss, Hazard, SystemConstraint, ControlAction, UCA, LossScenario
+from models import Loss, Hazard, SystemConstraint, ControlAction, UCA, ControllerConstraint, LossScenario
 
 room_users = {}  # { room_key: { sid: { user_id, username, avatar_color } } }
 
@@ -28,6 +28,7 @@ def get_model_for_type(node_type):
         'system_constraint': SystemConstraint,
         'control_action': ControlAction,
         'uca': UCA,
+        'controller_constraint': ControllerConstraint,
         'loss_scenario': LossScenario,
     }
     return mapping.get(node_type)

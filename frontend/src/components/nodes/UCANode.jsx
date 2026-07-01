@@ -20,6 +20,13 @@ function UCANode({ data, selected }) {
           <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: typeColor }}>{typeLabel}</span>
         </div>
       )}
+      {data.controller && (
+        <div className="mt-1.5">
+          <span className="inline-block text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-neutral-400">
+            Controller: {data.controller}
+          </span>
+        </div>
+      )}
       <Handle type="source" position={Position.Bottom} style={H} isConnectable={false} />
       <Handle type="target" position={Position.Top} style={H} isConnectable={false} />
     </div>

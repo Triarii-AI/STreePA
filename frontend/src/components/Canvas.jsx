@@ -28,6 +28,7 @@ import HazardNode from './nodes/HazardNode.jsx'
 import SCNode from './nodes/SCNode.jsx'
 import CANode from './nodes/CANode.jsx'
 import UCANode from './nodes/UCANode.jsx'
+import CCNode from './nodes/CCNode.jsx'
 import LSNode from './nodes/LSNode.jsx'
 import GroupNode from './nodes/GroupNode.jsx'
 import AddNodeForm from './forms/AddNodeForm.jsx'
@@ -41,6 +42,7 @@ const nodeTypes = {
   scNode: SCNode,
   caNode: CANode,
   ucaNode: UCANode,
+  ccNode: CCNode,
   lsNode: LSNode,
   groupNode: GroupNode,
 }
@@ -55,6 +57,7 @@ const LAYER_BUTTONS = [
   { nodeType: 'system_constraint', label: '+ Sys. Constraint', colorClass: 'bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100' },
   { nodeType: 'control_action', label: '+ Control Action', colorClass: 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100' },
   { nodeType: 'uca', label: '+ UCA', colorClass: 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100' },
+  { nodeType: 'controller_constraint', label: '+ Ctrl. Constraint', colorClass: 'bg-teal-50 border-teal-300 text-teal-700 hover:bg-teal-100' },
   { nodeType: 'loss_scenario', label: '+ Loss Scenario', colorClass: 'bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100' },
 ]
 
@@ -66,6 +69,7 @@ function getNodeColor(type) {
     scNode: '#eab308',
     caNode: '#22c55e',
     ucaNode: '#3b82f6',
+    ccNode: '#14b8a6',
     lsNode: '#8b5cf6',
   }
   return colorMap[type] || '#94a3b8'
@@ -79,14 +83,14 @@ function getNodeColor(type) {
 const minimapNodeColor = (n) => getNodeColor(n.type)
 
 const RF_PREFIX_TO_TYPE = {
-  sc: 'system_constraint', ca: 'control_action', uca: 'uca',
+  sc: 'system_constraint', ca: 'control_action', uca: 'uca', cc: 'controller_constraint',
   ls: 'loss_scenario', loss: 'loss', hazard: 'hazard', root: 'root',
   group: 'group',
 }
 
 const RF_TYPE_MAP = {
   loss: 'lossNode', hazard: 'hazardNode', system_constraint: 'scNode',
-  control_action: 'caNode', uca: 'ucaNode', loss_scenario: 'lsNode',
+  control_action: 'caNode', uca: 'ucaNode', controller_constraint: 'ccNode', loss_scenario: 'lsNode',
 }
 
 function AlignLeftIcon() {
@@ -173,6 +177,7 @@ const ORPHAN_NULL_FIELD = {
   hazard: 'parent_hazard_id',
   system_constraint: 'linked_hazard_id',
   uca: 'control_action_id',
+  controller_constraint: 'linked_uca_id',
   loss_scenario: 'uca_id',
 }
 // Maps each FK field to the node type it references (used to skip cascaded relabels)
@@ -181,6 +186,7 @@ const FK_PARENT_TYPE = {
   parent_hazard_id: 'hazard',
   linked_hazard_id: 'hazard',
   control_action_id: 'control_action',
+  linked_uca_id: 'uca',
   uca_id: 'uca',
 }
 
@@ -206,12 +212,14 @@ async function recreateNode(entry) {
   const payload = { x: position.x, y: position.y }
   if (nodeData.description) payload.description = nodeData.description
   if (nodeData.name) payload.name = nodeData.name
+  if (nodeData.controller) payload.controller = nodeData.controller
   if (nodeData.uca_type) payload.uca_type = nodeData.uca_type
   if (nodeData.control_action_id) payload.control_action_id = parseInt(nodeData.control_action_id)
   if (nodeData.uca_id) payload.uca_id = parseInt(nodeData.uca_id)
   if (nodeData.parent_loss_id) payload.parent_loss_id = parseInt(nodeData.parent_loss_id)
   if (nodeData.parent_hazard_id) payload.parent_hazard_id = parseInt(nodeData.parent_hazard_id)
   if (nodeData.linked_hazard_id) payload.linked_hazard_id = parseInt(nodeData.linked_hazard_id)
+  if (nodeData.linked_uca_id) payload.linked_uca_id = parseInt(nodeData.linked_uca_id)
 
   const result = await createNode(projectId, nodeType, payload)
   const newNodeData = result[nodeType] || result.node || result
@@ -238,6 +246,8 @@ async function recreateNode(entry) {
     store.addRFEdge(makeRFEdge(`hazard-${payload.parent_hazard_id}`, newRfId, false))
   } else if (nodeType === 'uca' && payload.control_action_id) {
     store.addRFEdge(makeRFEdge(`ca-${payload.control_action_id}`, newRfId, false))
+  } else if (nodeType === 'controller_constraint' && payload.linked_uca_id) {
+    store.addRFEdge(makeRFEdge(`uca-${payload.linked_uca_id}`, newRfId, false))
   } else if (nodeType === 'loss_scenario' && payload.uca_id) {
     store.addRFEdge(makeRFEdge(`uca-${payload.uca_id}`, newRfId, false))
   }
@@ -265,6 +275,18 @@ async function recreateNode(entry) {
   if (nodeType === 'system_constraint' && payload.linked_hazard_id) {
     store.addRFEdge(makeRFEdge(newRfId, `hazard-${payload.linked_hazard_id}`, true))
   }
+  if (nodeType === 'controller_constraint' && payload.linked_uca_id) {
+    store.addRFEdge(makeRFEdge(newRfId, `uca-${payload.linked_uca_id}`, true))
+  }
+
+  // Controller constraint's "additional linked UCAs" (analogous to SC's hazard_ids)
+  const ucaIdsForLinks = nodeType === 'controller_constraint' ? (nodeData.uca_ids || []) : []
+  for (const uid of ucaIdsForLinks) {
+    try {
+      await createLink(projectId, 'controller_constraint', newNodeId, 'uca', uid)
+      store.addRFEdge(makeRFEdge(newRfId, `uca-${uid}`, true))
+    } catch (_) {}
+  }
 
   // newNodeData from the server has empty reference arrays (links didn't exist yet when it
   // was created), so the spread in addRFNode wiped out the snapshot's hazard_ids/loss_ids.
@@ -272,6 +294,7 @@ async function recreateNode(entry) {
   const restoredRefs = {}
   if (nodeData.loss_ids?.length) restoredRefs.loss_ids = nodeData.loss_ids
   if (nodeType !== 'loss_scenario' && hazardIdsForLinks.length) restoredRefs.hazard_ids = hazardIdsForLinks
+  if (ucaIdsForLinks.length) restoredRefs.uca_ids = ucaIdsForLinks
   if (Object.keys(restoredRefs).length) store.updateRFNode(newRfId, restoredRefs)
 
   // Restore parent→child connections for nodes that were orphaned when this node was deleted.
@@ -881,6 +904,20 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         return
       }
 
+      // ── Group selected nodes (Ctrl+G) ──────────────────────────────────
+      if (ctrl && e.key.toLowerCase() === 'g' && !e.shiftKey) {
+        e.preventDefault()
+        handleGroup()
+        return
+      }
+
+      // ── Ungroup (Ctrl+Shift+G) ──────────────────────────────────────────
+      if (ctrl && e.shiftKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault()
+        handleUngroup()
+        return
+      }
+
       // ── Arrow keys: move selected nodes ───────────────────────────────
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) && !ctrl) {
         const selected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && !n.data?.hidden)
@@ -920,7 +957,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
           id: n.id,
           type: n.type,
           position: { ...n.position },
-          data: { ...n.data, loss_ids: [...(n.data.loss_ids || [])], hazard_ids: [...(n.data.hazard_ids || [])] },
+          data: { ...n.data, loss_ids: [...(n.data.loss_ids || [])], hazard_ids: [...(n.data.hazard_ids || [])], uca_ids: [...(n.data.uca_ids || [])] },
         })))
         return
       }
@@ -1516,6 +1553,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                       { keys: 'Ctrl+V', desc: 'Paste / duplicate' },
                       { keys: 'Ctrl+Z', desc: 'Undo last move' },
                       { keys: 'Ctrl+Y / Ctrl+Shift+Z', desc: 'Redo last move' },
+                      { keys: 'Ctrl+G', desc: 'Group selected nodes' },
+                      { keys: 'Ctrl+Shift+G', desc: 'Ungroup' },
                     ].map(({ keys, desc }) => (
                       <div key={keys} className="flex items-center justify-between gap-3">
                         <span className="font-mono text-[10px] bg-gray-100 dark:bg-neutral-700 text-gray-600 dark:text-neutral-300 px-1.5 py-0.5 rounded whitespace-nowrap">{keys}</span>

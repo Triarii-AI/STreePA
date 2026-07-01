@@ -8,6 +8,7 @@ const LAYER_DOT_COLORS = {
   system_constraint: 'bg-yellow-400',
   control_action: 'bg-green-400',
   uca: 'bg-blue-400',
+  controller_constraint: 'bg-teal-400',
   loss_scenario: 'bg-purple-400',
 }
 
@@ -17,6 +18,7 @@ const LAYER_SECTION_LABELS = {
   system_constraint: 'System Constraints',
   control_action: 'Control Actions',
   uca: 'UCAs',
+  controller_constraint: 'Controller Constraints',
   loss_scenario: 'Loss Scenarios',
 }
 
@@ -170,6 +172,7 @@ export default function Sidebar() {
       system_constraint: flatItems('system_constraint'),
       control_action: flatItems('control_action'),
       uca: flatItems('uca'),
+      controller_constraint: flatItems('controller_constraint'),
       loss_scenario: flatItems('loss_scenario'),
     }
   }, [nodes])

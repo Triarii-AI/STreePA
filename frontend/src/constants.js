@@ -5,6 +5,7 @@ export const LAYER_COLORS = {
   system_constraint: { bg: '#fefce8', border: '#eab308', text: '#854d0e' },
   control_action: { bg: '#f0fdf4', border: '#22c55e', text: '#166534' },
   uca: { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af' },
+  controller_constraint: { bg: '#f0fdfa', border: '#14b8a6', text: '#115e59' },
   loss_scenario: { bg: '#faf5ff', border: '#8b5cf6', text: '#6b21a8' },
 }
 
@@ -29,7 +30,8 @@ export const LAYER_Y_POSITIONS = {
   system_constraint: 740,
   control_action: 970,
   uca: 1200,
-  loss_scenario: 1430,
+  controller_constraint: 1430,
+  loss_scenario: 1660,
 }
 
 export const NODE_HORIZONTAL_SPACING = 240
@@ -37,7 +39,8 @@ export const NODE_HORIZONTAL_SPACING = 240
 export function nodeTypeToPrefix(nodeType) {
   const map = {
     loss: 'loss', hazard: 'hazard', system_constraint: 'sc',
-    control_action: 'ca', uca: 'uca', loss_scenario: 'ls', root: 'root',
+    control_action: 'ca', uca: 'uca', controller_constraint: 'cc',
+    loss_scenario: 'ls', root: 'root',
   }
   return map[nodeType] || nodeType
 }

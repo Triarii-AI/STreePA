@@ -11,6 +11,7 @@ const NODE_TYPE_LABELS = {
   system_constraint: 'System Constraint',
   control_action: 'Control Action',
   uca: 'UCA',
+  controller_constraint: 'Controller Constraint',
   loss_scenario: 'Loss Scenario',
 }
 
@@ -20,6 +21,7 @@ const LABEL_EXAMPLES = {
   system_constraint: 'e.g. SC-2',
   control_action: 'e.g. R-1',
   uca: 'e.g. UCA-5',
+  controller_constraint: 'e.g. CC-5',
   loss_scenario: 'e.g. LS-6',
 }
 
@@ -29,6 +31,7 @@ const NODE_TYPE_PREFIXES = {
   system_constraint: 'sc',
   control_action: 'ca',
   uca: 'uca',
+  controller_constraint: 'cc',
   loss_scenario: 'ls',
 }
 
@@ -38,6 +41,7 @@ const RF_NODE_TYPES = {
   system_constraint: 'scNode',
   control_action: 'caNode',
   uca: 'ucaNode',
+  controller_constraint: 'ccNode',
   loss_scenario: 'lsNode',
 }
 
@@ -60,6 +64,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
   const [formData, setFormData] = useState({})
   const [selectedLossIds, setSelectedLossIds] = useState([])
   const [selectedHazardIds, setSelectedHazardIds] = useState([])
+  const [selectedUcaIds, setSelectedUcaIds] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -157,6 +162,10 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
       setError('Parent hazard is required.')
       return
     }
+    if (nodeType === 'controller_constraint' && !formData.linked_uca_id) {
+      setError('Parent UCA is required.')
+      return
+    }
 
     setLoading(true)
     try {
@@ -166,6 +175,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
       if (payload.linked_hazard_id) payload.linked_hazard_id = parseInt(payload.linked_hazard_id)
       if (payload.control_action_id) payload.control_action_id = parseInt(payload.control_action_id)
       if (payload.uca_id) payload.uca_id = parseInt(payload.uca_id)
+      if (payload.linked_uca_id) payload.linked_uca_id = parseInt(payload.linked_uca_id)
 
       const result = await createNode(projectId, nodeType, payload)
       const nodeData = result[nodeType] || result.node || result
@@ -193,6 +203,9 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
       }
       if (nodeType === 'system_constraint' && payload.linked_hazard_id) {
         addRFEdge(makeRFEdge(`hazard-${payload.linked_hazard_id}`, `sc-${nodeData.id}`, false))
+      }
+      if (nodeType === 'controller_constraint' && payload.linked_uca_id) {
+        addRFEdge(makeRFEdge(`uca-${payload.linked_uca_id}`, `cc-${nodeData.id}`, false))
       }
 
       // Create hazard→loss links
@@ -226,6 +239,21 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         }
       }
 
+      // Create UCA links for Controller Constraint (additional linked UCAs)
+      if (nodeType === 'controller_constraint' && selectedUcaIds.length > 0) {
+        const linkedUcaIds = []
+        for (const uid of selectedUcaIds) {
+          try {
+            await createLink(projectId, 'controller_constraint', nodeData.id, 'uca', uid)
+            addRFEdge(makeRFEdge(`cc-${nodeData.id}`, `uca-${uid}`, true))
+            linkedUcaIds.push(uid)
+          } catch (_) {}
+        }
+        if (linkedUcaIds.length > 0) {
+          useCanvasStore.getState().updateRFNode(rfNode.id, { uca_ids: linkedUcaIds })
+        }
+      }
+
       // LS: auto-add RF edges for hazards inherited from parent UCA
       if (nodeType === 'loss_scenario') {
         for (const hid of (nodeData.hazard_ids || [])) {
@@ -240,6 +268,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
           ...nodeData,
           loss_ids: selectedLossIds,
           hazard_ids: nodeType === 'loss_scenario' ? (nodeData.hazard_ids || []) : selectedHazardIds,
+          uca_ids: selectedUcaIds,
         },
         position,
       })
@@ -251,7 +280,7 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
         nodeId: nodeData.id,
         projectId,
         snapshot: {
-          nodeData: { ...nodeData, nodeType, loss_ids: selectedLossIds.length > 0 ? selectedLossIds : [], hazard_ids: selectedHazardIds.length > 0 ? selectedHazardIds : [] },
+          nodeData: { ...nodeData, nodeType, loss_ids: selectedLossIds.length > 0 ? selectedLossIds : [], hazard_ids: selectedHazardIds.length > 0 ? selectedHazardIds : [], uca_ids: selectedUcaIds.length > 0 ? selectedUcaIds : [] },
           position,
           rfNodeType: RF_NODE_TYPES[nodeType],
         },
@@ -401,17 +430,29 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
 
         {/* Control Action */}
         {nodeType === 'control_action' && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Name <span className="text-red-500">*</span></label>
-            <input
-              type="text"
-              value={formData.name || ''}
-              onChange={e => handleChange('name', e.target.value)}
-              placeholder="e.g. Apply brakes"
-              className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
-              required
-            />
-          </div>
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Controller</label>
+              <input
+                type="text"
+                value={formData.controller || ''}
+                onChange={e => handleChange('controller', e.target.value)}
+                placeholder="e.g. Autopilot"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Name <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                value={formData.name || ''}
+                onChange={e => handleChange('name', e.target.value)}
+                placeholder="e.g. Apply brakes"
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+                required
+              />
+            </div>
+          </>
         )}
 
         {/* UCA */}
@@ -461,6 +502,45 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
                   onToggle={(id, checked) => setSelectedHazardIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
                   accentClass="accent-blue-500"
                   isMainFn={isMainHazard}
+                />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Controller Constraint */}
+        {nodeType === 'controller_constraint' && (
+          <>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Description <span className="text-red-500">*</span></label>
+              <textarea
+                value={formData.description || ''}
+                onChange={e => handleChange('description', e.target.value)}
+                rows={3}
+                placeholder="Describe the controller constraint..."
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Parent UCA <span className="text-red-500">*</span></label>
+              <SearchableSelect
+                value={formData.linked_uca_id || ''}
+                onChange={v => handleChange('linked_uca_id', v)}
+                options={allUCAs}
+                placeholder="Select UCA..."
+                focusRingClass="focus:ring-teal-400"
+                required
+              />
+            </div>
+            {allUCAs.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Additional Linked UCAs (optional)</label>
+                <SearchableCheckboxList
+                  items={allUCAs}
+                  selectedIds={selectedUcaIds}
+                  onToggle={(id, checked) => setSelectedUcaIds(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
+                  accentClass="accent-teal-500"
                 />
               </div>
             )}
