@@ -52,13 +52,13 @@ const edgeTypes = {
 }
 
 const LAYER_BUTTONS = [
-  { nodeType: 'loss', label: '+ Loss', colorClass: 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100' },
-  { nodeType: 'hazard', label: '+ Hazard', colorClass: 'bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100' },
-  { nodeType: 'system_constraint', label: '+ Sys. Constraint', colorClass: 'bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100' },
-  { nodeType: 'control_action', label: '+ Control Action', colorClass: 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100' },
-  { nodeType: 'uca', label: '+ UCA', colorClass: 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100' },
-  { nodeType: 'controller_constraint', label: '+ Ctrl. Constraint', colorClass: 'bg-teal-50 border-teal-300 text-teal-700 hover:bg-teal-100' },
-  { nodeType: 'loss_scenario', label: '+ Loss Scenario', colorClass: 'bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100' },
+  { nodeType: 'loss', label: '+ Loss', colorClass: 'bg-red-50 dark:bg-red-950 border-red-400 dark:border-red-600 text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-900' },
+  { nodeType: 'hazard', label: '+ Hazard', colorClass: 'bg-orange-50 dark:bg-orange-950 border-orange-400 dark:border-orange-600 text-orange-800 dark:text-orange-200 hover:bg-orange-100 dark:hover:bg-orange-900' },
+  { nodeType: 'system_constraint', label: '+ Sys. Constraint', colorClass: 'bg-yellow-50 dark:bg-yellow-950 border-yellow-400 dark:border-yellow-600 text-yellow-800 dark:text-yellow-200 hover:bg-yellow-100 dark:hover:bg-yellow-900' },
+  { nodeType: 'control_action', label: '+ Control Action', colorClass: 'bg-green-50 dark:bg-green-950 border-green-400 dark:border-green-600 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-900' },
+  { nodeType: 'uca', label: '+ UCA', colorClass: 'bg-blue-50 dark:bg-blue-950 border-blue-400 dark:border-blue-600 text-blue-800 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900' },
+  { nodeType: 'controller_constraint', label: '+ Ctrl. Constraint', colorClass: 'bg-teal-50 dark:bg-teal-950 border-teal-400 dark:border-teal-600 text-teal-800 dark:text-teal-200 hover:bg-teal-100 dark:hover:bg-teal-900' },
+  { nodeType: 'loss_scenario', label: '+ Loss Scenario', colorClass: 'bg-purple-50 dark:bg-purple-950 border-purple-400 dark:border-purple-600 text-purple-800 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900' },
 ]
 
 function getNodeColor(type) {
@@ -1421,7 +1421,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               <button
                 key={btn.nodeType}
                 onClick={() => openAddForm(btn.nodeType)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap bg-white/90 dark:bg-neutral-800/90 ${btn.colorClass}`}
+                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors shadow-sm whitespace-nowrap ${btn.colorClass}`}
               >
                 {btn.label}
               </button>
