@@ -43,16 +43,20 @@ STreePA models all seven layers as connected nodes on a live canvas, preserving 
 - **Interactive canvas** — pan, zoom, and freely drag nodes on an infinite canvas powered by React Flow
 - **Seven-layer STPA tree** — structured node types with auto-generated labels (`L-1`, `H-2.1`, `UCA-1.3`, `LS-1.3.2`, …)
 - **Two edge types** — solid arrows for parent-child hierarchy, dashed arrows for cross-layer references
-- **Sub-hazards** — hazards can have child hazards, collapsible to reduce visual clutter
-- **Node grouping** — group nodes into labeled, resizable containers
-- **Real-time collaboration** — all canvas changes sync instantly to every connected user via WebSocket
+- **Sub-hazards and sub-losses** — hazards and losses can each have child nodes, collapsible to reduce visual clutter
+- **Controller Constraints** — a child node type under UCAs (mirrors System Constraints) for constraining the controller's behavior
+- **Controller field on Control Actions** — optionally tag a Control Action with the controller that issues it; the value is inherited and displayed on its UCAs, Controller Constraints, and Loss Scenarios, and propagates live if changed
+- **Node grouping** — group nodes into labeled, resizable containers that nest, auto-dissolve when down to one member, and move/align/distribute as a unit
+- **Multi-node copy/paste** — select multiple nodes and Ctrl+C/Ctrl+V to duplicate them together, preserving fields, links, and internal parent-child structure
+- **Node reparenting** — change a node's structural parent from its detail panel; edges and labels update live for all collaborators and support undo/redo
+- **Real-time collaboration** — all canvas changes sync instantly to every connected user via WebSocket, including group operations
 - **Presence indicators** — see which teammates are currently viewing a project
 - **Project sharing** — share projects with other users on the instance
 - **Dark mode** — per-user preference, persisted across sessions
 - **Collapsible sidebar** — lists all nodes by layer for quick navigation
 - **Export to SVG** — true vector export, scalable and editable
 - **Export to PNG** — pixel-accurate render via headless Chromium, with cross-reference edges composited server-side
-- **Automatic backups** — timestamped SQLite snapshots stored in `backend/backups/`
+- **Automatic backups** — timestamped SQLite snapshots stored in `backend/backups/`, including canvas groups on JSON export/import
 
 ---
 
@@ -127,6 +131,14 @@ FRONTEND_PORT=5173
 
 Edit those two lines to use any ports you need.
 
+### Exposing on Your Network
+
+To make the frontend reachable from other devices on your LAN, pass `--host` with the machine's IP address:
+
+```bash
+./run.sh --host 192.168.1.50
+```
+
 ---
 
 ## First-Time Usage
@@ -150,11 +162,12 @@ Each layer has its own node type, color, and label format. Nodes at lower layers
 - Displays the project title and purpose statement
 - All Loss nodes connect upward to this node with solid arrows
 
-### Layer 2 — Losses `L-1, L-2, …`
+### Layer 2 — Losses `L-1, L-2, …` and Sub-losses `L-1.1, L-1.2, …`
 
 - Represent unacceptable outcomes the system must avoid
 - Click **+ Loss** on the canvas to add one
 - Automatically connected to the root with solid arrows
+- Losses can have **sub-losses** — a loss can be assigned a parent loss via the panel, labeled with the parent's number (e.g., `L-1.1` is the first sub-loss of `L-1`)
 
 ### Layer 3 — Hazards `H-1, H-2, …` and Sub-hazards `H-2.1, H-2.2, …`
 
@@ -172,6 +185,7 @@ Each layer has its own node type, color, and label format. Nodes at lower layers
 
 - Actions a controller can issue to the system
 - Displayed as their own layer; parent nodes for UCAs below
+- Optional **Controller** field identifies who/what issues the action; this value is inherited and shown on the Control Action's UCAs, Controller Constraints, and Loss Scenarios, and updates live everywhere it's used if changed
 
 ### Layer 6 — Unsafe Control Actions `UCA-1.1, UCA-1.2, …`
 
@@ -186,6 +200,12 @@ Each layer has its own node type, color, and label format. Nodes at lower layers
 | Providing Causes Hazard | Issuing it causes a hazard |
 | Wrong Timing / Order | Issued at the wrong time or out of sequence |
 | Duration Issue | Lasts too long or stops too soon |
+
+### Controller Constraints `CC-1.1, CC-1.2, …` (labeled after their parent UCA)
+
+- Constraints on the controller's behavior, mirroring System Constraints one layer up
+- Each Controller Constraint belongs to a UCA and can additionally link to other UCAs
+- Label format: `CC-<UCA number>`, inherits the Controller value from its parent UCA's Control Action
 
 ### Layer 7 — Loss Scenarios `LS-1.2.1, LS-1.2.3, …`
 
@@ -237,7 +257,23 @@ The collapsible left sidebar lists all nodes organized by layer. Click any entry
 
 ### Groups
 
-Nodes can be placed inside labeled group containers for visual organization. Groups can be nested and resized.
+Nodes can be placed inside labeled group containers for visual organization. Select nodes and press **Ctrl+G** to group them (grouping a group with other nodes/groups nests it inside a new parent group), or **Ctrl+Shift+G** to ungroup. Groups can be nested and resized, move as a single unit when dragged or aligned/distributed, and automatically dissolve when only one member remains. Group operations sync live to all collaborators.
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| Drag on empty canvas | Select |
+| Shift+click | Add to selection |
+| Space+drag | Pan |
+| Del / Backspace | Delete |
+| Ctrl+C / Ctrl+V | Copy / paste (supports multiple selected nodes at once) |
+| Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / redo |
+| Ctrl+G / Ctrl+Shift+G | Group / ungroup |
+
+A reference card for these is also available in-app via the shortcuts guide toggle on the canvas.
+
+Note: enabling cross-reference arrow display can cause noticeable lag on large projects.
 
 ---
 
@@ -305,7 +341,7 @@ STreePA/
 │   ├── app.py               # Flask app factory and frontend serving
 │   ├── config.py            # App configuration (env-variable overrides with safe defaults)
 │   ├── extensions.py        # db, socketio, login_manager instances
-│   ├── models.py            # SQLAlchemy models (all 7 node types + edges/groups)
+│   ├── models.py            # SQLAlchemy models (all node types incl. Controller Constraints + edges/groups)
 │   ├── events.py            # SocketIO event handlers
 │   ├── screenshot_worker.py # Headless Chromium PNG worker
 │   ├── routes/

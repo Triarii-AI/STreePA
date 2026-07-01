@@ -1545,15 +1545,15 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                   <div className="text-[10px] font-semibold text-gray-400 dark:text-neutral-500 uppercase tracking-wide mb-2">Keyboard Shortcuts</div>
                   <div className="space-y-1.5">
                     {[
-                      { keys: 'Drag canvas', desc: 'Select box' },
+                      { keys: 'Drag canvas', desc: 'Select' },
                       { keys: 'Shift+click', desc: 'Add to selection' },
-                      { keys: 'Space+drag', desc: 'Pan canvas' },
-                      { keys: 'Del / Backspace', desc: 'Delete node(s)' },
-                      { keys: 'Ctrl+C', desc: 'Copy node(s)' },
-                      { keys: 'Ctrl+V', desc: 'Paste / duplicate' },
-                      { keys: 'Ctrl+Z', desc: 'Undo last move' },
-                      { keys: 'Ctrl+Y / Ctrl+Shift+Z', desc: 'Redo last move' },
-                      { keys: 'Ctrl+G', desc: 'Group selected nodes' },
+                      { keys: 'Space+drag', desc: 'Pan' },
+                      { keys: 'Del / Backspace', desc: 'Delete' },
+                      { keys: 'Ctrl+C', desc: 'Copy' },
+                      { keys: 'Ctrl+V', desc: 'Paste' },
+                      { keys: 'Ctrl+Z', desc: 'Undo' },
+                      { keys: 'Ctrl+Y / Ctrl+Shift+Z', desc: 'Redo' },
+                      { keys: 'Ctrl+G', desc: 'Group' },
                       { keys: 'Ctrl+Shift+G', desc: 'Ungroup' },
                     ].map(({ keys, desc }) => (
                       <div key={keys} className="flex items-center justify-between gap-3">
