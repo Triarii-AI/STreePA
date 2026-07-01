@@ -33,3 +33,10 @@ body { margin: 0; overflow: hidden; }
 /* Edges are visual-only; clicks pass through to nodes and canvas */
 .react-flow__edge,
 .react-flow__edge-interaction { pointer-events: none !important; }
+
+/* Hide React Flow's built-in drag-select bounding box entirely — it only
+   appears after an actual drag-select gesture (not shift-click buildup),
+   sits on top of the selected nodes and swallows clicks, and is replaced
+   by our own selection bounding box in RemoteOverlays.jsx which covers
+   both cases and never blocks clicks. */
+.react-flow__nodesselection { display: none !important; }

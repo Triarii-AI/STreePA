@@ -1,19 +1,41 @@
 import { memo } from 'react'
 import { useViewport, useStore } from '@xyflow/react'
 
-// Remote collaborator cursors + selection rings.
+// Remote collaborator cursors + selection rings, and the local multi-selection
+// bounding box.
 //
 // This component is deliberately isolated from CanvasInner so that the
 // useViewport() subscription (which fires on EVERY pan/zoom frame) only
 // re-renders this small overlay, not the entire canvas + ReactFlow tree.
 // useStore(s => s.nodeLookup) also re-renders on every node position change,
 // which is needed so rings track nodes during drags by other users.
-function RemoteOverlays({ remoteSelections, remoteCursors }) {
+function RemoteOverlays({ remoteSelections, remoteCursors, selectionBoundsFlow }) {
   const { x: vpX, y: vpY, zoom: vpZoom } = useViewport()
   const nodeLookup = useStore(s => s.nodeLookup)
 
   return (
     <>
+      {/* Own selection bounding box — shown whenever 2+ nodes are selected, however
+          they got selected (drag-box, or one-by-one with shift-click), unlike React
+          Flow's built-in nodesSelectionActive box which only appears after an actual
+          drag-select gesture and disappears on the very next node click. Rendered
+          pointer-events:none so it never blocks clicking/shift-clicking a node.
+          selectionBoundsFlow (flow coords) comes from CanvasInner's onSelectionChange
+          — nodeLookup isn't a reliable re-render trigger for selection-only changes. */}
+      {selectionBoundsFlow && (
+        <div className="pointer-events-none" style={{
+          position: 'absolute',
+          zIndex: 4,
+          left: selectionBoundsFlow.x * vpZoom + vpX - 8,
+          top: selectionBoundsFlow.y * vpZoom + vpY - 8,
+          width: selectionBoundsFlow.width * vpZoom + 16,
+          height: selectionBoundsFlow.height * vpZoom + 16,
+          border: '1.5px dashed #6366f1',
+          borderRadius: 10,
+          background: 'rgba(99, 102, 241, 0.05)',
+        }} />
+      )}
+
       {/* Remote selection rings — colored border around nodes other users have selected */}
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 6 }}>
         {Object.entries(remoteSelections).map(([userId, { rfNodeId, avatarColor }]) => {

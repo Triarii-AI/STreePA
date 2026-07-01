@@ -350,6 +350,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   const [hasLabelableSelection, setHasLabelableSelection] = useState(false)
   const [selectedGroupCount, setSelectedGroupCount] = useState(0)
   const [selectedNodeCount, setSelectedNodeCount] = useState(0)
+  const [selectionBoundsFlow, setSelectionBoundsFlow] = useState(null)
   const [isExporting, setIsExporting] = useState(false)
   const [showCrossRefs, setShowCrossRefs] = useState(initialCrossRefs)
   // { [userId]: { rfNodeId, username, avatarColor } }
@@ -576,11 +577,23 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     setHasLabelableSelection(visible.some(n => n.type !== 'groupNode' && n.type !== 'rootNode'))
     setSelectedGroupCount(visible.filter(n => n.type === 'groupNode').length)
     setSelectedNodeCount(visible.filter(n => n.type !== 'groupNode' && n.type !== 'rootNode').length)
+    // Bounding box (in flow coords) around everything currently selected, shown
+    // whenever 2+ nodes are selected regardless of how (drag-box or one-by-one
+    // shift-click). RemoteOverlays converts this to screen space every frame.
+    if (visible.length >= 2) {
+      const b = getNodesBounds(visible)
+      setSelectionBoundsFlow({ x: b.x, y: b.y, width: b.width, height: b.height })
+    } else {
+      setSelectionBoundsFlow(null)
+    }
   }, [])
 
   const onNodeDragStart = useCallback((e, node, draggedNodes) => {
     const all = draggedNodes?.length > 1 ? draggedNodes : [node]
     all.forEach(n => { dragStartPos.current[n.id] = { ...n.position } })
+    // Hide the selection bounding box while dragging rather than let it go
+    // stale — it snaps back to the new position in onNodeDragStop.
+    if (all.length > 1) setSelectionBoundsFlow(null)
   }, [])
 
   const onNodeDragStop = useCallback(async (e, node, draggedNodes) => {
@@ -628,6 +641,13 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
       useCanvasStore.getState().pushHistory({ action: 'move', ...historyMoves[0] })
     } else if (historyMoves.length > 1) {
       useCanvasStore.getState().pushHistory({ action: 'batchMove', moves: historyMoves })
+    }
+
+    // Snap the selection bounding box back to the post-drag positions.
+    const stillSelected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
+    if (stillSelected.length >= 2) {
+      const b = getNodesBounds(stillSelected)
+      setSelectionBoundsFlow({ x: b.x, y: b.y, width: b.width, height: b.height })
     }
   }, [projectId])
 
@@ -1714,7 +1734,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
       {/* Remote collaborator cursors + selection rings.
           Isolated component owns the useViewport() subscription so pan/zoom
           frames don't re-render the whole canvas. */}
-      <RemoteOverlays remoteSelections={remoteSelections} remoteCursors={remoteCursors} />
+      <RemoteOverlays remoteSelections={remoteSelections} remoteCursors={remoteCursors} selectionBoundsFlow={selectionBoundsFlow} />
     </div>
   )
 }
