@@ -1569,7 +1569,9 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               )}
               {hasLabelableSelection && (
                 <>
-                  <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
+                  {(selectionCount >= 2 || singleGroupSelected) && (
+                    <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
+                  )}
                   <button
                     onClick={autoLabelSelected}
                     title="Relabel selected node(s) as if just created"
