@@ -347,6 +347,9 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [selectionCount, setSelectionCount] = useState(0)
   const [singleGroupSelected, setSingleGroupSelected] = useState(false)
+  const [hasLabelableSelection, setHasLabelableSelection] = useState(false)
+  const [selectedGroupCount, setSelectedGroupCount] = useState(0)
+  const [selectedNodeCount, setSelectedNodeCount] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
   const [showCrossRefs, setShowCrossRefs] = useState(initialCrossRefs)
   // { [userId]: { rfNodeId, username, avatarColor } }
@@ -568,6 +571,11 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     const effective = visible.filter(n => !selectedGroupIds.has(n.parentId))
     setSelectionCount(effective.length)
     setSingleGroupSelected(effective.length === 1 && effective[0].type === 'groupNode')
+    // Uses the raw (pre-strip) selection so a group selected together with its own
+    // children still counts as having a labelable node, unlike `effective` above.
+    setHasLabelableSelection(visible.some(n => n.type !== 'groupNode' && n.type !== 'rootNode'))
+    setSelectedGroupCount(visible.filter(n => n.type === 'groupNode').length)
+    setSelectedNodeCount(visible.filter(n => n.type !== 'groupNode' && n.type !== 'rootNode').length)
   }, [])
 
   const onNodeDragStart = useCallback((e, node, draggedNodes) => {
@@ -1505,8 +1513,11 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         {!viewOnly && selectionCount >= 1 && (
           <Panel position="top-center" style={{ top: 12, pointerEvents: 'auto' }}>
             <div className="flex items-center gap-0.5 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-xl shadow-md px-2 py-1.5">
-              <span className="text-[10px] font-medium text-gray-400 dark:text-neutral-500 pr-1.5 select-none border-r border-gray-200 dark:border-neutral-600 mr-1">
-                {selectionCount} selected
+              <span className="text-[10px] font-medium text-gray-400 dark:text-neutral-500 pr-1.5 select-none border-r border-gray-200 dark:border-neutral-600 mr-1 whitespace-nowrap">
+                {selectedGroupCount > 0 && `${selectedGroupCount} group${selectedGroupCount !== 1 ? 's' : ''}`}
+                {selectedGroupCount > 0 && selectedNodeCount > 0 && ', '}
+                {selectedNodeCount > 0 && `${selectedNodeCount} node${selectedNodeCount !== 1 ? 's' : ''}`}
+                {' selected'}
               </span>
               {selectionCount >= 2 && (
                 <>
@@ -1556,28 +1567,32 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                   Ungroup
                 </button>
               )}
-              <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
-              <button
-                onClick={autoLabelSelected}
-                title="Relabel selected node(s) as if just created"
-                className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
-              >
-                Auto-label
-              </button>
-              <button
-                onClick={() => shiftLabelsSelected(-1)}
-                title="Decrement selected node(s) label number"
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
-              >
-                &minus;1
-              </button>
-              <button
-                onClick={() => shiftLabelsSelected(1)}
-                title="Increment selected node(s) label number"
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
-              >
-                +1
-              </button>
+              {hasLabelableSelection && (
+                <>
+                  <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
+                  <button
+                    onClick={autoLabelSelected}
+                    title="Relabel selected node(s) as if just created"
+                    className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
+                  >
+                    Auto-label
+                  </button>
+                  <button
+                    onClick={() => shiftLabelsSelected(-1)}
+                    title="Decrement selected node(s) label number"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
+                  >
+                    &minus;1
+                  </button>
+                  <button
+                    onClick={() => shiftLabelsSelected(1)}
+                    title="Increment selected node(s) label number"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
+                  >
+                    +1
+                  </button>
+                </>
+              )}
             </div>
           </Panel>
         )}

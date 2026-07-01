@@ -49,6 +49,7 @@ STreePA models all seven layers as connected nodes on a live canvas, preserving 
 - **Node grouping** — group nodes into labeled, resizable containers that nest, auto-dissolve when down to one member, and move/align/distribute as a unit
 - **Multi-node copy/paste** — select multiple nodes and Ctrl+C/Ctrl+V to duplicate them together, preserving fields, links, and internal parent-child structure
 - **Node reparenting** — change a node's structural parent from its detail panel; edges and labels update live for all collaborators and support undo/redo
+- **Bulk relabeling** — auto-label selected nodes as if freshly created (closing gaps/duplicates), or shift their label numbers en masse with +1/−1, with full undo/redo
 - **Real-time collaboration** — all canvas changes sync instantly to every connected user via WebSocket, including group operations
 - **Presence indicators** — see which teammates are currently viewing a project
 - **Project sharing** — share projects with other users on the instance
@@ -264,6 +265,15 @@ The collapsible left sidebar lists all nodes organized by layer. Click any entry
 ### Groups
 
 Nodes can be placed inside labeled group containers for visual organization. Select nodes and press **Ctrl+G** to group them (grouping a group with other nodes/groups nests it inside a new parent group), or **Ctrl+Shift+G** to ungroup. Groups can be nested and resized, move as a single unit when dragged or aligned/distributed, and automatically dissolve when only one member remains. Group operations sync live to all collaborators.
+
+### Relabeling
+
+When one or more nodes are selected, a toolbar appears with three relabeling actions:
+
+- **Auto-label** — relabels the selected node(s) as if they had just been created. Siblings of the same type sharing the same parent are renumbered together in their existing relative order, closing any gaps or resolving duplicate numbers left behind by deletions or manual edits.
+- **+1 / −1** — increments or decrements the selected node(s)' own label number directly, independent of siblings. This is a manual override with no collision checking, so it can create a duplicate label if the target number is already taken.
+
+Both actions cascade to any descendants whose labels are derived from the relabeled node (e.g. relabeling a Hazard also updates its System Constraint and sub-hazards), and fully support undo/redo. If a group is selected, the toolbar (and these actions) apply to its contents rather than the group itself — the toolbar hides these three buttons when only group(s) with no labelable contents are selected.
 
 ### Keyboard Shortcuts
 

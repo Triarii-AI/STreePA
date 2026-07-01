@@ -25,6 +25,7 @@ export function SearchableSelect({ value, onChange, options, placeholder, focusR
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
+        title={selectedOption?.description || undefined}
         className={`w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 bg-white dark:bg-neutral-700 ${focusRingClass || 'focus:ring-streepa-400'} ${!selectedOption ? 'text-gray-400 dark:text-neutral-500' : 'text-gray-800 dark:text-neutral-200'}`}
       >
         <span className={selectedOption && isMainFn && isMainFn(selectedOption) ? 'font-bold' : ''}>
@@ -64,6 +65,7 @@ export function SearchableSelect({ value, onChange, options, placeholder, focusR
               <button
                 key={o.id}
                 type="button"
+                title={o.description || undefined}
                 className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-neutral-700 flex items-center gap-1 ${String(o.id) === String(value) ? 'bg-streepa-50 dark:bg-streepa-900/30 text-streepa-700 dark:text-streepa-300' : 'text-gray-700 dark:text-neutral-300'}`}
                 onClick={() => { onChange(String(o.id)); setOpen(false); setQuery('') }}
               >
@@ -110,7 +112,7 @@ export function SearchableCheckboxList({ items, selectedIds, onToggle, accentCla
           <div className="px-3 py-2 text-xs text-gray-400 dark:text-neutral-500">No results</div>
         )}
         {filtered.map(item => (
-          <label key={item.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-neutral-600 cursor-pointer">
+          <label key={item.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-neutral-600 cursor-pointer" title={item.description || undefined}>
             <input
               type="checkbox"
               checked={selectedIds.includes(item.id)}
