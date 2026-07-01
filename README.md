@@ -212,6 +212,12 @@ Each layer has its own node type, color, and label format. Nodes at lower layers
 - Causal sequences explaining *why* a UCA occurs
 - Each scenario belongs to exactly one UCA and links to one or more Hazards
 - Label format: `LS-<CA number>.<UCA number>.<LS index within that UCA>`
+- Each Loss Scenario carries one of two **type tags** (color-coded):
+
+| Type | Question |
+|---|---|
+| UCA Occurrence | Why would Unsafe Control Actions occur? |
+| Improper Execution | Why would control actions be improperly executed or not executed, leading to hazards? |
 
 ---
 

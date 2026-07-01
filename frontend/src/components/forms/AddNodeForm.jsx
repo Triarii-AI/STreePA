@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { createNode, createLink } from '../../api.js'
 import socket from '../../socket.js'
 import useCanvasStore from '../../store/canvasStore.js'
-import { UCA_TYPE_LABELS, UCA_TYPE_COLORS, LAYER_Y_POSITIONS, NODE_HORIZONTAL_SPACING, makeRFEdge, nodeTypeToPrefix } from '../../constants.js'
+import { UCA_TYPE_LABELS, UCA_TYPE_COLORS, LS_TYPE_LABELS, LS_TYPE_COLORS, LAYER_Y_POSITIONS, NODE_HORIZONTAL_SPACING, makeRFEdge, nodeTypeToPrefix } from '../../constants.js'
 import { SearchableSelect, SearchableCheckboxList } from './shared.jsx'
 
 const NODE_TYPE_LABELS = {
@@ -154,8 +154,8 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
       setError('Control action and UCA type are required.')
       return
     }
-    if (nodeType === 'loss_scenario' && !formData.uca_id) {
-      setError('UCA is required.')
+    if (nodeType === 'loss_scenario' && (!formData.uca_id || !formData.ls_type)) {
+      setError('UCA and loss scenario type are required.')
       return
     }
     if (nodeType === 'system_constraint' && !formData.linked_hazard_id) {
@@ -570,6 +570,20 @@ export default function AddNodeForm({ nodeType, projectId, preferredCenter, onCl
                 focusRingClass="focus:ring-purple-400"
                 required
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Loss Scenario Type <span className="text-red-500">*</span></label>
+              <select
+                value={formData.ls_type || ''}
+                onChange={e => handleChange('ls_type', e.target.value)}
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+                required
+              >
+                <option value="">Select type...</option>
+                {Object.entries(LS_TYPE_LABELS).map(([k, v]) => (
+                  <option key={k} value={k} style={{ color: LS_TYPE_COLORS[k] }}>{v}</option>
+                ))}
+              </select>
             </div>
             {formData.uca_id && (() => {
               const selectedUCA = allUCAs.find(u => u.id === parseInt(formData.uca_id))

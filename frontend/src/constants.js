@@ -23,6 +23,21 @@ export const UCA_TYPE_LABELS = {
   duration_issue: 'Duration Issue',
 }
 
+export const LS_TYPE_COLORS = {
+  uca_occurrence: '#6366f1',
+  improper_execution: '#f43f5e',
+}
+
+export const LS_TYPE_LABELS = {
+  uca_occurrence: 'UCA Occurrence',
+  improper_execution: 'Improper Execution',
+}
+
+export const LS_TYPE_QUESTIONS = {
+  uca_occurrence: 'Why would Unsafe Control Actions occur?',
+  improper_execution: 'Why would control actions be improperly executed or not executed, leading to hazards?',
+}
+
 export const LAYER_Y_POSITIONS = {
   root: 50,
   loss: 280,

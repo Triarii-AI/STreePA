@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import useCanvasStore from '../store/canvasStore.js'
 import { updateNode, deleteNode, createLink, deleteLink, updateProject } from '../api.js'
 import socket from '../socket.js'
-import { LAYER_COLORS, UCA_TYPE_COLORS, UCA_TYPE_LABELS, makeRFEdge, nodeTypeToPrefix } from '../constants.js'
+import { LAYER_COLORS, UCA_TYPE_COLORS, UCA_TYPE_LABELS, LS_TYPE_COLORS, LS_TYPE_LABELS, makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 import { SearchableSelect, SearchableCheckboxList } from './forms/shared.jsx'
 
 function isMainHazard(h) {
@@ -684,6 +684,19 @@ export default function NodePanel({ projectId }) {
                 placeholder="None"
                 focusRingClass="focus:ring-purple-400"
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-neutral-300 mb-1">Loss Scenario Type</label>
+              <select
+                value={formData.ls_type || ''}
+                onChange={e => handleFieldChange('ls_type', e.target.value)}
+                className="w-full border border-gray-200 dark:border-neutral-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-neutral-100"
+              >
+                <option value="">Select type...</option>
+                {Object.entries(LS_TYPE_LABELS).map(([k, v]) => (
+                  <option key={k} value={k} style={{ color: LS_TYPE_COLORS[k] }}>{v}</option>
+                ))}
+              </select>
             </div>
             {nodeData.controller && (
               <div>

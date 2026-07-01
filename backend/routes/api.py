@@ -653,6 +653,9 @@ def create_loss_scenario(project_id):
     uca_id = data.get('uca_id')
     if not uca_id:
         return jsonify({'error': 'uca_id is required'}), 400
+    ls_type = data.get('ls_type')
+    if not ls_type:
+        return jsonify({'error': 'ls_type is required'}), 400
     label = _next_ls_label(project_id, uca_id)
     idx_x = _index_x(project_id, LossScenario, uca_id=uca_id)
     node = LossScenario(
@@ -660,6 +663,7 @@ def create_loss_scenario(project_id):
         label=label,
         description=data.get('description', ''),
         uca_id=uca_id,
+        ls_type=ls_type,
         x=data.get('x', idx_x),
         y=data.get('y', LAYER_Y['loss_scenario'])
     )
@@ -683,6 +687,8 @@ def update_loss_scenario(project_id, node_id):
     data = request.get_json() or {}
     if 'description' in data:
         node.description = data['description']
+    if 'ls_type' in data:
+        node.ls_type = data['ls_type']
     if 'uca_id' in data:
         new_uca_id = int(data['uca_id'])
         if new_uca_id != node.uca_id:

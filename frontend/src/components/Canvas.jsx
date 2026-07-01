@@ -21,6 +21,7 @@ import useCanvasStore from '../store/canvasStore.js'
 import socket from '../socket.js'
 import { updateNode, updateProject, deleteNode, createNode, createLink, createGroup, updateGroup, deleteGroup } from '../api.js'
 import { makeRFEdge, nodeTypeToPrefix } from '../constants.js'
+import { computeRelabelChanges } from '../utils/relabel.js'
 
 import RootNode from './nodes/RootNode.jsx'
 import LossNode from './nodes/LossNode.jsx'
@@ -214,6 +215,7 @@ async function recreateNode(entry) {
   if (nodeData.name) payload.name = nodeData.name
   if (nodeData.controller) payload.controller = nodeData.controller
   if (nodeData.uca_type) payload.uca_type = nodeData.uca_type
+  if (nodeData.ls_type) payload.ls_type = nodeData.ls_type
   if (nodeData.control_action_id) payload.control_action_id = parseInt(nodeData.control_action_id)
   if (nodeData.uca_id) payload.uca_id = parseInt(nodeData.uca_id)
   if (nodeData.parent_loss_id) payload.parent_loss_id = parseInt(nodeData.parent_loss_id)
@@ -803,6 +805,20 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
             }
             store.updateRFNode(entry.rfId, entry.previousFields)
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
+          } else if (entry.action === 'relabelBatch') {
+            for (const item of entry.items) {
+              try {
+                const res = await updateNode(item.projectId, item.nodeType, item.nodeId, { label: item.prevLabel })
+                const finalLabel = res.label ?? item.prevLabel
+                store.updateRFNode(item.rfId, { label: finalLabel })
+                socket.emit('node:updated', { project_id: item.projectId, node_type: item.nodeType, node_id: item.nodeId, changed_fields: { label: finalLabel } })
+                ;(res.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
+                  store.updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
+                  socket.emit('node:updated', { project_id: item.projectId, node_type: nt, node_id: id, changed_fields: { label } })
+                })
+              } catch (err) { console.error('Undo relabel failed:', err) }
+            }
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex - 1 })
           }
         } catch (err) { console.error('Undo failed:', err) }
         return
@@ -898,6 +914,20 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
               socket.emit('node:updated', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, changed_fields: entry.changedFields })
             }
             store.updateRFNode(entry.rfId, entry.changedFields)
+            useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
+          } else if (entry.action === 'relabelBatch') {
+            for (const item of entry.items) {
+              try {
+                const res = await updateNode(item.projectId, item.nodeType, item.nodeId, { label: item.newLabel })
+                const finalLabel = res.label ?? item.newLabel
+                store.updateRFNode(item.rfId, { label: finalLabel })
+                socket.emit('node:updated', { project_id: item.projectId, node_type: item.nodeType, node_id: item.nodeId, changed_fields: { label: finalLabel } })
+                ;(res.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
+                  store.updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
+                  socket.emit('node:updated', { project_id: item.projectId, node_type: nt, node_id: id, changed_fields: { label } })
+                })
+              } catch (err) { console.error('Redo relabel failed:', err) }
+            }
             useCanvasStore.setState({ moveHistoryIndex: moveHistoryIndex + 1 })
           }
         } catch (err) { console.error('Redo failed:', err) }
@@ -1157,6 +1187,48 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
       })
     }
     await applyAlignPositions(updates)
+  }
+
+  async function applyRelabelChanges(changes) {
+    if (changes.length === 0) return
+    const store = useCanvasStore.getState()
+    const applied = []
+    for (const c of changes) {
+      try {
+        const res = await updateNode(projectId, c.nodeType, c.nodeId, { label: c.newLabel })
+        const finalLabel = res.label ?? c.newLabel
+        store.updateRFNode(c.rfId, { label: finalLabel })
+        socket.emit('node:updated', { project_id: projectId, node_type: c.nodeType, node_id: c.nodeId, changed_fields: { label: finalLabel } })
+        ;(res.relabeled || []).forEach(({ nodeType: nt, id, label }) => {
+          store.updateRFNode(`${nodeTypeToPrefix(nt)}-${id}`, { label })
+          socket.emit('node:updated', { project_id: projectId, node_type: nt, node_id: id, changed_fields: { label } })
+        })
+        applied.push({ rfId: c.rfId, nodeType: c.nodeType, nodeId: c.nodeId, projectId, prevLabel: c.prevLabel, newLabel: finalLabel })
+      } catch (err) {
+        console.error('Relabel failed:', err)
+      }
+    }
+    if (applied.length > 0) {
+      store.pushHistory({ action: 'relabelBatch', items: applied })
+    }
+  }
+
+  function getLabelableSelection() {
+    return reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden && n.type !== 'groupNode' && n.type !== 'rootNode')
+  }
+
+  async function autoLabelSelected() {
+    const selected = getLabelableSelection()
+    if (selected.length === 0) return
+    const changes = computeRelabelChanges(selected, reactFlow.getNodes(), 'auto')
+    await applyRelabelChanges(changes)
+  }
+
+  async function shiftLabelsSelected(delta) {
+    const selected = getLabelableSelection()
+    if (selected.length === 0) return
+    const changes = computeRelabelChanges(selected, reactFlow.getNodes(), 'shift', delta)
+    await applyRelabelChanges(changes)
   }
 
   async function handleGroup() {
@@ -1429,8 +1501,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
           </Panel>
         )}
 
-        {/* Align + Distribute + Group toolbar */}
-        {!viewOnly && (selectionCount >= 2 || singleGroupSelected) && (
+        {/* Align + Distribute + Group + Relabel toolbar */}
+        {!viewOnly && selectionCount >= 1 && (
           <Panel position="top-center" style={{ top: 12, pointerEvents: 'auto' }}>
             <div className="flex items-center gap-0.5 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-600 rounded-xl shadow-md px-2 py-1.5">
               <span className="text-[10px] font-medium text-gray-400 dark:text-neutral-500 pr-1.5 select-none border-r border-gray-200 dark:border-neutral-600 mr-1">
@@ -1484,6 +1556,28 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
                   Ungroup
                 </button>
               )}
+              <div className="w-px h-5 bg-gray-200 dark:bg-neutral-600 mx-1" />
+              <button
+                onClick={autoLabelSelected}
+                title="Relabel selected node(s) as if just created"
+                className="px-2 h-7 text-[11px] font-medium rounded-lg text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
+              >
+                Auto-label
+              </button>
+              <button
+                onClick={() => shiftLabelsSelected(-1)}
+                title="Decrement selected node(s) label number"
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
+              >
+                &minus;1
+              </button>
+              <button
+                onClick={() => shiftLabelsSelected(1)}
+                title="Increment selected node(s) label number"
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold text-gray-500 dark:text-neutral-400 hover:bg-streepa-50 dark:hover:bg-streepa-900/40 hover:text-streepa-600 dark:hover:text-streepa-400 transition-colors"
+              >
+                +1
+              </button>
             </div>
           </Panel>
         )}

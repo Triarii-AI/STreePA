@@ -321,6 +321,10 @@ class LossScenario(db.Model):
     label = db.Column(db.String(30), nullable=False)
     description = db.Column(db.Text, nullable=True)
     uca_id = db.Column(db.Integer, db.ForeignKey('ucas.id', ondelete='SET NULL'), nullable=True)
+    ls_type = db.Column(
+        db.Enum('uca_occurrence', 'improper_execution'),
+        nullable=True
+    )
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
     group_id = db.Column(db.Integer, db.ForeignKey('node_groups.id', ondelete='SET NULL'), nullable=True)
@@ -342,6 +346,7 @@ class LossScenario(db.Model):
             'label': self.label,
             'description': self.description,
             'uca_id': self.uca_id,
+            'ls_type': self.ls_type,
             'x': self.x,
             'y': self.y,
             'hazard_ids': hazard_ids,
