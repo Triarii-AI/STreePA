@@ -663,7 +663,7 @@ def _draw_edge(e, nodes, out):
     dashed = e['dashed']
     stroke = DASHED_STROKE if dashed else SOLID_STROKE
     sw     = 1.5 if dashed else 2.0
-    dash   = ' stroke-dasharray="5,5"' if dashed else ''
+    dash   = ' stroke-dasharray="14,10"' if dashed else ''
     marker = 'arr-d' if dashed else 'arr-s'
 
     out.append(

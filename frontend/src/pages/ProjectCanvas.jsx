@@ -54,13 +54,16 @@ function convertToRFNode(data) {
 }
 
 function convertToRFEdge(data) {
+  const style = data.style || { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '14,10' }
   return {
     id: data.edge_id || `e-${data.source}-${data.target}`,
     source: data.source,
     target: data.target,
     type: 'smoothstep',
-    style: data.style || { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5,5' },
+    style,
     markerEnd: { type: 'arrow', width: 16, height: 16, color: '#94a3b8' },
+    // 'xref-edge' lets CSS hide dashed edges during node drags (see styles/index.css)
+    ...(style.strokeDasharray ? { className: 'xref-edge' } : {}),
   }
 }
 

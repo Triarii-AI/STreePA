@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
+import { useShallow } from 'zustand/react/shallow'
 import useCanvasStore from '../store/canvasStore.js'
+import { nodeTypeToPrefix } from '../constants.js'
 
 const LAYER_DOT_COLORS = {
   loss: 'bg-red-400',
@@ -33,26 +35,27 @@ function naturalLabelSort(a, b) {
 }
 
 // Depth-first flatten of the hazard tree, children sorted naturally within each level
-function buildHazardTree(hazardNodes) {
+function buildHazardTree(hazardDatas) {
   const byParent = {}
-  hazardNodes.forEach(n => {
-    const pid = n.data.parent_hazard_id ?? null
+  hazardDatas.forEach(d => {
+    const pid = d.parent_hazard_id ?? null
     if (!byParent[pid]) byParent[pid] = []
-    byParent[pid].push(n)
+    byParent[pid].push(d)
   })
   Object.values(byParent).forEach(g => g.sort(naturalLabelSort))
 
   const result = []
   function visit(parentDbId, depth) {
-    for (const n of (byParent[parentDbId] || [])) {
+    for (const d of (byParent[parentDbId] || [])) {
+      const rfId = `hazard-${d.id}`
       result.push({
-        rfId: n.id,
-        label: n.data.label || n.id,
-        description: n.data.description || '',
+        rfId,
+        label: d.label || rfId,
+        description: d.description || '',
         depth,
         isLast: false, // filled below per-group
       })
-      visit(n.data.id, depth + 1)
+      visit(d.id, depth + 1)
     }
   }
   visit(null, 0)
@@ -146,40 +149,46 @@ function SidebarSection({ title, items, nodeType, searchQuery, onItemClick }) {
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const nodes = useCanvasStore(s => s.nodes)
+  // Subscribe to the nodes' data objects only (shallow-compared). Node data refs are
+  // stable across position changes, so drag frames — which replace node objects but
+  // reuse their data — don't re-render the sidebar or re-run the sort/tree work below.
+  const nodeDatas = useCanvasStore(useShallow(s => s.nodes.map(n => n.data)))
   const setFocusNode = useCanvasStore(s => s.setFocusNode)
   const reactFlow = useReactFlow()
 
   const layers = useMemo(() => {
-    const hazardNodes = nodes.filter(n => n.data?.nodeType === 'hazard')
+    const hazardDatas = nodeDatas.filter(d => d?.nodeType === 'hazard')
 
     function flatItems(nodeType) {
-      return nodes
-        .filter(n => n.data?.nodeType === nodeType)
-        .map(n => ({
-          rfId: n.id,
-          label: n.data.label || n.data.name || n.id,
-          description: n.data.description || n.data.name || '',
-          depth: 0,
-          isLast: true,
-        }))
+      return nodeDatas
+        .filter(d => d?.nodeType === nodeType)
+        .map(d => {
+          const rfId = `${nodeTypeToPrefix(nodeType)}-${d.id}`
+          return {
+            rfId,
+            label: d.label || d.name || rfId,
+            description: d.description || d.name || '',
+            depth: 0,
+            isLast: true,
+          }
+        })
         .sort(naturalLabelSort)
     }
 
     return {
       loss: flatItems('loss'),
-      hazard: buildHazardTree(hazardNodes),
+      hazard: buildHazardTree(hazardDatas),
       system_constraint: flatItems('system_constraint'),
       control_action: flatItems('control_action'),
       uca: flatItems('uca'),
       controller_constraint: flatItems('controller_constraint'),
       loss_scenario: flatItems('loss_scenario'),
     }
-  }, [nodes])
+  }, [nodeDatas])
 
   function handleItemClick(rfNodeId) {
     setFocusNode(rfNodeId)
-    const node = nodes.find(n => n.id === rfNodeId)
+    const node = useCanvasStore.getState().nodes.find(n => n.id === rfNodeId)
     if (node) {
       reactFlow.setCenter(node.position.x + 90, node.position.y + 50, { zoom: 1.2, duration: 400 })
     }

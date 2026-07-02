@@ -402,6 +402,9 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   const dragStartPos = useRef({})
   const containerRef = useRef(null)
   const cursorThrottleRef = useRef(null)
+  // Mirror of showCrossRefs for the identity-stable drag callbacks below.
+  const showCrossRefsRef = useRef(initialCrossRefs)
+  useEffect(() => { showCrossRefsRef.current = showCrossRefs }, [showCrossRefs])
 
   // Fit view on initial load
   useEffect(() => {
@@ -486,10 +489,27 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
   // Nodes with a parentId are inside a group — make them non-draggable so the group
   // frame is the only drag target. This avoids fighting RF's drag engine.
-  const visibleNodes = useMemo(
-    () => nodes.filter(n => !n.data?.hidden).map(n => ({ ...n, draggable: !n.parentId })),
-    [nodes],
-  )
+  //
+  // The WeakMap cache preserves object identity for unchanged nodes: store nodes are
+  // replaced (never mutated) when they change, so an unchanged store node maps to the
+  // same wrapper object across renders. Without it, every drag frame would hand React
+  // Flow 1-2k brand-new node objects and force it to reconcile ALL of them instead of
+  // just the node actually being dragged.
+  const draggableWrapCache = useRef(new WeakMap())
+  const visibleNodes = useMemo(() => {
+    const cache = draggableWrapCache.current
+    const out = []
+    for (const n of nodes) {
+      if (n.data?.hidden) continue
+      let wrapped = cache.get(n)
+      if (!wrapped) {
+        wrapped = { ...n, draggable: !n.parentId }
+        cache.set(n, wrapped)
+      }
+      out.push(wrapped)
+    }
+    return out
+  }, [nodes])
   const visibleEdges = useMemo(() => edges.filter(e => !e.hidden), [edges])
 
   // Cross-reference edges (dashed) are hidden by default to reduce rendered edge count.
@@ -500,6 +520,12 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   // thousands of cross-ref edges, a live subscription in every edge would re-run
   // thousands of selectors on every store write (including each drag frame). Computing
   // it in this memo means edges only reconcile when the selection actually changes.
+  // The WeakMap cache (keyed by the underlying stable edge object) reuses the mapped
+  // edge when its selKind didn't change, so switching selection from one node to
+  // another only re-creates the handful of edges whose highlight state actually
+  // flipped — the thousands of 'dimmed' edges keep identity and their memo'd
+  // components skip re-rendering.
+  const edgeSelCache = useRef(new WeakMap())
   const displayEdges = useMemo(() => {
     const nodeId = selectedNode?.id
     const filtered = showCrossRefs
@@ -509,13 +535,19 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
           return nodeId && (e.source === nodeId || e.target === nodeId)
         })
     if (!nodeId) return filtered
+    const cache = edgeSelCache.current
     return filtered.map(e => {
       const connected = e.source === nodeId || e.target === nodeId
-      return {
+      const selKind = connected ? 'connected' : 'dimmed'
+      const hit = cache.get(e)
+      if (hit && hit.selKind === selKind) return hit.mapped
+      const mapped = {
         ...e,
         zIndex: connected ? 10 : e.zIndex,
-        data: { ...e.data, selKind: connected ? 'connected' : 'dimmed' },
+        data: { ...e.data, selKind },
       }
+      cache.set(e, { selKind, mapped })
+      return mapped
     })
   }, [visibleEdges, selectedNode, showCrossRefs])
 
@@ -620,6 +652,27 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     socket.emit('cursor:move', { project_id: projectId, x: flowPos.x, y: flowPos.y })
   }, [projectId, reactFlow])
 
+  // Safety net for the cross-ref interaction-hide class: onNodeDragStop /
+  // onMoveEnd clear it after every completed interaction, but an
+  // Escape-cancelled drag never reaches dragStop — any mouse-up over the
+  // canvas un-hides the dashed edges again.
+  const onMouseUp = useCallback(() => {
+    containerRef.current?.classList.remove('rf-interacting')
+  }, [])
+
+  // Pan/zoom repaint the dashed cross-ref edges every frame just like node
+  // drags do — hide them for the duration of the viewport move as well.
+  // Skipped in renderMode: the export worker positions the viewport
+  // programmatically (which fires move events) right before capturing, and
+  // cross-refs must be in the screenshot.
+  const onMoveStart = useCallback(() => {
+    if (!renderMode && showCrossRefsRef.current) containerRef.current?.classList.add('rf-interacting')
+  }, [renderMode])
+
+  const onMoveEnd = useCallback(() => {
+    containerRef.current?.classList.remove('rf-interacting')
+  }, [])
+
   const onSelectionChange = useCallback(({ nodes }) => {
     const visible = nodes.filter(n => !n.data?.hidden)
     const selectedGroupIds = new Set(visible.filter(n => n.type === 'groupNode').map(n => n.id))
@@ -678,9 +731,16 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     // Hide the selection bounding box while dragging rather than let it go
     // stale — it snaps back to the new position in onNodeDragStop.
     if (all.length > 1) setSelectionBoundsFlow(null)
+    // With cross-refs shown, hide the dashed edges for the duration of the drag
+    // (CSS visibility via .rf-interacting — see styles/index.css): repainting
+    // hundreds of dashed bezier paths every drag frame is what tanked drag fps
+    // on large projects. classList (not React state) so drag start/stop don't
+    // trigger extra canvas renders.
+    if (showCrossRefsRef.current) containerRef.current?.classList.add('rf-interacting')
   }, [])
 
   const onNodeDragStop = useCallback(async (e, node, draggedNodes) => {
+    containerRef.current?.classList.remove('rf-interacting')
     const all = draggedNodes?.length > 1 ? draggedNodes : [node]
 
     // Snapshot and clear start positions
@@ -1674,7 +1734,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   }
 
   return (
-    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-900" onMouseMove={onMouseMove}>
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-900" onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
       <ReactFlow
         nodes={visibleNodes}
         edges={displayEdges}
@@ -1684,6 +1744,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         onPaneClick={onPaneClick}
         onNodeDragStart={viewOnly ? undefined : onNodeDragStart}
         onNodeDragStop={viewOnly ? undefined : onNodeDragStop}
+        onMoveStart={onMoveStart}
+        onMoveEnd={onMoveEnd}
         onSelectionChange={onSelectionChange}
         nodesDraggable={!viewOnly}
         nodesFocusable={false}

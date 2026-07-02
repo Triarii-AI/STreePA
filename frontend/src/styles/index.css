@@ -40,3 +40,12 @@ body { margin: 0; overflow: hidden; }
    by our own selection bounding box in RemoteOverlays.jsx which covers
    both cases and never blocks clicks. */
 .react-flow__nodesselection { display: none !important; }
+
+/* Cross-reference (dashed) edges hide during canvas interactions (node drag,
+   pan, zoom) while the cross-refs toggle is on. Rasterizing hundreds of long
+   dashed bezier paths on every frame drops interaction to ~1-2fps on 1k+ node
+   projects — dash rendering cost, not React. Canvas.jsx toggles the class on
+   the canvas container in onNodeDragStart/Stop and onMoveStart/End; visibility
+   (not opacity) skips paint entirely, and the edges reappear when the
+   interaction ends. */
+.rf-interacting .react-flow__edge.xref-edge { visibility: hidden; }

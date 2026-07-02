@@ -2,7 +2,9 @@ import { create } from 'zustand'
 import { NODE_HORIZONTAL_SPACING, LAYER_Y_POSITIONS } from '../constants.js'
 
 const SOLID_EDGE_STYLE = { stroke: '#64748b', strokeWidth: 2 }
-const DASHED_EDGE_STYLE = { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5,5' }
+// '14,10' dash period, not '5,5': finely-dashed paths are pathologically slow to
+// rasterize in bulk (see constants.js DASHED_EDGE_STYLE for the full story).
+const DASHED_EDGE_STYLE = { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '14,10' }
 const SOLID_MARKER = { type: 'arrowclosed', width: 16, height: 16, color: '#64748b' }
 const DASHED_MARKER = { type: 'arrow', width: 16, height: 16, color: '#94a3b8' }
 
@@ -14,6 +16,8 @@ function makeEdge(source, target, dashed = false) {
     type: 'floating',
     style: dashed ? DASHED_EDGE_STYLE : SOLID_EDGE_STYLE,
     markerEnd: dashed ? DASHED_MARKER : SOLID_MARKER,
+    // 'xref-edge' lets CSS hide dashed edges during node drags (see styles/index.css)
+    ...(dashed ? { className: 'xref-edge' } : {}),
   }
 }
 
@@ -31,6 +35,12 @@ function buildNodesAndEdges(data) {
 
   const nodes = []
   const edges = []
+  // id → node index for O(1) parent lookups while placing sub-losses/sub-hazards
+  const nodeById = new Map()
+  const pushNode = (rfNode) => {
+    nodes.push(rfNode)
+    nodeById.set(rfNode.id, rfNode)
+  }
 
   // Group nodes — must come BEFORE their children so React Flow resolves parentId correctly.
   // Sort: top-level groups first, then nested groups.
@@ -72,12 +82,12 @@ function buildNodesAndEdges(data) {
       data: { ...l, nodeType: 'loss' },
     }
     if (l.group_id) rfNode.parentId = `group-${l.group_id}`
-    nodes.push(rfNode)
+    pushNode(rfNode)
     edges.push(makeEdge(`root-${project.id}`, `loss-${l.id}`, false))
   })
 
   subLosses.forEach((l, idx) => {
-    const parentNode = nodes.find(n => n.id === `loss-${l.parent_loss_id}`)
+    const parentNode = nodeById.get(`loss-${l.parent_loss_id}`)
     const parentX = parentNode ? parentNode.position.x : 100
     const parentY = parentNode ? parentNode.position.y : LAYER_Y_POSITIONS.loss
     const rfNode = {
@@ -87,7 +97,7 @@ function buildNodesAndEdges(data) {
       data: { ...l, nodeType: 'loss' },
     }
     if (l.group_id) rfNode.parentId = `group-${l.group_id}`
-    nodes.push(rfNode)
+    pushNode(rfNode)
     edges.push(makeEdge(`loss-${l.parent_loss_id}`, `loss-${l.id}`, false))
   })
 
@@ -103,11 +113,11 @@ function buildNodesAndEdges(data) {
       data: { ...h, nodeType: 'hazard' },
     }
     if (h.group_id) rfNode.parentId = `group-${h.group_id}`
-    nodes.push(rfNode)
+    pushNode(rfNode)
   })
 
   subHazards.forEach((h, idx) => {
-    const parentNode = nodes.find(n => n.id === `hazard-${h.parent_hazard_id}`)
+    const parentNode = nodeById.get(`hazard-${h.parent_hazard_id}`)
     const parentX = parentNode ? parentNode.position.x : 100
     const parentY = parentNode ? parentNode.position.y : LAYER_Y_POSITIONS.hazard
     const rfNode = {
@@ -117,7 +127,7 @@ function buildNodesAndEdges(data) {
       data: { ...h, nodeType: 'hazard' },
     }
     if (h.group_id) rfNode.parentId = `group-${h.group_id}`
-    nodes.push(rfNode)
+    pushNode(rfNode)
     edges.push(makeEdge(`hazard-${h.parent_hazard_id}`, `hazard-${h.id}`, false))
   })
 
@@ -232,18 +242,35 @@ function buildNodesAndEdges(data) {
       type: 'floating',
       style: isSolid ? SOLID_EDGE_STYLE : DASHED_EDGE_STYLE,
       markerEnd: isSolid ? SOLID_MARKER : DASHED_MARKER,
+      ...(isSolid ? {} : { className: 'xref-edge' }),
     })
   })
 
   return { nodes, edges }
 }
 
+// Iterative traversal over a prebuilt adjacency map — one pass over the edges
+// instead of re-scanning the full edge list at every tree level.
 function getDescendantIds(rfNodeId, allEdges) {
-  const children = allEdges.filter(e => e.source === rfNodeId && !(e.style && e.style.strokeDasharray)).map(e => e.target)
-  let descendants = [...children]
-  children.forEach(childId => {
-    descendants = [...descendants, ...getDescendantIds(childId, allEdges)]
-  })
+  const childrenBySource = new Map()
+  for (const e of allEdges) {
+    if (e.style && e.style.strokeDasharray) continue
+    let list = childrenBySource.get(e.source)
+    if (!list) childrenBySource.set(e.source, (list = []))
+    list.push(e.target)
+  }
+  const descendants = []
+  const seen = new Set([rfNodeId])
+  const stack = [rfNodeId]
+  while (stack.length > 0) {
+    const id = stack.pop()
+    for (const child of childrenBySource.get(id) || []) {
+      if (seen.has(child)) continue
+      seen.add(child)
+      descendants.push(child)
+      stack.push(child)
+    }
+  }
   return descendants
 }
 
@@ -498,17 +525,19 @@ const useCanvasStore = create((set, get) => ({
     if (newCollapsed.has(rfNodeId)) {
       // Expanding: unhide immediate children
       newCollapsed.delete(rfNodeId)
-      const childIds = edges
-        .filter(e => e.source === rfNodeId && !(e.style && e.style.strokeDasharray))
-        .map(e => e.target)
+      const childIds = new Set(
+        edges
+          .filter(e => e.source === rfNodeId && !(e.style && e.style.strokeDasharray))
+          .map(e => e.target)
+      )
 
       set(state => ({
         collapsedNodes: newCollapsed,
         nodes: state.nodes.map(n =>
-          childIds.includes(n.id) ? { ...n, data: { ...n.data, hidden: false } } : n
+          childIds.has(n.id) ? { ...n, data: { ...n.data, hidden: false } } : n
         ),
         edges: state.edges.map(e =>
-          childIds.includes(e.target) && e.source === rfNodeId
+          childIds.has(e.target) && e.source === rfNodeId
             ? { ...e, hidden: false }
             : e
         ),
@@ -516,15 +545,15 @@ const useCanvasStore = create((set, get) => ({
     } else {
       // Collapsing: hide all descendants
       newCollapsed.add(rfNodeId)
-      const descendantIds = getDescendantIds(rfNodeId, edges)
+      const descendantIds = new Set(getDescendantIds(rfNodeId, edges))
 
       set(state => ({
         collapsedNodes: newCollapsed,
         nodes: state.nodes.map(n =>
-          descendantIds.includes(n.id) ? { ...n, data: { ...n.data, hidden: true } } : n
+          descendantIds.has(n.id) ? { ...n, data: { ...n.data, hidden: true } } : n
         ),
         edges: state.edges.map(e =>
-          descendantIds.includes(e.target) || descendantIds.includes(e.source)
+          descendantIds.has(e.target) || descendantIds.has(e.source)
             ? { ...e, hidden: true }
             : e
         ),

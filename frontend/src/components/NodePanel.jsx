@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import useCanvasStore from '../store/canvasStore.js'
 import { updateNode, deleteNode, createLink, deleteLink, updateProject } from '../api.js'
 import socket from '../socket.js'
@@ -55,8 +56,10 @@ export default function NodePanel({ projectId }) {
   const setSelectedNode = useCanvasStore(s => s.setSelectedNode)
   const removeRFNode = useCanvasStore(s => s.removeRFNode)
   const updateRFNode = useCanvasStore(s => s.updateRFNode)
-  const nodes = useCanvasStore(s => s.nodes)
-  const edges = useCanvasStore(s => s.edges)
+  // Subscribe to node data objects only (shallow-compared): data refs survive
+  // position changes, so drag frames don't re-render this panel or re-run the
+  // sorts below. Handlers that need full RF nodes read getState() at call time.
+  const nodeDatas = useCanvasStore(useShallow(s => s.nodes.map(n => n.data)))
   const addRFEdge = useCanvasStore(s => s.addRFEdge)
   const removeRFEdge = useCanvasStore(s => s.removeRFEdge)
   const loadProject = useCanvasStore(s => s.loadProject)
@@ -84,7 +87,7 @@ export default function NodePanel({ projectId }) {
 
   // Get project data from all nodes in store
   function getNodesByType(nt) {
-    return nodes.filter(n => n.data?.nodeType === nt).map(n => n.data)
+    return nodeDatas.filter(d => d?.nodeType === nt)
   }
 
   const allLosses = getNodesByType('loss')
@@ -182,14 +185,15 @@ export default function NodePanel({ projectId }) {
       // Propagate Controller changes live to descendant UCAs, Controller Constraints, and Loss Scenarios
       if (nodeType === 'control_action' && 'controller' in changedFields) {
         const newController = changedFields.controller
-        nodes.filter(n => n.data?.nodeType === 'uca' && n.data.control_action_id === nodeId).forEach(u => {
+        const allNodes = useCanvasStore.getState().nodes
+        allNodes.filter(n => n.data?.nodeType === 'uca' && n.data.control_action_id === nodeId).forEach(u => {
           updateRFNode(u.id, { controller: newController })
           socket.emit('node:updated', { project_id: projectId, node_type: 'uca', node_id: u.data.id, changed_fields: { controller: newController } })
-          nodes.filter(n => n.data?.nodeType === 'loss_scenario' && n.data.uca_id === u.data.id).forEach(ls => {
+          allNodes.filter(n => n.data?.nodeType === 'loss_scenario' && n.data.uca_id === u.data.id).forEach(ls => {
             updateRFNode(ls.id, { controller: newController })
             socket.emit('node:updated', { project_id: projectId, node_type: 'loss_scenario', node_id: ls.data.id, changed_fields: { controller: newController } })
           })
-          nodes.filter(n => n.data?.nodeType === 'controller_constraint' && n.data.linked_uca_id === u.data.id).forEach(cc => {
+          allNodes.filter(n => n.data?.nodeType === 'controller_constraint' && n.data.linked_uca_id === u.data.id).forEach(cc => {
             updateRFNode(cc.id, { controller: newController })
             socket.emit('node:updated', { project_id: projectId, node_type: 'controller_constraint', node_id: cc.data.id, changed_fields: { controller: newController } })
           })
@@ -198,11 +202,12 @@ export default function NodePanel({ projectId }) {
       // When a UCA is re-parented onto a different Control Action, cascade its new Controller to its own children
       if (nodeType === 'uca' && 'control_action_id' in changedFields && result?.controller !== undefined) {
         const newController = result.controller
-        nodes.filter(n => n.data?.nodeType === 'loss_scenario' && n.data.uca_id === nodeId).forEach(ls => {
+        const allNodes = useCanvasStore.getState().nodes
+        allNodes.filter(n => n.data?.nodeType === 'loss_scenario' && n.data.uca_id === nodeId).forEach(ls => {
           updateRFNode(ls.id, { controller: newController })
           socket.emit('node:updated', { project_id: projectId, node_type: 'loss_scenario', node_id: ls.data.id, changed_fields: { controller: newController } })
         })
-        nodes.filter(n => n.data?.nodeType === 'controller_constraint' && n.data.linked_uca_id === nodeId).forEach(cc => {
+        allNodes.filter(n => n.data?.nodeType === 'controller_constraint' && n.data.linked_uca_id === nodeId).forEach(cc => {
           updateRFNode(cc.id, { controller: newController })
           socket.emit('node:updated', { project_id: projectId, node_type: 'controller_constraint', node_id: cc.data.id, changed_fields: { controller: newController } })
         })
@@ -365,7 +370,7 @@ export default function NodePanel({ projectId }) {
       if (fromType === 'uca' && toType === 'hazard') {
         for (const lsId of (result?.propagated_ls_ids || [])) {
           const lsRfId = `ls-${lsId}`
-          const lsNode = nodes.find(n => n.id === lsRfId)
+          const lsNode = useCanvasStore.getState().nodes.find(n => n.id === lsRfId)
           if (lsNode && !(lsNode.data.hazard_ids || []).includes(toId)) {
             updateRFNode(lsRfId, { hazard_ids: [...(lsNode.data.hazard_ids || []), toId] })
             addRFEdge(makeRFEdge(lsRfId, `hazard-${toId}`, true))
@@ -393,7 +398,7 @@ export default function NodePanel({ projectId }) {
       if (fromType === 'uca' && toType === 'hazard') {
         for (const lsId of (result?.propagated_ls_ids || [])) {
           const lsRfId = `ls-${lsId}`
-          const lsNode = nodes.find(n => n.id === lsRfId)
+          const lsNode = useCanvasStore.getState().nodes.find(n => n.id === lsRfId)
           if (lsNode) {
             updateRFNode(lsRfId, { hazard_ids: (lsNode.data.hazard_ids || []).filter(id => id !== toId) })
             removeRFEdge(`e-ls-${lsId}-hazard-${toId}`)

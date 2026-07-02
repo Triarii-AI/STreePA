@@ -61,7 +61,12 @@ export function nodeTypeToPrefix(nodeType) {
 }
 
 const SOLID_EDGE_STYLE = { stroke: '#64748b', strokeWidth: 2 }
-const DASHED_EDGE_STYLE = { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5,5' }
+// Dash period matters for performance: a fine pattern like '5,5' generates ~2.4x
+// more dash segments per path, and rasterizing thousands of finely-dashed bezier
+// curves is what made the cross-refs toggle drop to ~1fps on 1k+ node projects.
+// '14,10' paints at 60fps at the same edge counts. Keep in sync with
+// canvasStore.js, ProjectCanvas.jsx and backend/routes/export.py.
+const DASHED_EDGE_STYLE = { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '14,10' }
 const SOLID_MARKER = { type: 'arrowclosed', width: 16, height: 16, color: '#64748b' }
 const DASHED_MARKER = { type: 'arrow', width: 16, height: 16, color: '#94a3b8' }
 
@@ -73,5 +78,7 @@ export function makeRFEdge(source, target, dashed = false) {
     type: 'floating',
     style: dashed ? DASHED_EDGE_STYLE : SOLID_EDGE_STYLE,
     markerEnd: dashed ? DASHED_MARKER : SOLID_MARKER,
+    // 'xref-edge' lets CSS hide dashed edges during node drags (see styles/index.css)
+    ...(dashed ? { className: 'xref-edge' } : {}),
   }
 }
