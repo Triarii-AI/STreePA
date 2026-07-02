@@ -3,6 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import useCanvasStore from '../store/canvasStore.js'
 import { nodeTypeToPrefix } from '../constants.js'
+import { resolveAbsPos } from '../utils/geometry.js'
 
 const LAYER_DOT_COLORS = {
   loss: 'bg-red-400',
@@ -188,9 +189,14 @@ export default function Sidebar() {
 
   function handleItemClick(rfNodeId) {
     setFocusNode(rfNodeId)
-    const node = useCanvasStore.getState().nodes.find(n => n.id === rfNodeId)
+    const allNodes = useCanvasStore.getState().nodes
+    const node = allNodes.find(n => n.id === rfNodeId)
     if (node) {
-      reactFlow.setCenter(node.position.x + 90, node.position.y + 50, { zoom: 1.2, duration: 400 })
+      // node.position is relative to its parent group's origin when the node
+      // is grouped, not the canvas — resolve to absolute or setCenter jumps
+      // to wherever the group happens to sit instead of the clicked node.
+      const abs = resolveAbsPos(node, allNodes)
+      reactFlow.setCenter(abs.x + 90, abs.y + 50, { zoom: 1.2, duration: 400 })
     }
   }
 

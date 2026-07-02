@@ -22,6 +22,7 @@ import socket from '../socket.js'
 import { updateNode, updateProject, deleteNode, createNode, createLink, createGroup, updateGroup, deleteGroup } from '../api.js'
 import { makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 import { computeRelabelChanges } from '../utils/relabel.js'
+import { resolveAbsPos } from '../utils/geometry.js'
 
 import RootNode from './nodes/RootNode.jsx'
 import LossNode from './nodes/LossNode.jsx'
@@ -208,26 +209,6 @@ function findRootAncestor(nodeId, nodes) {
     current = parent
   }
   return current
-}
-
-// Resolve a node's absolute canvas position by walking up its parentId chain
-// and summing each ancestor's (parent-relative) position. Needed because
-// reactFlow.getNodes() doesn't populate internals.positionAbsolute on the
-// objects it returns — a node's own `.position` is only absolute when it has
-// no parent; for a group member it's relative to that group's origin.
-function resolveAbsPos(node, nodes) {
-  const nodeMap = new Map(nodes.map(n => [n.id, n]))
-  let x = node.position.x
-  let y = node.position.y
-  let current = node
-  while (current.parentId) {
-    const parent = nodeMap.get(current.parentId)
-    if (!parent) break
-    x += parent.position.x
-    y += parent.position.y
-    current = parent
-  }
-  return { x, y }
 }
 
 // storeOverride lets batch callers (multi-node paste) collect the resulting
@@ -427,7 +408,11 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     if (focusNodeId) {
       const node = nodes.find(n => n.id === focusNodeId)
       if (node) {
-        reactFlow.setCenter(node.position.x + 90, node.position.y + 50, { zoom: 1.2, duration: 400 })
+        // Grouped nodes' .position is relative to their group's origin, not
+        // the canvas — resolve to absolute or setCenter lands somewhere else
+        // entirely (offset by wherever the group happens to sit).
+        const abs = resolveAbsPos(node, nodes)
+        reactFlow.setCenter(abs.x + 90, abs.y + 50, { zoom: 1.2, duration: 400 })
       }
       clearFocusNode()
     }
