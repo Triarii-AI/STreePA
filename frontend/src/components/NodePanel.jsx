@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import useCanvasStore from '../store/canvasStore.js'
-import { updateNode, deleteNode, createLink, deleteLink, updateProject } from '../api.js'
+import { updateNode, deleteNode, createLink, deleteLink, updateProject, updateGroup, deleteGroup } from '../api.js'
 import socket from '../socket.js'
 import { LAYER_COLORS, UCA_TYPE_COLORS, UCA_TYPE_LABELS, LS_TYPE_COLORS, LS_TYPE_LABELS, makeRFEdge, nodeTypeToPrefix } from '../constants.js'
 import { SearchableSelect, SearchableCheckboxList } from './forms/shared.jsx'
@@ -143,6 +143,38 @@ export default function NodePanel({ projectId }) {
           isProject: true,
           changedFields: { ...changedFields },
           previousFields: prevProjectFields,
+        })
+        setSaving(false)
+        return
+      }
+
+      // Groups aren't a layer node — they have no `id` field on their RF data
+      // (only `groupId`), so routing them through the generic updateNode(nodeType,
+      // nodeId) path below sends nodeId=undefined, which 404s on group routes and
+      // falls through to the SPA catch-all route (GET/HEAD/OPTIONS only) -> 405.
+      if (nodeType === 'group') {
+        const changedFields = {}
+        Object.keys(formData).forEach(k => {
+          if (formData[k] !== nodeData[k] && k !== 'nodeType' && k !== 'hidden') {
+            changedFields[k] = formData[k]
+          }
+        })
+        if (Object.keys(changedFields).length === 0) { setSaving(false); return }
+        const groupId = nodeData.groupId
+        const prevGroupFields = Object.fromEntries(Object.keys(changedFields).map(k => [k, nodeData[k] ?? null]))
+        await updateGroup(projectId, groupId, changedFields)
+        updateRFNode(rfNodeId, changedFields)
+        socket.emit('group:updated', { project_id: projectId, group_rf_id: rfNodeId, group_id: groupId, changed_fields: changedFields })
+        useCanvasStore.getState().pushHistory({
+          action: 'fieldEdit',
+          rfId: rfNodeId,
+          nodeType: 'group',
+          nodeId: null,
+          projectId,
+          isGroup: true,
+          groupId,
+          changedFields: { ...changedFields },
+          previousFields: prevGroupFields,
         })
         setSaving(false)
         return
@@ -313,6 +345,42 @@ export default function NodePanel({ projectId }) {
   }
 
   async function handleDelete() {
+    // Groups aren't a layer node (see handleSave) — deleting one here mirrors
+    // the canvas's own Delete-key behavior for groups: a non-destructive
+    // ungroup that releases members rather than removing them.
+    if (nodeType === 'group') {
+      if (!window.confirm('Ungroup? The group frame is removed but its members are kept.')) return
+      setDeleting(true)
+      try {
+        const groupId = nodeData.groupId
+        const groupRFNode = selectedNode
+        const result = await deleteGroup(projectId, groupId)
+        const memberUpdates = (result?.released_members || []).map(({ node_type: nt, node_id, abs_x, abs_y }) => ({
+          rfNodeId: nt === 'group' ? `group-${node_id}` : `${nodeTypeToPrefix(nt)}-${node_id}`,
+          absX: abs_x,
+          absY: abs_y,
+        }))
+        useCanvasStore.getState().ungroupRFNodes(rfNodeId, memberUpdates)
+        socket.emit('group:deleted', { project_id: projectId, group_rf_id: rfNodeId, group_id: groupId, released_members: result.released_members })
+        useCanvasStore.getState().pushHistory({
+          action: 'ungroup',
+          groupRfId: rfNodeId,
+          groupId,
+          projectId,
+          groupRFNode,
+          memberUpdates: (result?.released_members || []).map(({ node_type: nt, node_id, abs_x, abs_y }) => {
+            const memberRfId = nt === 'group' ? `group-${node_id}` : `${nodeTypeToPrefix(nt)}-${node_id}`
+            return { rfNodeId: memberRfId, relX: abs_x - groupRFNode.position.x, relY: abs_y - groupRFNode.position.y }
+          }),
+        })
+        setSelectedNode(null)
+      } catch (err) {
+        alert(err.message || 'Failed to ungroup.')
+      } finally {
+        setDeleting(false)
+      }
+      return
+    }
     if (!window.confirm('Delete this node? This may affect dependent nodes.')) return
     setDeleting(true)
     try {

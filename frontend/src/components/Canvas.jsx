@@ -985,6 +985,9 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
           } else if (entry.action === 'fieldEdit') {
             if (entry.isProject) {
               await updateProject(entry.projectId, entry.previousFields)
+            } else if (entry.isGroup) {
+              await updateGroup(entry.projectId, entry.groupId, entry.previousFields)
+              socket.emit('group:updated', { project_id: entry.projectId, group_rf_id: entry.rfId, group_id: entry.groupId, changed_fields: entry.previousFields })
             } else {
               await updateNode(entry.projectId, entry.nodeType, entry.nodeId, entry.previousFields)
               socket.emit('node:updated', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, changed_fields: entry.previousFields })
@@ -1096,6 +1099,9 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
           } else if (entry.action === 'fieldEdit') {
             if (entry.isProject) {
               await updateProject(entry.projectId, entry.changedFields)
+            } else if (entry.isGroup) {
+              await updateGroup(entry.projectId, entry.groupId, entry.changedFields)
+              socket.emit('group:updated', { project_id: entry.projectId, group_rf_id: entry.rfId, group_id: entry.groupId, changed_fields: entry.changedFields })
             } else {
               await updateNode(entry.projectId, entry.nodeType, entry.nodeId, entry.changedFields)
               socket.emit('node:updated', { project_id: entry.projectId, node_type: entry.nodeType, node_id: entry.nodeId, changed_fields: entry.changedFields })

@@ -143,6 +143,13 @@ def register_events(socketio):
             room = get_room_key(project_id)
             emit('group:moved', data, room=room, include_self=False)
 
+    @socketio.on('group:updated')
+    def on_group_updated(data):
+        project_id = data.get('project_id')
+        if project_id:
+            room = get_room_key(project_id)
+            emit('group:updated', data, room=room, include_self=False)
+
     @socketio.on('group:deleted')
     def on_group_deleted(data):
         project_id = data.get('project_id')

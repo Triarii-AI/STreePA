@@ -228,6 +228,11 @@ export default function ProjectCanvas() {
     moveRFNode(group_rf_id, x, y)
   }, [moveRFNode])
 
+  const handleGroupUpdated = useCallback((data) => {
+    const { group_rf_id, changed_fields } = data
+    if (group_rf_id) updateRFNode(group_rf_id, changed_fields || {})
+  }, [updateRFNode])
+
   const handleGroupResized = useCallback((data) => {
     const { group_rf_id, x, y, width, height, child_updates } = data
     resizeGroupRF(group_rf_id, x, y, width, height, child_updates || [])
@@ -274,6 +279,7 @@ export default function ProjectCanvas() {
     socket.on('group:created', handleGroupCreated)
     socket.on('group:deleted', handleGroupDeleted)
     socket.on('group:moved', handleGroupMoved)
+    socket.on('group:updated', handleGroupUpdated)
     socket.on('group:resized', handleGroupResized)
     socket.on('group:members_updated', handleGroupMembersUpdated)
     socket.on('presence:update', handlePresenceUpdate)
@@ -290,6 +296,7 @@ export default function ProjectCanvas() {
       socket.off('group:created', handleGroupCreated)
       socket.off('group:deleted', handleGroupDeleted)
       socket.off('group:moved', handleGroupMoved)
+      socket.off('group:updated', handleGroupUpdated)
       socket.off('group:resized', handleGroupResized)
       socket.off('group:members_updated', handleGroupMembersUpdated)
       socket.off('presence:update', handlePresenceUpdate)

@@ -30,7 +30,7 @@ function GroupNode({ data, selected }) {
             left: 12,
             background: darkMode ? '#0f172a' : '#ffffff',
             padding: '0 6px',
-            fontSize: 10,
+            fontSize: 24,
             fontWeight: 600,
             color: selected ? '#818cf8' : darkMode ? '#64748b' : '#94a3b8',
             fontFamily: 'system-ui, sans-serif',
