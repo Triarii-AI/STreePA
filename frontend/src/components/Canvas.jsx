@@ -83,6 +83,11 @@ function getNodeColor(type) {
 // the minimap stay cheap even at 1k+ nodes.
 const minimapNodeColor = (n) => getNodeColor(n.type)
 
+// Minimum number of visible cross-ref (dashed) edges before interactions
+// (node drag, pan, zoom) temporarily hide them for frame rate. Below this,
+// projects are small enough to paint their dashed edges every frame.
+const XREF_HIDE_MIN_EDGES = 300
+
 const RF_PREFIX_TO_TYPE = {
   sc: 'system_constraint', ca: 'control_action', uca: 'uca', cc: 'controller_constraint',
   ls: 'loss_scenario', loss: 'loss', hazard: 'hazard', root: 'root',
@@ -402,9 +407,10 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   const dragStartPos = useRef({})
   const containerRef = useRef(null)
   const cursorThrottleRef = useRef(null)
-  // Mirror of showCrossRefs for the identity-stable drag callbacks below.
-  const showCrossRefsRef = useRef(initialCrossRefs)
-  useEffect(() => { showCrossRefsRef.current = showCrossRefs }, [showCrossRefs])
+  // Whether interactions (drag/pan/zoom) should temporarily hide cross-ref
+  // edges — a ref so the identity-stable drag/move callbacks can read it.
+  // Kept up to date by an effect after visibleEdges below.
+  const hideXrefsWhileInteractingRef = useRef(false)
 
   // Fit view on initial load
   useEffect(() => {
@@ -511,6 +517,19 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     return out
   }, [nodes])
   const visibleEdges = useMemo(() => edges.filter(e => !e.hidden), [edges])
+
+  // Only large projects hide cross-ref edges during drag/pan/zoom. Painting
+  // dashed edges is what limits interaction frame rate, and its cost scales
+  // with the dashed-edge count: ~1000 dropped to ~1-2fps in profiling, while
+  // a few hundred stay fluid on ordinary hardware — so small and mid-size
+  // projects keep their cross-refs visible while interacting.
+  const xrefEdgeCount = useMemo(
+    () => visibleEdges.reduce((c, e) => c + (e.style?.strokeDasharray ? 1 : 0), 0),
+    [visibleEdges],
+  )
+  useEffect(() => {
+    hideXrefsWhileInteractingRef.current = showCrossRefs && xrefEdgeCount >= XREF_HIDE_MIN_EDGES
+  }, [showCrossRefs, xrefEdgeCount])
 
   // Cross-reference edges (dashed) are hidden by default to reduce rendered edge count.
   // When a node is selected, its own cross-refs are always shown.
@@ -666,7 +685,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   // programmatically (which fires move events) right before capturing, and
   // cross-refs must be in the screenshot.
   const onMoveStart = useCallback(() => {
-    if (!renderMode && showCrossRefsRef.current) containerRef.current?.classList.add('rf-interacting')
+    if (!renderMode && hideXrefsWhileInteractingRef.current) containerRef.current?.classList.add('rf-interacting')
   }, [renderMode])
 
   const onMoveEnd = useCallback(() => {
@@ -731,12 +750,12 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     // Hide the selection bounding box while dragging rather than let it go
     // stale — it snaps back to the new position in onNodeDragStop.
     if (all.length > 1) setSelectionBoundsFlow(null)
-    // With cross-refs shown, hide the dashed edges for the duration of the drag
-    // (CSS visibility via .rf-interacting — see styles/index.css): repainting
-    // hundreds of dashed bezier paths every drag frame is what tanked drag fps
-    // on large projects. classList (not React state) so drag start/stop don't
-    // trigger extra canvas renders.
-    if (showCrossRefsRef.current) containerRef.current?.classList.add('rf-interacting')
+    // On large projects with cross-refs shown, hide the dashed edges for the
+    // duration of the drag (CSS visibility via .rf-interacting — see
+    // styles/index.css): repainting hundreds of dashed bezier paths every drag
+    // frame is what tanked drag fps. classList (not React state) so drag
+    // start/stop don't trigger extra canvas renders.
+    if (hideXrefsWhileInteractingRef.current) containerRef.current?.classList.add('rf-interacting')
   }, [])
 
   const onNodeDragStop = useCallback(async (e, node, draggedNodes) => {

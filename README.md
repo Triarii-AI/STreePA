@@ -55,6 +55,7 @@ STreePA models all seven layers as connected nodes on a live canvas, preserving 
 - **Project sharing** — share projects with other users on the instance
 - **Dark mode** — per-user preference, persisted across sessions
 - **Collapsible sidebar** — lists all nodes by layer for quick navigation
+- **Scales to large models** — smooth interaction at 1,000–2,000 nodes; on large projects, cross-reference arrows pause during drags and pans to hold full frame rate
 - **Export to SVG** — true vector export, scalable and editable
 - **Export to PNG** — pixel-accurate render via headless Chromium, with cross-reference edges composited server-side
 - **Automatic backups** — timestamped SQLite snapshots stored in `backend/backups/`, including canvas groups on JSON export/import
@@ -292,7 +293,11 @@ Whenever 2 or more nodes are selected — however the selection was built — a 
 
 A reference card for these is also available in-app via the shortcuts guide toggle on the canvas.
 
-Note: enabling cross-reference arrow display can cause noticeable lag on large projects.
+### Performance on Large Projects
+
+The canvas is tuned to stay smooth into the 1,000–2,000 node range: only the node being dragged re-renders during a drag, off-screen nodes and edges aren't rendered at all, and the sidebar and detail panel ignore position-only changes.
+
+Cross-reference (dashed) arrows are hidden by default; the dashed-arrow toggle in the bottom-right corner shows them all, and selecting a node always shows that node's own cross-references. Painting many dashed arrows is expensive, so on large projects (300 or more cross-reference edges) they are temporarily hidden while you drag a node or pan/zoom with the toggle on, reappearing the moment the interaction ends. Smaller projects keep them visible throughout.
 
 ---
 
