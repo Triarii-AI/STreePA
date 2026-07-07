@@ -664,6 +664,35 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     containerRef.current?.classList.remove('rf-interacting')
   }, [])
 
+  // React Flow's built-in panOnDrag=2 (right-click pan) never fires when the
+  // drag starts on a node/group: xyflow puts a `nopan` class on every
+  // draggable node, and its zoom filter blocks panning from inside a `nopan`
+  // subtree for every mouse button except its own hardcoded middle-click
+  // exception. So we drive right-click panning ourselves, independent of
+  // where the drag starts, and leave panOnDrag=[1] for native middle-click.
+  const onCanvasMouseDown = useCallback((e) => {
+    if (e.button !== 2) return
+    e.preventDefault()
+    const { x, y, zoom } = reactFlow.getViewport()
+    const start = { x: e.clientX, y: e.clientY, originX: x, originY: y, zoom }
+    if (hideXrefsWhileInteractingRef.current) containerRef.current?.classList.add('rf-interacting')
+
+    const handleMove = (moveEvent) => {
+      reactFlow.setViewport({
+        x: start.originX + (moveEvent.clientX - start.x),
+        y: start.originY + (moveEvent.clientY - start.y),
+        zoom: start.zoom,
+      }, { duration: 0 })
+    }
+    const handleUp = () => {
+      containerRef.current?.classList.remove('rf-interacting')
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+  }, [reactFlow])
+
   // Pan/zoom repaint the dashed cross-ref edges every frame just like node
   // drags do — hide them for the duration of the viewport move as well.
   // Skipped in renderMode: the export worker positions the viewport
@@ -1744,7 +1773,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   }
 
   return (
-    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-900" onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-900" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseDown={onCanvasMouseDown} onContextMenu={e => e.preventDefault()}>
       <ReactFlow
         nodes={visibleNodes}
         edges={displayEdges}
@@ -1767,7 +1796,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         minZoom={renderMode ? 0.001 : 0.05}
         onlyRenderVisibleElements={!isExporting && !renderMode}
         selectionOnDrag
-        panOnDrag={[1, 2]}
+        panOnDrag={[1]}
         multiSelectionKeyCode="Shift"
         panActivationKeyCode="Space"
         fitView
