@@ -664,6 +664,15 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     containerRef.current?.classList.remove('rf-interacting')
   }, [])
 
+  // Suppress the browser's context menu over the canvas (right-click is used
+  // for panning), but not inside text fields — those still need the native
+  // menu for spellcheck/cut/copy/paste.
+  const onCanvasContextMenu = useCallback((e) => {
+    const target = e.target
+    const isEditable = target.closest('input, textarea, [contenteditable="true"]')
+    if (!isEditable) e.preventDefault()
+  }, [])
+
   // React Flow's built-in panOnDrag=2 (right-click pan) never fires when the
   // drag starts on a node/group: xyflow puts a `nopan` class on every
   // draggable node, and its zoom filter blocks panning from inside a `nopan`
@@ -672,6 +681,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   // where the drag starts, and leave panOnDrag=[1] for native middle-click.
   const onCanvasMouseDown = useCallback((e) => {
     if (e.button !== 2) return
+    if (e.target.closest('input, textarea, [contenteditable="true"]')) return
     e.preventDefault()
     const { x, y, zoom } = reactFlow.getViewport()
     const start = { x: e.clientX, y: e.clientY, originX: x, originY: y, zoom }
@@ -1773,7 +1783,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   }
 
   return (
-    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-900" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseDown={onCanvasMouseDown} onContextMenu={e => e.preventDefault()}>
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-slate-50 dark:bg-neutral-900" onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseDown={onCanvasMouseDown} onContextMenu={onCanvasContextMenu}>
       <ReactFlow
         nodes={visibleNodes}
         edges={displayEdges}
