@@ -329,8 +329,15 @@ def _draw_cross_refs_on_png(png_bytes, project, losses, hazards, scs, cas, ucas,
             draw_dashed_on(drw, pts, DASH_RGBA, STROKE_W, dash_px, gap_px)
 
         # Erase overlay under every node box so lines appear behind nodes.
+        # Skip group containers: their footprint is huge and their box is a
+        # translucent frame in the live canvas (see GroupNode.jsx), so edges
+        # show faintly through it there — erasing the whole box here would
+        # blank out cross-refs across the entire group instead of just
+        # tucking them behind the actual content nodes inside it.
         ERASE_MARGIN = scale_i  # 2px extra buffer for estimation imprecision
         for nid in node_geo:
+            if nid.startswith('group-'):
+                continue
             x0, y0, x1, y1 = node_box_phys(nid)
             drw.rectangle(
                 [int(x0 - ERASE_MARGIN), int(y0 - ERASE_MARGIN),

@@ -11,7 +11,6 @@ import {
   Panel,
   useReactFlow,
   useNodesInitialized,
-  getNodesBounds,
   applyNodeChanges,
   applyEdgeChanges,
 } from '@xyflow/react'
@@ -581,16 +580,19 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     // screenshot worker can size the output canvas to the content and place it exactly,
     // instead of relying on fitView (whose result depends on container-size timing).
     const visibleRFNodes = reactFlow.getNodes().filter(n => !n.data?.hidden)
-    const bounds = getNodesBounds(visibleRFNodes)
+    // reactFlow.getNodesBounds (not the bare import) resolves children of a
+    // group to absolute position via nodeLookup — the bare import returns
+    // each node's raw (parent-relative) position instead, which silently
+    // corrupted every grouped node's exported coordinates and, downstream,
+    // the cross-ref overlay's edge endpoints for those nodes.
+    const bounds = reactFlow.getNodesBounds(visibleRFNodes)
     window.__EXPORT_BOUNDS__ = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
     window.__rfSetViewport = (vp) => reactFlow.setViewport(vp, { duration: 0 })
     // Export exact absolute positions + measured sizes for every node so the
     // server-side cross-ref overlay can compute pixel-accurate edge paths.
-    // getNodesBounds per node uses positionAbsolute internally, so grouped
-    // nodes return correct absolute coords even when position is parent-relative.
     const exportNodes = {}
     visibleRFNodes.forEach(n => {
-      const b = getNodesBounds([n])
+      const b = reactFlow.getNodesBounds([n])
       exportNodes[n.id] = { x: b.x, y: b.y, w: b.width, h: b.height }
     })
     window.__EXPORT_NODES__ = exportNodes
@@ -1728,6 +1730,19 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
       }))
       useCanvasStore.getState().ungroupRFNodes(`group-${groupId}`, memberUpdates)
       socket.emit('group:deleted', { project_id: projectId, group_rf_id: `group-${groupId}`, group_id: groupId, released_members: result.released_members })
+      useCanvasStore.getState().pushHistory({
+        action: 'ungroup',
+        groupRfId: `group-${groupId}`,
+        groupId,
+        projectId,
+        groupRFNode: groupNode,
+        memberUpdates: result.released_members.map(({ node_type, node_id, abs_x, abs_y }) => {
+          const rfNodeId = node_type === 'group' ? `group-${node_id}` : `${nodeTypeToPrefix(node_type)}-${node_id}`
+          const relX = abs_x - groupNode.position.x
+          const relY = abs_y - groupNode.position.y
+          return { rfNodeId, relX, relY }
+        }),
+      })
     } catch (err) {
       console.error('Ungroup failed:', err)
       // eslint-disable-next-line no-alert
