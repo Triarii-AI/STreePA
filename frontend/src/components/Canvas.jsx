@@ -1418,6 +1418,8 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     // Capture old positions for undo before moving
     const currentNodes = reactFlow.getNodes()
     const nodeMap = new Map(currentNodes.map(n => [n.id, n]))
+    // Root doesn't support undo for moves anywhere in the app (drag-to-move has the same gap),
+    // so it's excluded from history here too, but it still moves and persists like any other node.
     const historyMoves = updates
       .map(({ rfId, x, y }) => {
         const n = nodeMap.get(rfId)
@@ -1428,6 +1430,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
         return { rfId, nodeType, nodeId, projectId, oldPos: { x: n.position.x, y: n.position.y }, newPos: { x, y } }
       })
       .filter(Boolean)
+    const rootUpdate = updates.find(({ rfId }) => RF_PREFIX_TO_TYPE[rfId.split('-')[0]] === 'root')
     // Single state update for all positions (one re-render instead of N)
     store.moveMultipleRFNodes(updates)
     if (historyMoves.length > 0) {
@@ -1437,23 +1440,26 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
     // Refocus canvas so arrow keys work immediately after align
     containerRef.current?.focus()
     // Persist to DB in parallel
-    await Promise.all(historyMoves.map(async ({ rfId, nodeType, nodeId, newPos: { x, y } }) => {
-      try {
-        if (nodeType === 'group') {
-          await updateGroup(projectId, nodeId, { x, y })
-          socket.emit('group:moved', { project_id: projectId, group_rf_id: rfId, x, y })
-        } else {
-          await updateNode(projectId, nodeType, nodeId, { x, y })
-          socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, x, y })
+    await Promise.all([
+      ...(rootUpdate ? [updateProject(projectId, { root_x: rootUpdate.x, root_y: rootUpdate.y }).catch(err => console.error('Align failed:', err))] : []),
+      ...historyMoves.map(async ({ rfId, nodeType, nodeId, newPos: { x, y } }) => {
+        try {
+          if (nodeType === 'group') {
+            await updateGroup(projectId, nodeId, { x, y })
+            socket.emit('group:moved', { project_id: projectId, group_rf_id: rfId, x, y })
+          } else {
+            await updateNode(projectId, nodeType, nodeId, { x, y })
+            socket.emit('node:moved', { project_id: projectId, node_type: nodeType, node_id: nodeId, x, y })
+          }
+        } catch (err) {
+          console.error('Align failed:', err)
         }
-      } catch (err) {
-        console.error('Align failed:', err)
-      }
-    }))
+      })
+    ])
   }
 
   async function alignNodes(type) {
-    const allSelected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && !n.data?.hidden)
+    const allSelected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
     if (allSelected.length < 2) return
     const allNodes = reactFlow.getNodes()
     const nodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
@@ -1488,7 +1494,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   }
 
   async function distributeNodes(axis) {
-    const allSelected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && !n.data?.hidden)
+    const allSelected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
     if (allSelected.length < 3) return
     const allNodes = reactFlow.getNodes()
     const nodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
