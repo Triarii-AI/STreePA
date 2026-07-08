@@ -426,8 +426,8 @@ const useCanvasStore = create((set, get) => ({
   addNodesToGroupRF(groupRfId, newMembers, existingMemberUpdates, newGroupX, newGroupY, newGroupW, newGroupH) {
     const newMemberMap = new Map((newMembers || []).map(u => [u.rfNodeId, u]))
     const existingMap = new Map((existingMemberUpdates || []).map(u => [u.rfNodeId, u]))
-    set(state => ({
-      nodes: state.nodes.map(n => {
+    set(state => {
+      const updatedNodes = state.nodes.map(n => {
         if (n.id === groupRfId) {
           return { ...n, position: { x: newGroupX, y: newGroupY }, style: { ...n.style, width: newGroupW, height: newGroupH } }
         }
@@ -436,8 +436,18 @@ const useCanvasStore = create((set, get) => ({
         const em = existingMap.get(n.id)
         if (em) return { ...n, position: { x: em.relX, y: em.relY } }
         return n
-      }),
-    }))
+      })
+      // React Flow requires the group node before all its members. A new member that
+      // already sat earlier in the array than the group would otherwise break parentId
+      // resolution — same class of bug fixed for initial load in buildNodesAndEdges.
+      const groupIdx = updatedNodes.findIndex(n => n.id === groupRfId)
+      const firstNewMemberIdx = updatedNodes.findIndex(n => newMemberMap.has(n.id))
+      if (firstNewMemberIdx >= 0 && firstNewMemberIdx < groupIdx) {
+        const [groupNode] = updatedNodes.splice(groupIdx, 1)
+        updatedNodes.splice(firstNewMemberIdx, 0, groupNode)
+      }
+      return { nodes: updatedNodes }
+    })
   },
 
   // Atomically removes the group node and restores absolute positions on ex-members.

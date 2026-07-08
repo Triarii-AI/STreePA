@@ -172,8 +172,15 @@ def main():
                     'zoom': zoom,
                 })
 
-                # Allow Chromium to finish painting the new region.
-                page.wait_for_timeout(200)
+                # Allow Chromium to finish painting the new region. A fixed sleep isn't
+                # reliable here — the first tile follows the run's biggest viewport
+                # resize and can come back black (unpainted) on dense graphs if the
+                # capture races the compositor. Waiting on two animation frames is the
+                # standard way to block until a real paint has actually happened.
+                page.evaluate('''() => new Promise(resolve => {
+                    requestAnimationFrame(() => requestAnimationFrame(resolve))
+                })''')
+                page.wait_for_timeout(50)
 
                 tile_bytes = page.screenshot(type='png')
                 tile_img   = Image.open(_io.BytesIO(tile_bytes)).convert('RGB')
