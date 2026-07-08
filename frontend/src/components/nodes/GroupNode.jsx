@@ -26,7 +26,7 @@ function GroupNode({ data, selected }) {
         <span
           style={{
             position: 'absolute',
-            top: -10,
+            top: -14,
             left: 12,
             background: darkMode ? '#0f172a' : '#ffffff',
             padding: '0 6px',
@@ -34,11 +34,11 @@ function GroupNode({ data, selected }) {
             fontWeight: 600,
             color: selected ? '#818cf8' : darkMode ? '#64748b' : '#94a3b8',
             fontFamily: 'system-ui, sans-serif',
-            lineHeight: '20px',
+            lineHeight: '28px',
             borderRadius: 4,
             userSelect: 'none',
             whiteSpace: 'nowrap',
-            maxWidth: 200,
+            maxWidth: 'calc(100% - 24px)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}

@@ -1170,7 +1170,10 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
 
       // ── Arrow keys: move selected nodes ───────────────────────────────
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key) && !ctrl) {
-        const selected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && !n.data?.hidden)
+        const allSelected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && !n.data?.hidden)
+        const selectedGroupIds = new Set(allSelected.filter(n => n.type === 'groupNode').map(n => n.id))
+        // Children of a selected group already move with it — moving them again would double-apply the offset
+        const selected = allSelected.filter(n => !selectedGroupIds.has(n.parentId))
         if (selected.length === 0) return
         e.preventDefault()
         const step = e.shiftKey ? 20 : 2
