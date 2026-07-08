@@ -1453,7 +1453,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   }
 
   async function alignNodes(type) {
-    const allSelected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
+    const allSelected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && !n.data?.hidden)
     if (allSelected.length < 2) return
     const allNodes = reactFlow.getNodes()
     const nodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)
@@ -1488,7 +1488,7 @@ function CanvasInner({ projectId, renderMode = false, initialCrossRefs = false }
   }
 
   async function distributeNodes(axis) {
-    const allSelected = reactFlow.getNodes().filter(n => n.selected && !n.data?.hidden)
+    const allSelected = reactFlow.getNodes().filter(n => n.selected && n.data?.nodeType !== 'root' && !n.data?.hidden)
     if (allSelected.length < 3) return
     const allNodes = reactFlow.getNodes()
     const nodeW = n => n.type === 'groupNode' ? (n.style?.width ?? 200) : (n.measured?.width ?? 180)

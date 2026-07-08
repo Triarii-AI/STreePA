@@ -43,12 +43,19 @@ function buildNodesAndEdges(data) {
   }
 
   // Group nodes — must come BEFORE their children so React Flow resolves parentId correctly.
-  // Sort: top-level groups first, then nested groups.
-  const sortedGroups = [...groups].sort((a, b) => {
-    if (!a.parent_group_id && b.parent_group_id) return -1
-    if (a.parent_group_id && !b.parent_group_id) return 1
-    return 0
-  })
+  // Topological sort by nesting depth: a group can't be placed until its parent already is,
+  // so this holds for any nesting depth (a plain root-vs-nested split only works for 2 levels).
+  const groupById = new Map(groups.map(g => [g.id, g]))
+  const depthCache = new Map()
+  const depthOf = (g) => {
+    if (!g.parent_group_id) return 0
+    if (depthCache.has(g.id)) return depthCache.get(g.id)
+    const parent = groupById.get(g.parent_group_id)
+    const depth = parent ? depthOf(parent) + 1 : 0
+    depthCache.set(g.id, depth)
+    return depth
+  }
+  const sortedGroups = [...groups].sort((a, b) => depthOf(a) - depthOf(b))
   sortedGroups.forEach(g => {
     const rfGroup = {
       id: `group-${g.id}`,
