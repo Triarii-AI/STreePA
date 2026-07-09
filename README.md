@@ -1,6 +1,6 @@
 # STreePA — STPA Tree Planning Application
 
-A web-based collaborative tool for building and visualizing **STPA (System-Theoretic Process Analysis)** models as interactive, hierarchical trees. STreePA guides you through all seven layers of an STPA analysis — from top-level losses down to loss scenarios — with real-time multi-user collaboration, live editing, and high-fidelity export.
+A web-based collaborative tool for building and visualizing **STPA (System-Theoretic Process Analysis)** models as interactive, hierarchical trees. STreePA guides you through all eight layers of an STPA analysis — from top-level losses down to loss scenarios — with real-time multi-user collaboration, live editing, and high-fidelity export.
 
 ---
 
@@ -13,7 +13,7 @@ A web-based collaborative tool for building and visualizing **STPA (System-Theor
 - [Setup](#setup)
 - [Running the App](#running-the-app)
 - [First-Time Usage](#first-time-usage)
-- [The Seven-Layer Tree](#the-seven-layer-tree)
+- [The Eight-Layer Tree](#the-eight-layer-tree)
 - [Canvas & Interaction](#canvas--interaction)
 - [Exporting](#exporting)
 - [Real-Time Collaboration](#real-time-collaboration)
@@ -24,7 +24,7 @@ A web-based collaborative tool for building and visualizing **STPA (System-Theor
 
 ## What is STPA?
 
-STPA is a systems safety analysis technique based on Systems-Theoretic Accident Model and Processes (STAMP). Unlike traditional failure-based techniques, STPA identifies unsafe control actions and the scenarios that lead to them. An analysis proceeds through seven layers:
+STPA is a systems safety analysis technique based on Systems-Theoretic Accident Model and Processes (STAMP). Unlike traditional failure-based techniques, STPA identifies unsafe control actions and the scenarios that lead to them. An analysis proceeds through eight layers:
 
 1. **Purpose Statement** — the system mission and scope
 2. **Losses (Ls)** — unacceptable outcomes (e.g. injury, mission failure)
@@ -32,16 +32,17 @@ STPA is a systems safety analysis technique based on Systems-Theoretic Accident 
 4. **System Constraints (SCs)** — safety constraints that prevent hazards
 5. **Control Actions (Rs)** — actions a controller can take
 6. **Unsafe Control Actions (UCAs)** — conditions under which a control action is unsafe
-7. **Loss Scenarios (LSs)** — causal sequences explaining how a UCA occurs
+7. **Controller Constraints (CCs)** — constraints on the controller's behavior, mirroring System Constraints one layer up
+8. **Loss Scenarios (LSs)** — causal sequences explaining how a UCA occurs
 
-STreePA models all seven layers as connected nodes on a live canvas, preserving the relationships between them.
+STreePA models all eight layers as connected nodes on a live canvas, preserving the relationships between them.
 
 ---
 
 ## Features
 
 - **Interactive canvas** — pan, zoom, and freely drag nodes on an infinite canvas powered by React Flow
-- **Seven-layer STPA tree** — structured node types with auto-generated labels (`L-1`, `H-2.1`, `UCA-1.3`, `LS-1.3.2`, …)
+- **Eight-layer STPA tree** — structured node types with auto-generated labels (`L-1`, `H-2.1`, `UCA-1.3`, `LS-1.3.2`, …)
 - **Two edge types** — solid arrows for parent-child hierarchy, dashed arrows for cross-layer references
 - **Sub-hazards and sub-losses** — hazards and losses can each have child nodes, collapsible to reduce visual clutter
 - **Controller Constraints** — a child node type under UCAs (mirrors System Constraints) for constraining the controller's behavior
@@ -150,11 +151,11 @@ To make the frontend reachable from other devices on your LAN, pass `--host` wit
 3. You will be redirected to the **Dashboard** after registering
 4. Click **New Project** and enter a project title and purpose statement
 5. The canvas opens with your root Purpose Statement node already placed
-6. Start building your tree — see [The Seven-Layer Tree](#the-seven-layer-tree) below
+6. Start building your tree — see [The Eight-Layer Tree](#the-eight-layer-tree) below
 
 ---
 
-## The Seven-Layer Tree
+## The Eight-Layer Tree
 
 Each layer has its own node type, color, and label format. Nodes at lower layers reference nodes at higher layers, creating the cross-layer traceability that makes STPA powerful.
 
@@ -203,13 +204,13 @@ Each layer has its own node type, color, and label format. Nodes at lower layers
 | Wrong Timing / Order | Issued at the wrong time or out of sequence |
 | Duration Issue | Lasts too long or stops too soon |
 
-### Controller Constraints `CC-1.1, CC-1.2, …` (labeled after their parent UCA)
+### Layer 7 — Controller Constraints `CC-1.1, CC-1.2, …` (labeled after their parent UCA)
 
 - Constraints on the controller's behavior, mirroring System Constraints one layer up
 - Each Controller Constraint belongs to a UCA and can additionally link to other UCAs
 - Label format: `CC-<UCA number>`, inherits the Controller value from its parent UCA's Control Action
 
-### Layer 7 — Loss Scenarios `LS-1.2.1, LS-1.2.3, …`
+### Layer 8 — Loss Scenarios `LS-1.2.1, LS-1.2.3, …`
 
 - Causal sequences explaining *why* a UCA occurs
 - Each scenario belongs to exactly one UCA and links to one or more Hazards
@@ -371,7 +372,7 @@ STreePA/
 │   ├── routes/
 │   │   ├── auth.py          # Register, login, logout
 │   │   ├── projects.py      # Project CRUD and sharing
-│   │   ├── api.py           # Node CRUD for all 7 layers
+│   │   ├── api.py           # Node CRUD for all 8 layers
 │   │   ├── export.py        # SVG and PNG export
 │   │   ├── backups.py       # Backup management
 │   │   └── groups.py        # Node group CRUD
