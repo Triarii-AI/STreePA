@@ -198,16 +198,51 @@ def duplicate_project(project_id):
     db.session.add(copy)
     db.session.flush()
 
-    loss_map, hazard_map, sc_map, ca_map, uca_map, cc_map = {}, {}, {}, {}, {}, {}
+    loss_map, hazard_map, sc_map, ca_map, uca_map, cc_map, ls_map, group_map = {}, {}, {}, {}, {}, {}, {}, {}
 
-    for l in Loss.query.filter_by(project_id=project_id).all():
-        n = Loss(project_id=copy.id, label=l.label, description=l.description, x=l.x, y=l.y)
-        db.session.add(n); db.session.flush(); loss_map[l.id] = n.id
+    # Node Groups — BFS so parents exist before nested child groups
+    pending = list(NodeGroup.query.filter_by(project_id=project_id).all())
+    max_passes = len(pending) + 1
+    for _ in range(max_passes):
+        if not pending:
+            break
+        still_pending = []
+        for g in pending:
+            old_parent = g.parent_group_id
+            if old_parent is not None and old_parent not in group_map:
+                still_pending.append(g)
+                continue
+            n = NodeGroup(project_id=copy.id, label=g.label, x=g.x, y=g.y,
+                         width=g.width, height=g.height,
+                         parent_group_id=group_map.get(old_parent))
+            db.session.add(n); db.session.flush()
+            group_map[g.id] = n.id
+        pending = still_pending
+
+    # Losses — BFS so parents exist before children
+    pending = list(Loss.query.filter_by(project_id=project_id).all())
+    max_passes = len(pending) + 1
+    for _ in range(max_passes):
+        if not pending:
+            break
+        still_pending = []
+        for l in pending:
+            old_parent = l.parent_loss_id
+            if old_parent is not None and old_parent not in loss_map:
+                still_pending.append(l)
+                continue
+            n = Loss(project_id=copy.id, label=l.label, description=l.description,
+                     parent_loss_id=loss_map.get(old_parent),
+                     group_id=group_map.get(l.group_id), x=l.x, y=l.y)
+            db.session.add(n); db.session.flush()
+            loss_map[l.id] = n.id
+        pending = still_pending
 
     for h in Hazard.query.filter_by(project_id=project_id, parent_hazard_id=None).all():
         def copy_hazard(orig, new_parent_id=None):
             n = Hazard(project_id=copy.id, label=orig.label, description=orig.description,
-                       parent_hazard_id=new_parent_id, x=orig.x, y=orig.y)
+                       parent_hazard_id=new_parent_id, group_id=group_map.get(orig.group_id),
+                       x=orig.x, y=orig.y)
             db.session.add(n); db.session.flush()
             hazard_map[orig.id] = n.id
             for child in Hazard.query.filter_by(project_id=project_id, parent_hazard_id=orig.id).all():
@@ -224,19 +259,22 @@ def duplicate_project(project_id):
 
     for sc in SystemConstraint.query.filter_by(project_id=project_id).all():
         n = SystemConstraint(project_id=copy.id, label=sc.label, description=sc.description,
-                             linked_hazard_id=hazard_map.get(sc.linked_hazard_id), x=sc.x, y=sc.y)
+                             linked_hazard_id=hazard_map.get(sc.linked_hazard_id),
+                             group_id=group_map.get(sc.group_id), x=sc.x, y=sc.y)
         db.session.add(n); db.session.flush(); sc_map[sc.id] = n.id
         for h in sc.linked_hazards:
             nh = Hazard.query.get(hazard_map.get(h.id))
             if nh: n.linked_hazards.append(nh)
 
     for ca in ControlAction.query.filter_by(project_id=project_id).all():
-        n = ControlAction(project_id=copy.id, label=ca.label, name=ca.name, controller=ca.controller, x=ca.x, y=ca.y)
+        n = ControlAction(project_id=copy.id, label=ca.label, name=ca.name, controller=ca.controller,
+                          group_id=group_map.get(ca.group_id), x=ca.x, y=ca.y)
         db.session.add(n); db.session.flush(); ca_map[ca.id] = n.id
 
     for u in UCA.query.filter_by(project_id=project_id).all():
         n = UCA(project_id=copy.id, label=u.label, description=u.description,
-                control_action_id=ca_map.get(u.control_action_id), uca_type=u.uca_type, x=u.x, y=u.y)
+                control_action_id=ca_map.get(u.control_action_id), uca_type=u.uca_type,
+                group_id=group_map.get(u.group_id), x=u.x, y=u.y)
         db.session.add(n); db.session.flush(); uca_map[u.id] = n.id
         for h in u.linked_hazards:
             nh = Hazard.query.get(hazard_map.get(h.id))
@@ -244,7 +282,8 @@ def duplicate_project(project_id):
 
     for cc in ControllerConstraint.query.filter_by(project_id=project_id).all():
         n = ControllerConstraint(project_id=copy.id, label=cc.label, description=cc.description,
-                                 linked_uca_id=uca_map.get(cc.linked_uca_id), x=cc.x, y=cc.y)
+                                 linked_uca_id=uca_map.get(cc.linked_uca_id),
+                                 group_id=group_map.get(cc.group_id), x=cc.x, y=cc.y)
         db.session.add(n); db.session.flush(); cc_map[cc.id] = n.id
         for u in cc.linked_ucas:
             nu = UCA.query.get(uca_map.get(u.id))
@@ -252,14 +291,16 @@ def duplicate_project(project_id):
 
     for ls in LossScenario.query.filter_by(project_id=project_id).all():
         n = LossScenario(project_id=copy.id, label=ls.label, description=ls.description,
-                         uca_id=uca_map.get(ls.uca_id), x=ls.x, y=ls.y)
-        db.session.add(n); db.session.flush()
+                         uca_id=uca_map.get(ls.uca_id),
+                         group_id=group_map.get(ls.group_id), x=ls.x, y=ls.y)
+        db.session.add(n); db.session.flush(); ls_map[ls.id] = n.id
         for h in ls.linked_hazards:
             nh = Hazard.query.get(hazard_map.get(h.id))
             if nh: n.linked_hazards.append(nh)
 
     type_map = {'loss': loss_map, 'hazard': hazard_map, 'system_constraint': sc_map,
-                'control_action': ca_map, 'uca': uca_map, 'controller_constraint': cc_map}
+                'control_action': ca_map, 'uca': uca_map, 'controller_constraint': cc_map,
+                'loss_scenario': ls_map}
     for ce in CanvasEdge.query.filter_by(project_id=project_id).all():
         fm = type_map.get(ce.from_node_type, {}); tm = type_map.get(ce.to_node_type, {})
         nf = fm.get(ce.from_node_id); nt = tm.get(ce.to_node_id)
